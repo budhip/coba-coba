@@ -1,0 +1,344 @@
+---
+app:
+  env: "uat"
+  name: go-fp-transaction
+  http_port: 9567
+  http_timeout: 60s
+  graceful_timeout: 5s
+  log_option: stdout
+  log_level: debug
+
+postgres:
+  write: 
+    db_host: {{ vault_db_write.dbhost }}
+    db_port: {{ vault_db_write.dbport }}
+    db_user: {{ vault_db_write.dbuser }}
+    db_pass: {{ vault_db_write.dbpass }}
+    db_name: {{ vault_db_write.dbname }}
+    db_schema: {{ vault_db_write.dbschema }}
+    maxOpenConnections: 100
+    maxIdleConnections: 2
+  read: 
+    db_host: {{ vault_db_read.dbhost }}
+    db_port: {{ vault_db_read.dbport }}
+    db_user: {{ vault_db_read.dbuser }}
+    db_pass: {{ vault_db_read.dbpass }}
+    db_name: {{ vault_db_read.dbname }}
+    db_schema: {{ vault_db_read.dbschema }}
+    maxOpenConnections: 100
+    maxIdleConnections: 2
+
+
+redis:
+  host: {{ vault_app.redis_host }}
+  port: {{ vault_app.redis_port }}
+  password: {{ vault_app.redis_password }}
+  db: {{ vault_app.redis_db }}
+
+feature_flag:
+  update_balance_using_optimistic_locking: false
+  enable_check_account_transaction: true
+  enable_consumer_validation_reject: false
+  enable_publish_transaction_notification: true
+  enable_prevent_same_account_mutation_acting: false
+  enable_delay_balance_update_on_hvt_account: false
+  enable_publish_hvt_balance_dlq: true
+
+transaction_config:
+  batch_size: 1000
+  balance_ttl: 5m
+  handler_timeout_wallet_transaction: 16s
+  transaction_time_upload_max_window_days: 720
+  reversal_time_range_days: 30
+  async_wallet_transaction_for_clients:
+    - "go-billing-repayment"
+
+account_config:
+  system_account_number: "00000100000001"
+  bpe: "114001000000002"
+  split_escrow: "114001000000013"
+  bri_escrow_afa_account_number: "114003000000001"
+  bri_9539_account_number: "114001000000011"
+  operational_receivable_account_number: "141003000000001"
+  deposit_campaign_budget: "261003000000008"
+  operational_payable_general_cash_deposit: "231003000000001"
+  operational_receivable_digiasia: "141003000000007"
+  operational_receivable_voucher: "141001000000005"
+  deposit_discount_ppob: "231003000000002"
+  deposit_voucher: "231003000000004"
+  remittance_admin_fee_revenue: "221003000000012"
+  remittance_admin_fee_budget: "146003000000002"
+  other_receivable_repayment: "144001000000014"
+  operational_receivable_account_number_by_entity:
+    AFA: "141003000000002"
+    AMF: "141003000000001"
+    AWF: "141005000000008"
+  amartha_revenue_admin_fee_afa: "262003000000001"
+  operational_receivable_discount_admin_fee_afa: "141003000000006"
+  operational_payable_general_cashback: "231003000000009"  
+  wht_23_26_by_entity:
+    AMF:
+      "BROILERX_LOAN": "241001000000011"
+      "CHICKIN_LOAN": "241001000000008"
+      "GRADUATION_LOAN": "241001000000002"
+      "NORMAL": "241001000000002"
+      "MODAL_LOAN": "241001000000001"
+      "EFISHERY_LOAN": "241001000000010"
+      "INDOSAT_LOAN": "241001000000015"
+      "MODAL_PAYLATER_LOAN": "241001000000013"
+      "AGRIAKU_LOAN": "241001000000018"
+      "EARN_PL": "241001000000012"
+      "EARN_GL": "241001000000012"
+    AWF:
+      "BROILERX_LOAN": "241005000000025"
+      "CHICKIN_LOAN": "241005000000024"
+      "GRADUATION_LOAN": "241005000000023"
+      "NORMAL": "241005000000023"
+      "MODAL_LOAN": "241005000000022"
+      "EFISHERY_LOAN": "241005000000021"
+      "INDOSAT_LOAN": "241005000000019"
+      "MODAL_PAYLATER_LOAN": "241005000000020"
+      "AGRIAKU_LOAN": "TODO:still_pending"
+  amartha_revenue_by_entity:
+    AMF:
+      "BROILERX_LOAN": "221001000000009"
+      "CHICKIN_LOAN": "221001000000006"
+      "GRADUATION_LOAN": "221001000000002"
+      "NORMAL": "221001000000002"
+      "MODAL_LOAN": "221001000000001"
+      "EFISHERY_LOAN": "221001000000008"
+      "INDOSAT_LOAN": "221001000000011"
+      "MODAL_PAYLATER_LOAN": "221001000000010"
+      "AGRIAKU_LOAN": "221001000000014"
+      "MIGRATION": "221001000000002"
+    AWF:
+      "BROILERX_LOAN": "221005000000017"
+      "CHICKIN_LOAN": "221005000000019"
+      "GRADUATION_LOAN": "221005000000020"
+      "NORMAL": "221005000000020"
+      "MODAL_LOAN": "221005000000021"
+      "EFISHERY_LOAN": "221005000000018"
+      "INDOSAT_LOAN": "221005000000015"
+      "MODAL_PAYLATER_LOAN": "221005000000016"
+      "AGRIAKU_LOAN": "TODO:still_pending"
+  vat_out_loan_by_entity:
+    AMF:
+      "BROILERX_LOAN": "241001000000006"
+      "CHICKIN_LOAN": "241001000000007"
+      "GRADUATION_LOAN": "241001000000004"
+      "NORMAL": "241001000000004"
+      "MODAL_LOAN": "241001000000003"
+      "EFISHERY_LOAN": "241001000000009"
+      "INDOSAT_LOAN": "241001000000016"
+      "MODAL_PAYLATER_LOAN": "241001000000014"
+      "AGRIAKU_LOAN": "241001000000017"
+      "MIGRATION": "241001000000004"
+    AWF:
+      "BROILERX_LOAN": "241005000000032"
+      "CHICKIN_LOAN": "241005000000031"
+      "GRADUATION_LOAN": "241005000000028"
+      "NORMAL": "241005000000028"
+      "MODAL_LOAN": "241005000000030"
+      "EFISHERY_LOAN": "241005000000029"
+      "INDOSAT_LOAN": "241005000000026"
+      "MODAL_PAYLATER_LOAN": "241005000000027"
+      "AGRIAKU_LOAN": "TODO:still_pending"
+  wht_23_26_loan:
+    "NORMAL": "241001000000002"
+    "AGRIAKU_LOAN": "241001000000018"
+    "CHICKIN_LOAN": "241001000000008"
+    "BROILERX_LOAN": "241001000000011"
+    "EARN_PL": "241001000000012"
+    "EARN_GL": "241001000000012"
+    "MODAL_LOAN": "241001000000001"
+    "MODAL_PAYLATER_LOAN": "241001000000013"
+    "EFISHERY_LOAN": "241001000000010"
+    "INDOSAT_LOAN": "241001000000015"
+  amartha_revenue_loan:
+    "NORMAL": "221001000000002"
+    "AGRIAKU_LOAN": "221001000000014"
+    "CHICKIN_LOAN": "221001000000006"
+    "MODAL_LOAN": "221001000000001"
+    "MODAL_PAYLATER_LOAN": "221001000000010"
+    "BROILERX_LOAN": "221001000000009"
+    "EFISHERY_LOAN": "221001000000008"
+    "INDOSAT_LOAN": "221001000000011"
+    "MIGRATION": "221001000000002"
+  vat_out_loan:
+    "NORMAL": "241001000000004"
+    "AGRIAKU_LOAN": "241001000000017"
+    "CHICKIN_LOAN": "241001000000007"
+    "MODAL_LOAN": "241001000000003"
+    "MODAL_PAYLATER_LOAN": "241001000000014"
+    "BROILERX_LOAN": "241001000000006"
+    "EFISHERY_LOAN": "241001000000009"
+    "INDOSAT_LOAN": "241001000000016"
+    "MIGRATION": "241001000000004"
+  amartha_revenue_platform_fee:
+    "NORMAL": "IDR1201800031000"
+    "AGRIAKU_LOAN": "221001000000013"
+    "CHICKIN_LOAN": "221001000000004"
+    "BROILERX_LOAN": "221001000000005"
+    "EFISHERY_LOAN": "221001000000007"
+    "MIGRATION": "IDR1201800031000"
+  amartha_revenue_modal_loan_platform_fee_by_entity:
+    "AMF": "221001000000115"
+    "AWF": "221005000000116"
+  vat_out_platform_fee:
+    "NORMAL": "241001000000005"
+    "AGRIAKU_LOAN": "241001000000017"
+    "CHICKIN_LOAN": "241001000000007"
+    "BROILERX_LOAN": "241001000000006"
+    "EFISHERY_LOAN": "241001000000009"
+    "MIGRATION": "241001000000005"
+  ppob_cogs_account_number:
+    Alterra: "291003000000001"
+    GoTo: "291003000000002"
+  ppob_revenue_account_number:
+    Alterra: "292003000000001"
+    GoTo: "292003000000002"
+  account_number_pad_width: 8
+#  hvt_sub_category_codes:
+#    - "21103"
+#    - "21104"
+#    - "21203"
+#    - "21204"
+  excluded_balance_update_account_numbers:
+    - "00000100000001"
+  general_cash_out_holding_account_number: "231003000000008"
+  mapping_account_entity:
+    "001": "AMF"
+    "003": "AFA"
+    "005": "AWF"
+  account_number_bank_tupvi_for_admfe: 
+    "AMF": "114001000000014"
+    "AWF": "114005000000015"
+  account_number_bank_cotlr_for_admfe_by_entity:
+    "AMF": "114001000000014"
+    "AWF": "114005000000015"
+
+secret_key: {{ vault_app.secret_key }}
+gcloud_project_id: {{ vault_app.gcloud_project_id }}
+new_relic_license_key: {{ vault_app.new_relic_license_key }}
+host_go_fp_transaction: https://go-fp-transaction.uat.amartha.id/api
+
+message_broker:
+  http_port: 80
+  kafka_consumer:
+    brokers:
+      - "kafka01-bootstrap.uat.amartha.id:9094"
+    consumer_group: go-fp-transaction
+    consumer_group_daily_recon: go-fp-transaction-recon
+    consumer_group_dlq: go-fp-transaction-dlq-notif
+    consumer_group_account_mutation: go-fp-transaction-account-mutation
+    consumer_group_task_queue_recon: go-fp-transaction-task-queue-recon
+    consumer_group_dlq_retrier: go-fp-transaction-dlq-retrier
+    consumer_group_balance_hvt: go-fp-balance-hvt
+    consumer_group_process_wallet_transaction: go-fp-process-wallet-transaction
+    topic: "order-transaction"
+    topic_dlq: "order-transaction.dlq"
+    topic_balance_logs: "acuan_balance_logs"
+    topic_account_mutation: "accountevent_stream"
+    topic_account_mutation_dlq: "accountevent_stream.dlq"
+    topic_recon: "transaction-recon.queue"
+    topic_accounting_journal: "journal_stream"
+    topic_transaction_notification: "acuan-transaction-notif"
+    topic_balance_hvt: "update_balance_hvt"
+    topic_balance_hvt_dlq: "update_balance_hvt.dlq"
+    topic_process_wallet_transaction: "process_wallet_transaction"
+    topic_process_wallet_transaction_dlq: "process_wallet_transaction.dlq"
+    assignor: range
+    is_oldest: false
+    is_verbose: true
+
+cloud_storage:
+  base_url: https://storage.cloud.google.com
+  bucket_name: acuan-transaction-reconciliation
+
+exponential_backoff:
+  max_retries: 3
+  max_backoff_time: 10s
+  backoff_multiplier: 2
+
+transaction_validation_config:
+  skip_balance_check_account_number:
+    - "00000100000001"
+    - "231003000000002"
+    - "221001000000011"
+    - "114003000000001"
+  accepted_order_type: REPAYMENT,CASHOUT,TOPUP,INVESTMENT,DISBURSEMENT,INSURANCE
+  accepted_transaction_type: CASHOUT,DISBCLBPEBBA,DISBFAIL,DISBLOANCL,DISBLOANNORM,DISBLOANPL,DISBNORMBPEBSA,DISBPLBPEBRI,INVESTMENT,REPAYMENT,TOPUP,CIH_DEDUCTED,FINANCE_CONFIRM,REFUND,Insurance Premi,Insurance Claim Life,Insurance Claim Kredit,Reconciliation Cashout BRI Manual Lender Institution Escrow
+  validate_tupep_customer_num: false
+  validate_tupep_loan_type: true
+  validate_paymd_loan_account_number: false
+  validate_paymd_loan_ids: true
+
+  slack_channel: dev-test-acuan
+  title_bot: Acuan Alert Bot
+
+go_queue_unicorn:
+  base_url: go-queue-unicorn.uat.amartha.id
+  secret_key: {{ vault_app.go_queue_unicorn_secret_key }}
+  retry_count: 3
+  retry_wait_time: 100
+  timeout: 15s
+
+go_accounting:
+  base_url: https://go-accounting-payment-uat.amartha.id
+  secret_key: "amartha-uat-jy4uLtdYWx"
+  retry_count: 3
+  retry_wait_time: 100
+  timeout: 5s
+
+master_data:
+  bucket_name: amartha-uat-payment-master-data
+  order_type_file_path: order-and-transaction-type.json
+  vat_revenue_file_path: vat-config.json
+
+recon_engine:
+  result_url_expiry_time: 15
+
+account_feature_config:
+  customer:
+    negative_limit: 999999999999999
+    balance_range_min: 0
+    allowed_negative_trx_type: ITRTF,PAYGL,COTPR,ADMCE,PAYPC,PAYPR,PAYMD,TUPEP,DBFAC,RPYVA,RPYAE,RPYAD,PAYPV,PAYFL,PAYFP,RFDPD,RFDDL,RFDDP,SIVEA,RFDMT,DBFAA,BBLDN,WOLIL,WOLAR,INSLR,INSLL,DSBBB,DSBBC,DSBBD,RPYBV,DBFAB,INSDL,PAYWC,COTDA,ADMDU,ADMRV,RFDVP,RPYAI,WOLLC,ADJAF,RVRSL,ADMPB,DSBLB,ADMRA,ADMBI,ADMWP,ADMPF,ADMRF,RFDPY,INSPN,INSPL,DSBPO,DSBAO,RPYCO,RPYIO,RPYAO,COTRC,PAYVP,TUPGC,RPYPD,RPYRD,COTGC,ADMTD,ADMMV,ADMMD,ADMPE,COTMF,DSBTF,RFDTX,TUPPB,TUPBH,TUPVA,ADMTV,ADMOC,TUPCB
+    negative_balance_allowed: true
+  earn:
+    negative_limit: 20000
+    balance_range_min: 0
+    allowed_negative_trx_type: INVMT,SIVEP,ITDEP,ITDPH,FPEPT,WOLLC,WOLIL,INSDL,INSLR,INSLL,ADJAF,RVRSL,ADMPB,ADMRA,ADMBI,ADMWP,ADMPF,ADMRF,RFDPY,INSPN,INSPL,DSBPO,DSBAO,RPYCO,RPYIO,RPYAO,RFDTX
+    negative_balance_allowed: true
+  pocket:
+    negative_limit: 0
+    balance_range_min: 0
+    balance_range_max: 2000000
+    allowed_negative_trx_type: ITRTF,PAYGL,COTPR,ADMCE,PAYPC,PAYPR,PAYMD,TUPEP,DBFAC,RPYVA,RPYAE,RPYAD,PAYPV,PAYFL,PAYFP,RFDPD,RFDDL,RFDDP,SIVEA,RFDMT,DBFAA,BBLDN,WOLIL,WOLAR,INSLR,INSLL,DSBBB,DSBBC,DSBBD,RPYBV,DBFAB,INSDL,PAYWC,COTDA,ADMDU,ADMRV,RFDVP,RPYAI,WOLLC,ADJAF,RVRSL,ADMPB,DSBLB,ADMRA,ADMBI,ADMWP,ADMPF,ADMRF,RFDPY,INSPN,INSPL,DSBPO,DSBAO,RPYCO,RPYIO,RPYAO,COTRC,PAYVP,TUPGC,RPYPD,RPYRD,COTGC,ADMTD,ADMMV,ADMMD,ADMPE,COTMF,DSBTF,RFDTX,TUPPB,TUPBH,TUPVA,ADMTV,TUPCB
+    negative_balance_allowed: false
+feature_flag_sdk:
+  url: https://feature-dev.amartha.id/api
+  token: {{ vault_app.feature_flag_token }}
+  env: production
+  refresh_interval: 5m
+
+feature_flag_key_lookup:
+  ignored_balance_check_account_numbers: "PAYMENT-BE-ignored-balance-check-account-numbers"
+  exclude_consume_transaction_from_specific_sub_category: "PAYMENT-BE-exclude-consume-ordertransaction-specific-subcategory"
+  auto_create_account_if_not_exists: "PAYMENT-BE-auto-create-account-if-not-exists"
+  show_only_amf_transaction_list: "PAYMENT-BE-show-only-amf-transaction-list"
+  use_account_config_from_external: "PAYMENT-BE-use-account-config-from-external"
+  lce_rollout: "ICG-BE-PAPA-PAYLOAD-NEW"
+  balance_limit_toggle: "PAYMENT-balance-limit-toggle"
+
+go_acuan_lib:
+  kafka:
+    broker_list: "kafka01-bootstrap.uat.amartha.id:9094"
+    partition_strategy: "roundrobin"
+  topic: "order-transaction"
+  topic_account_creation: "accountevent_stream"
+  topup_key: "topup"
+  investment_key: "investment"
+  cashout_key: "cashout"
+  disbursement_key: "disbursement"
+  disbursement_failed_key: "disbursement_failed"
+  refund_key: "refund"

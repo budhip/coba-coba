@@ -1,0 +1,109 @@
+key,code,error
+databaseError,DATABASE_ERROR,database error
+dataNotFound,DATA_NOT_FOUND,data not found
+categoryCodeNotFound,DATA_NOT_FOUND,category code not found
+subCategoryCodeNotFound,DATA_NOT_FOUND,sub category code not found
+entityCodeNotFound,DATA_NOT_FOUND,entity code not found
+invalidFormatAmount,INVALID_VALUES,invalid format amount
+invalidFormatDate,INVALID_VALUES,invalid format date
+StartDateIsAfterEndDate,INVALID_VALUES,end date must be greater than start date
+dateRangeMax7Days,INVALID_VALUES,date range max 7 days
+limitMustBeGreaterThanZero,INVALID_VALUES,the limit must be greater than zero
+startDateAndEndDateRequiredIfOneIsFilled,MISSING_FIELD,start date or end date must be filled in if either is filled in
+
+accountNumber_required,MISSING_FIELD,field is missing
+accountNumberNotFound,DATA_NOT_FOUND,account number not found
+ownerId_required,MISSING_FIELD,field is missing
+ownerId_alphanum,INVALID_VALUES,field can only contain alphanumeric values
+ownerId_min,INVALID_LENGTH,field must be at least 1 characters
+ownerId_max,INVALID_LENGTH,field can have a maximum length of 15 characters
+categoryCode_required,MISSING_FIELD,field is missing
+categoryCode_numeric,INVALID_VALUES,field can only contain numeric values
+categoryCode_min,INVALID_LENGTH,field must be at least 3 characters
+categoryCode_max,INVALID_LENGTH,field can have a maximum length of 3 characters
+subCategoryCode_required,MISSING_FIELD,field is missing
+subCategoryCode_numeric,INVALID_VALUES,field can only contain numeric values
+subCategoryCode_min,INVALID_LENGTH,field must be at least 5 characters
+subCategoryCode_max,INVALID_LENGTH,field can have a maximum length of 5 characters
+entityCode_required,MISSING_FIELD,field is missing
+entityCode_numeric,INVALID_VALUES,field can only contain numeric values
+entityCode_min,INVALID_LENGTH,field must be at least 3 characters
+entityCode_max,INVALID_LENGTH,field can have a maximum length of 3 characters
+currency_required,MISSING_FIELD,field is missing
+currency_alpha,INVALID_VALUES,field can only contain alpha values
+currency_min,INVALID_LENGTH,field must be at least 3 characters
+currency_max,INVALID_LENGTH,field can have a maximum length of 3 characters
+isHvt_required,MISSING_FIELD,field is missing
+SortBy_oneof,INVALID_VALUES,sortBy must be lastUpdatedDate
+Sort_oneof,INVALID_VALUES,sort must be asc or desc
+
+name_required,MISSING_FIELD,field is missing
+name_max,INVALID_LENGTH,field can have a maximum length of 50 characters
+name_nospecial,INVALID_VALUES,input field no special characters
+name_noStartEndSpaces,INVALID_VALUES,fields should not accept spaces at start and end of input
+code_required,MISSING_FIELD,field is missing
+code_numeric,INVALID_VALUES,field can only contain alpha values
+code_min,INVALID_LENGTH,field must be at least 3 characters
+code_max,INVALID_LENGTH,field can have a maximum length of 3 characters
+
+CreateSubCategoryRequest.code_required,MISSING_FIELD,field is missing
+CreateSubCategoryRequest.code_numeric,INVALID_VALUES,field can only contain numeric values
+CreateSubCategoryRequest.code_min,INVALID_LENGTH,field must be at least 5 characters
+CreateSubCategoryRequest.code_max,INVALID_LENGTH,field can have a maximum length of 5 characters
+
+fromAccount_required,MISSING_FIELD,field is missing
+fromAccount_numeric,INVALID_VALUES,field can only contain numeric values
+toAccount_required,MISSING_FIELD,field is missing
+toAccount_numeric,INVALID_VALUES,field can only contain numeric values
+amount_required,MISSING_FIELD,field is missing
+amount_numeric,INVALID_VALUES,field can only contain numeric values
+method_noStartEndSpaces,INVALID_VALUES,fields should not accept spaces at start and end of input
+transactionType_required,MISSING_FIELD,field is missing
+transactionTypeCode_required,MISSING_FIELD,field is missing
+transactionType_alpha,INVALID_VALUES,field can only contain alpha values
+transactionType_noStartEndSpaces,INVALID_VALUES,fields should not accept spaces at start and end of input
+transactionDate_required,MISSING_FIELD,field is missing
+transactionDate_datetime,INVALID_VALUES,invalid format datetime
+transactionDate_date,INVALID_VALUES,invalid format date
+transactionTime_required,MISSING_FIELD,field is missing
+transactionTime_datetime,INVALID_VALUES,invalid format datetime
+orderType_required,MISSING_FIELD,field is missing
+orderTypeCode_required,MISSING_FIELD,field is missing
+orderType_alpha,INVALID_VALUES,field can only contain alpha values
+orderType_noStartEndSpaces,INVALID_VALUES,fields should not accept spaces at start and end of input
+refNumber_required,MISSING_FIELD,field is missing
+refNumber_noStartEndSpaces,INVALID_VALUES,fields should not accept spaces at start and end of input
+description_required,MISSING_FIELD,field is missing
+description_noStartEndSpaces,INVALID_VALUES,fields should not accept spaces at start and end of input
+description_nospecial,INVALID_VALUES,input field no special characters
+reconFile_required,MISSING_FIELD,field is missing
+reconFile_invalidTemplate,INVALID_VALUES,invalid template
+reconFile_invalidType,INVALID_VALUES,invalid type
+reconFile_mustCSV,INVALID_VALUES,file must be csv
+Status_oneof,INVALID_VALUES,status must be one of available data
+orderTime_required,MISSING_FIELD,field is missing
+transactions_required,MISSING_FIELD,field is missing
+transactions_gt,MISSING_FIELD,field is empty
+id_required,MISSING_FIELD,field is missing
+sourceAccountId_required,MISSING_FIELD,field is missing
+destinationAccountId_required,MISSING_FIELD,field is missing
+method_required,MISSING_FIELD,field is missing
+status_required,MISSING_FIELD,field is missing
+transactionTime_iso8601datetime,INVALID_VALUES,invalid format iso8601datetime
+
+
+transactionFlow_required,MISSING_FIELD,field is missing
+transactionFlow_oneof,INVALID_VALUES,"status must be cashin, cashout or transfer"
+netAmount_required,MISSING_FIELD,field is missing
+value_required,MISSING_FIELD,field is missing
+type_required,MISSING_FIELD,field is missing
+
+DoCreateAccountRequest.status_oneof,INVALID_VALUES,status must be active or inactive
+
+files_required,MISSING_FIELD,field is missing
+files_mustCsv,INVALID_VALUES,invalid format file
+
+failedFromExternalClient,EXTERNAL_SERVER_ERROR,failed from external client
+
+UpdateStatusWalletTransactionRequest.action_oneof,INVALID_VALUES,action must be commit or cancel
+

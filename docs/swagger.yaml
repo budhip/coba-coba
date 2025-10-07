@@ -1,0 +1,2854 @@
+basePath: /api
+definitions:
+  bitbucket_org_Amartha_go-fp-transaction_internal_common.ApiErrorResponseModel:
+    properties:
+      error:
+        $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common.ErrorResponseModel'
+      status:
+        example: internalServerError
+        type: string
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_common.ApiSuccessResponseModel:
+    properties:
+      code:
+        example: 200
+        type: integer
+      data: {}
+      message:
+        example: success
+        type: string
+      meta: {}
+      status:
+        example: success
+        type: string
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_common.ErrorResponseModel:
+    properties:
+      code:
+        example: 400
+        type: integer
+      errors:
+        additionalProperties: true
+        type: object
+      message:
+        example: error
+        type: string
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_common_http.CursorPagination:
+    properties:
+      next:
+        example: cba
+        type: string
+      prev:
+        example: abc
+        type: string
+      totalEntries:
+        example: 100
+        type: integer
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel:
+    properties:
+      code: {}
+      message:
+        example: error
+        type: string
+      status:
+        example: error
+        type: string
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorValidationResponseModel:
+    properties:
+      errors: {}
+      message:
+        example: validation error
+        type: string
+      status:
+        example: error
+        type: string
+    type: object
+  ? bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestPaginationResponseModel-array_bitbucket_org_Amartha_go-fp-transaction_internal_models_DoGetTransactionResponse
+  : properties:
+      contents:
+        items:
+          $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.DoGetTransactionResponse'
+        type: array
+      kind:
+        example: collection
+        type: string
+      pagination:
+        $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.CursorPagination'
+    type: object
+  ? bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestPaginationResponseModel-array_bitbucket_org_Amartha_go-fp-transaction_internal_models_GetAccountResponse
+  : properties:
+      contents:
+        items:
+          $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.GetAccountResponse'
+        type: array
+      kind:
+        example: collection
+        type: string
+      pagination:
+        $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.CursorPagination'
+    type: object
+  ? bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestPaginationResponseModel-array_bitbucket_org_Amartha_go-fp-transaction_internal_models_ListWalletTrxByAccountNumberResponse
+  : properties:
+      contents:
+        items:
+          $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.ListWalletTrxByAccountNumberResponse'
+        type: array
+      kind:
+        example: collection
+        type: string
+      pagination:
+        $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.CursorPagination'
+    type: object
+  ? bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestPaginationResponseModel-array_bitbucket_org_Amartha_go-fp-transaction_internal_models_ReconToolHistory
+  : properties:
+      contents:
+        items:
+          $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.ReconToolHistory'
+        type: array
+      kind:
+        example: collection
+        type: string
+      pagination:
+        $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.CursorPagination'
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestTotalRowResponseModel:
+    properties:
+      contents: {}
+      kind:
+        example: collection
+        type: string
+      total_rows:
+        example: 100
+        type: integer
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_common_validation.ErrorValidateResponse:
+    properties:
+      code:
+        example: accountNumber_required
+        type: string
+      field:
+        example: MISSING_FIELD
+        type: string
+      message:
+        example: field is missing
+        type: string
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_models.AccountsTotalBalanceResponse:
+    properties:
+      kind:
+        example: account
+        type: string
+      totalBalance:
+        example: 100.2
+        type: number
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_models.Amount:
+    properties:
+      currency:
+        type: string
+      value:
+        type: number
+    required:
+    - value
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_models.AmountDetail:
+    properties:
+      amount:
+        $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.Amount'
+      type:
+        type: string
+    required:
+    - amount
+    - type
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_models.ConfigVatRevenue:
+    properties:
+      endTime:
+        type: string
+      percentage:
+        type: number
+      startTime:
+        type: string
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_models.CreateCategoryRequest:
+    properties:
+      code:
+        maxLength: 3
+        minLength: 3
+        type: string
+      description:
+        maxLength: 50
+        type: string
+      name:
+        maxLength: 50
+        minLength: 1
+        type: string
+    required:
+    - code
+    - name
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_models.CreateEntityRequest:
+    properties:
+      code:
+        maxLength: 3
+        minLength: 3
+        type: string
+      description:
+        maxLength: 50
+        type: string
+      name:
+        maxLength: 50
+        minLength: 1
+        type: string
+    required:
+    - code
+    - name
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_models.CreateOrderRequest:
+    properties:
+      orderTime:
+        type: string
+      orderType:
+        type: string
+      refNumber:
+        type: string
+      transactions:
+        items:
+          $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.CreateOrderTransactionRequest'
+        type: array
+    required:
+    - orderTime
+    - orderType
+    - refNumber
+    - transactions
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_models.CreateOrderResponse:
+    properties:
+      kind:
+        type: string
+      orderTime:
+        type: string
+      orderType:
+        type: string
+      refNumber:
+        type: string
+      transactions:
+        items:
+          $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.CreateOrderTransactionRequest'
+        type: array
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_models.CreateOrderTransactionRequest:
+    properties:
+      amount:
+        type: number
+      currency:
+        type: string
+      description:
+        type: string
+      destinationAccountId:
+        type: string
+      id:
+        type: string
+      meta: {}
+      method:
+        type: string
+      sourceAccountId:
+        type: string
+      status:
+        type: integer
+      transactionTime:
+        type: string
+      transactionType:
+        type: string
+    required:
+    - amount
+    - currency
+    - destinationAccountId
+    - id
+    - sourceAccountId
+    - status
+    - transactionTime
+    - transactionType
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_models.CreateSubCategoryRequest:
+    properties:
+      categoryCode:
+        maxLength: 3
+        minLength: 3
+        type: string
+      code:
+        maxLength: 5
+        minLength: 5
+        type: string
+      description:
+        maxLength: 50
+        type: string
+      name:
+        maxLength: 50
+        minLength: 1
+        type: string
+    required:
+    - categoryCode
+    - code
+    - name
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_models.CreateWalletReq:
+    properties:
+      features:
+        $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.WalletFeatureReq'
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_models.CreateWalletTransactionRequest:
+    properties:
+      accountNumber:
+        type: string
+      amounts:
+        items:
+          $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.AmountDetail'
+        type: array
+      clientId:
+        description: internal use
+        type: string
+      description:
+        type: string
+      destinationAccountNumber:
+        type: string
+      idempotencyKey:
+        type: string
+      isReserved:
+        type: boolean
+      metadata:
+        $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.WalletMetadata'
+      netAmount:
+        $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.Amount'
+      refNumber:
+        type: string
+      transactionFlow:
+        allOf:
+        - $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.TransactionFlow'
+        enum:
+        - cashin
+        - cashout
+        - transfer
+        - refund
+      transactionTime:
+        type: string
+      transactionType:
+        type: string
+    required:
+    - accountNumber
+    - netAmount
+    - refNumber
+    - transactionFlow
+    - transactionTime
+    - transactionType
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_models.DoCreateAccountRequest:
+    properties:
+      accountNumber:
+        example: "21100100000001"
+        type: string
+      altId:
+        example: "12345"
+        maxLength: 50
+        minLength: 1
+        type: string
+      categoryCode:
+        example: "211"
+        maxLength: 3
+        minLength: 3
+        type: string
+      currency:
+        example: IDR
+        maxLength: 3
+        minLength: 3
+        type: string
+      entityCode:
+        example: "001"
+        maxLength: 3
+        minLength: 3
+        type: string
+      legacyId:
+        additionalProperties:
+          type: string
+        example:
+          t24AccountNumber: "1234567890"
+          t24ArrangementId: "1234567890"
+        type: object
+      metadata:
+        additionalProperties:
+          type: string
+        example:
+          key: value
+        type: object
+      name:
+        example: John
+        type: string
+      ownerId:
+        example: "12345"
+        maxLength: 15
+        minLength: 1
+        type: string
+      productTypeName:
+        example: BroilerX
+        type: string
+      status:
+        enum:
+        - active
+        - inactive
+        example: active
+        type: string
+      subCategoryCode:
+        example: "10000"
+        maxLength: 5
+        minLength: 5
+        type: string
+    required:
+    - accountNumber
+    - categoryCode
+    - currency
+    - entityCode
+    - name
+    - ownerId
+    - status
+    - subCategoryCode
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_models.DoCreateAccountResponse:
+    properties:
+      accountNumber:
+        example: "21100100000001"
+        type: string
+      altId:
+        example: "12345"
+        type: string
+      categoryCode:
+        example: "211"
+        type: string
+      currency:
+        example: IDR
+        type: string
+      entityCode:
+        example: "001"
+        type: string
+      kind:
+        example: account
+        type: string
+      legacyId:
+        additionalProperties:
+          type: string
+        example:
+          t24AccountNumber: "1234567890"
+          t24ArrangementId: "1234567890"
+        type: object
+      name:
+        example: John
+        type: string
+      ownerId:
+        example: "12345"
+        type: string
+      status:
+        example: active
+        type: string
+      subCategoryCode:
+        example: "10000"
+        type: string
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_models.DoCreateTransactionRequest:
+    properties:
+      amount:
+        type: number
+      description:
+        type: string
+      fromAccount:
+        type: string
+      isReserved:
+        type: boolean
+      metadata:
+        additionalProperties: {}
+        type: object
+      method:
+        type: string
+      orderType:
+        type: string
+      refNumber:
+        type: string
+      toAccount:
+        type: string
+      transactionTime:
+        type: string
+      transactionType:
+        type: string
+    required:
+    - amount
+    - fromAccount
+    - orderType
+    - refNumber
+    - toAccount
+    - transactionTime
+    - transactionType
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_models.DoGetAccountBalanceResponse:
+    properties:
+      accountNumber:
+        example: "21100100000001"
+        type: string
+      actualBalance:
+        example: "10000"
+        type: string
+      availableBalance:
+        example: "10000"
+        type: string
+      currency:
+        example: IDR
+        type: string
+      kind:
+        example: accountBalance
+        type: string
+      lastUpdatedAt:
+        description: ISO 8601
+        example: 2024-01-22T15:51:43+0700
+        type: string
+      pendingBalance:
+        example: "10000"
+        type: string
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_models.DoGetReportRepaymentResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.ReportRepaymentResponse'
+        type: array
+      kind:
+        type: string
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_models.DoGetStatusCountTransactionResponse:
+    properties:
+      exceedThreshold:
+        example: false
+        type: boolean
+      kind:
+        example: status-count-transaction
+        type: string
+      threshold:
+        example: 500000
+        type: integer
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_models.DoGetTransactionResponse:
+    properties:
+      amount:
+        example: "50777"
+        type: string
+      createdAt:
+        example: "2006-01-02 15:04:05"
+        type: string
+      currency:
+        example: IDR
+        type: string
+      description:
+        example: Topup from VA
+        type: string
+      fromAccount:
+        example: "189513"
+        type: string
+      fromAccountName:
+        example: John
+        type: string
+      fromAccountProductTypeName:
+        example: valid
+        type: string
+      kind:
+        example: transaction
+        type: string
+      metadata:
+        additionalProperties:
+          type: string
+        example:
+          key: value
+        type: object
+      method:
+        example: TOPUP.VA
+        type: string
+      orderType:
+        example: TOPUP
+        type: string
+      orderTypeName:
+        example: TOPUP
+        type: string
+      refNumber:
+        example: 55aa66bb-e6e0-4065-9f4a-64182e97e9d9
+        type: string
+      status:
+        example: "1"
+        type: string
+      toAccount:
+        example: "222000000069"
+        type: string
+      toAccountName:
+        example: John
+        type: string
+      toAccountProductTypeName:
+        example: valid
+        type: string
+      transactionDate:
+        example: "2023-10-25"
+        type: string
+      transactionId:
+        example: c172ca84-9ae2-489c-ae4f-8ef372a109ae
+        type: string
+      transactionTime:
+        example: "2023-10-25 08:08:26"
+        type: string
+      transactionType:
+        example: TOPUP
+        type: string
+      transactionTypeName:
+        example: TOPUP
+        type: string
+      updatedAt:
+        example: "2006-01-02 15:04:05"
+        type: string
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_models.DoPublishTransactionRequest:
+    properties:
+      amount:
+        example: "500000.00"
+        type: string
+      description:
+        example: topup lenderId 666 via BANK TRANSFER
+        type: string
+      fromAccount:
+        example: "666"
+        type: string
+      metadata: {}
+      method:
+        example: BANK_TRANFER
+        type: string
+      orderType:
+        example: TOPUP
+        type: string
+      refNumber:
+        example: 97075538-e0ac-460f-b5c2-61c6e14fc72d
+        type: string
+      toAccount:
+        example: "777"
+        type: string
+      transactionDate:
+        example: "2006-12-02"
+        type: string
+      transactionType:
+        example: TOPUP
+        type: string
+    required:
+    - amount
+    - fromAccount
+    - orderType
+    - toAccount
+    - transactionDate
+    - transactionType
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_models.DoPublishTransactionResponse:
+    properties:
+      amount:
+        example: "500000.00"
+        type: string
+      description:
+        example: topup lenderId 666 via BANK TRANSFER
+        type: string
+      fromAccount:
+        example: "666"
+        type: string
+      kind:
+        example: transaction
+        type: string
+      metadata: {}
+      method:
+        example: BANK_TRANFER
+        type: string
+      orderType:
+        example: TOPUP
+        type: string
+      refNumber:
+        example: 97075538-e0ac-460f-b5c2-61c6e14fc72d
+        type: string
+      toAccount:
+        example: "777"
+        type: string
+      transactionDate:
+        example: "2006-12-02"
+        type: string
+      transactionType:
+        example: TOPUP
+        type: string
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_models.EntityOut:
+    properties:
+      code:
+        type: string
+      description:
+        type: string
+      kind:
+        type: string
+      name:
+        type: string
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_models.FileOut:
+    properties:
+      file:
+        type: string
+      kind:
+        type: string
+      status:
+        type: string
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_models.GetAccountResponse:
+    properties:
+      accountName:
+        example: John
+        type: string
+      accountNumber:
+        example: "21100100000001"
+        type: string
+      actualBalance:
+        example: "10000"
+        type: string
+      availableBalance:
+        example: "10000"
+        type: string
+      createdAt:
+        example: "2006-01-02 15:04:05"
+        type: string
+      currency:
+        example: IDR
+        type: string
+      features:
+        $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.WalletFeature'
+      kind:
+        example: account
+        type: string
+      ownerId:
+        example: "5432"
+        type: string
+      pendingBalance:
+        example: "10000"
+        type: string
+      status:
+        example: active
+        type: string
+      updatedAt:
+        example: "2006-01-02 15:04:05"
+        type: string
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_models.GetURLReconFileResponse:
+    properties:
+      kind:
+        type: string
+      resultFileUrl:
+        type: string
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_models.ListWalletTrxByAccountNumberResponse:
+    properties:
+      amount:
+        $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.Amount'
+      amounts:
+        items:
+          $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.AmountDetail'
+        type: array
+      description:
+        type: string
+      kind:
+        type: string
+      metadata:
+        $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.WalletMetadata'
+      refNumber:
+        type: string
+      status:
+        $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.WalletTransactionStatus'
+      transactionDate:
+        type: string
+      transactionFlow:
+        $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.TransactionFlow'
+      transactionTime:
+        type: string
+      transactionType:
+        type: string
+      transactionWalletId:
+        type: string
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_models.OrderType:
+    properties:
+      orderTypeCode:
+        type: string
+      orderTypeName:
+        type: string
+      transactionTypes:
+        items:
+          $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.TransactionType'
+        type: array
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_models.OrderTypeOut:
+    properties:
+      kind:
+        type: string
+      orderTypeCode:
+        type: string
+      orderTypeName:
+        type: string
+      transactionTypes:
+        items:
+          $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.TransactionTypeOut'
+        type: array
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_models.ReconToolHistory:
+    properties:
+      createdAt:
+        type: string
+      id:
+        type: integer
+      orderType:
+        type: string
+      resultFilePath:
+        type: string
+      status:
+        type: string
+      transactionDate:
+        type: string
+      transactionType:
+        type: string
+      updatedAt:
+        type: string
+      uploadedFilePath:
+        type: string
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_models.ReportRepaymentResponse:
+    properties:
+      amartha:
+        type: number
+      lender:
+        type: number
+      outstanding:
+        type: number
+      pph:
+        type: number
+      ppn:
+        type: number
+      principal:
+        type: number
+      total:
+        type: number
+      transactionDate:
+        type: string
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_models.TransactionFlow:
+    enum:
+    - cashin
+    - cashout
+    - transfer
+    - refund
+    type: string
+    x-enum-varnames:
+    - TransactionFlowCashIn
+    - TransactionFlowCashOut
+    - TransactionFlowTransfer
+    - TransactionFlowRefund
+  bitbucket_org_Amartha_go-fp-transaction_internal_models.TransactionType:
+    properties:
+      transactionTypeCode:
+        type: string
+      transactionTypeName:
+        type: string
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_models.TransactionTypeOut:
+    properties:
+      kind:
+        type: string
+      transactionTypeCode:
+        type: string
+      transactionTypeName:
+        type: string
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_models.UpdateAccountBySubCategoryRequest:
+    properties:
+      currency:
+        example: IDR
+        type: string
+      productTypeName:
+        example: CIH Lender
+        type: string
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_models.UpdateAccountRequest:
+    properties:
+      features:
+        $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.WalletFeatureReq'
+      isHvt:
+        example: true
+        type: boolean
+      status:
+        example: active
+        type: string
+    required:
+    - isHvt
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_models.UpdateStatusReservedTransactionRequest:
+    properties:
+      status:
+        enum:
+        - commit
+        - cancel
+        example: commit
+        type: string
+    required:
+    - status
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_models.UpdateStatusReservedTransactionResponse:
+    properties:
+      kind:
+        example: transaction
+        type: string
+      status:
+        example: SUCCESS
+        type: string
+      transactionId:
+        example: 41d03147-c017-4176-8a1a-0b7ec735cc29
+        type: string
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_models.UpdateStatusWalletTransactionRequest:
+    properties:
+      action:
+        enum:
+        - commit
+        - cancel
+        example: commit
+        type: string
+      clientId:
+        description: internal use
+        type: string
+      transactionTime:
+        type: string
+    required:
+    - action
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_models.UpdateStatusWalletTransactionResponse:
+    properties:
+      kind:
+        example: walletTransaction
+        type: string
+      status:
+        example: SUCCESS
+        type: string
+      transactionId:
+        example: 41d03147-c017-4176-8a1a-0b7ec735cc29
+        type: string
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_models.WalletFeature:
+    properties:
+      allowedNegativeBalance:
+        type: boolean
+      balanceRangeMax:
+        type: number
+      balanceRangeMin:
+        type: number
+      negativeBalanceLimit:
+        type: number
+      preset:
+        type: string
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_models.WalletFeatureReq:
+    properties:
+      allowedNegativeBalance:
+        type: boolean
+      balanceRangeMax:
+        type: string
+      balanceRangeMin:
+        type: string
+      negativeBalanceLimit:
+        type: string
+      preset:
+        type: string
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_models.WalletMetadata:
+    additionalProperties: {}
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_models.WalletResponse:
+    properties:
+      accountNumber:
+        type: string
+      features:
+        $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.WalletFeature'
+      kind:
+        type: string
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_models.WalletTransactionResponse:
+    properties:
+      accountNumber:
+        type: string
+      amounts:
+        items:
+          $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.AmountDetail'
+        type: array
+      description:
+        type: string
+      destinationAccountNumber:
+        type: string
+      id:
+        type: string
+      kind:
+        type: string
+      metadata:
+        $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.WalletMetadata'
+      netAmount:
+        $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.Amount'
+      refNumber:
+        type: string
+      status:
+        $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.WalletTransactionStatus'
+      transactionFlow:
+        $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.TransactionFlow'
+      transactionTime:
+        type: string
+      transactionType:
+        type: string
+    type: object
+  bitbucket_org_Amartha_go-fp-transaction_internal_models.WalletTransactionStatus:
+    enum:
+    - PENDING
+    - SUCCESS
+    - CANCEL
+    type: string
+    x-enum-varnames:
+    - WalletTransactionStatusPending
+    - WalletTransactionStatusSuccess
+    - WalletTransactionStatusCancel
+  internal_deliveries_http_health.DoHealthCheckLivenessResponse:
+    properties:
+      kind:
+        example: health
+        type: string
+      status:
+        example: server is up and running
+        type: string
+    type: object
+host: localhost:9567
+info:
+  contact:
+    email: support@swagger.io
+    name: API Support
+    url: http://www.swagger.io/support
+  description: This is a go fp transaction api docs.
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: GO FP TRANSACTION API DUCUMENTATION
+  version: "1.0"
+paths:
+  /health:
+    get:
+      consumes:
+      - application/json
+      description: Get the status of server
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Response indicates that the request succeeded and the resources
+            has been fetched and transmitted in the message body
+          schema:
+            $ref: '#/definitions/internal_deliveries_http_health.DoHealthCheckLivenessResponse'
+      summary: Get the status of server
+  /orders:
+    post:
+      consumes:
+      - application/json
+      description: Create order that have multiple transactions
+      parameters:
+      - description: A JSON object containing create transaction payload
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.CreateOrderRequest'
+      - description: X-Secret-Key
+        in: header
+        name: X-Secret-Key
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Response indicates that the request succeeded and the resources
+            has been fetched and transmitted in the message body
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.CreateOrderResponse'
+        "400":
+          description: Bad request error. This can happen if there is an error while
+            create transaction
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "404":
+          description: Data not found. This can happen if there is a data not found
+            while create transaction
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "422":
+          description: Validation error. This can happen if there is an error validation
+            while create transaction
+          schema:
+            allOf:
+            - $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorValidationResponseModel'
+            - properties:
+                errors:
+                  items:
+                    $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_validation.ErrorValidateResponse'
+                  type: array
+              type: object
+        "500":
+          description: Internal server error. This can happen if there is an error
+            while create transaction
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+      summary: Create order that have multiple transactions
+      tags:
+      - Order
+  /transaction:
+    post:
+      consumes:
+      - application/json
+      description: Create data from any transaction
+      parameters:
+      - description: A JSON object containing create transaction payload
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.DoCreateTransactionRequest'
+      - description: X-Secret-Key
+        in: header
+        name: X-Secret-Key
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Response indicates that the request succeeded and the resources
+            has been fetched and transmitted in the message body
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.DoGetTransactionResponse'
+        "400":
+          description: Bad request error. This can happen if there is an error while
+            create transaction
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "404":
+          description: Data not found. This can happen if there is a data not found
+            while create transaction
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "422":
+          description: Validation error. This can happen if there is an error validation
+            while create transaction
+          schema:
+            allOf:
+            - $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorValidationResponseModel'
+            - properties:
+                errors:
+                  items:
+                    $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_validation.ErrorValidateResponse'
+                  type: array
+              type: object
+        "500":
+          description: Internal server error. This can happen if there is an error
+            while create transaction
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+      summary: Create data transaction
+      tags:
+      - Transaction
+  /transaction/bulk:
+    post:
+      consumes:
+      - application/json
+      description: Create data from any transaction
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common.ApiSuccessResponseModel'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common.ApiErrorResponseModel'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common.ApiErrorResponseModel'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common.ApiErrorResponseModel'
+      summary: Create data transaction
+      tags:
+      - Transaction
+  /transaction/report:
+    post:
+      consumes:
+      - application/json
+      description: Generate transaction data as CSV and upload to GCS
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common.ApiSuccessResponseModel'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common.ApiErrorResponseModel'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common.ApiErrorResponseModel'
+      summary: Generate transaction report
+      tags:
+      - Transaction
+  /transactions/orders:
+    post:
+      consumes:
+      - application/json
+      description: Create order transaction
+      parameters:
+      - description: A JSON object containing create transaction payload
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.CreateOrderRequest'
+      - description: X-Secret-Key
+        in: header
+        name: X-Secret-Key
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Response indicates that the request succeeded and the resources
+            has been fetched and transmitted in the message body
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.DoGetTransactionResponse'
+        "400":
+          description: Bad request error. This can happen if there is an error while
+            create transaction
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "404":
+          description: Data not found. This can happen if there is a data not found
+            while create transaction
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "422":
+          description: Validation error. This can happen if there is an error validation
+            while create transaction
+          schema:
+            allOf:
+            - $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorValidationResponseModel'
+            - properties:
+                errors:
+                  items:
+                    $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_validation.ErrorValidateResponse'
+                  type: array
+              type: object
+        "500":
+          description: Internal server error. This can happen if there is an error
+            while create transaction
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+      summary: Create order transaction
+      tags:
+      - Transaction
+  /v1/account-balances/:accountNumber:
+    get:
+      consumes:
+      - application/json
+      description: Get balance by account number
+      parameters:
+      - description: account number
+        in: path
+        name: accountNumber
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.DoGetAccountBalanceResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+      summary: Get balance by account number
+      tags:
+      - Balance
+  /v1/accounts:
+    get:
+      consumes:
+      - application/json
+      description: Get All account
+      parameters:
+      - description: X-Secret-Key
+        in: header
+        name: X-Secret-Key
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Response indicates that the request succeeded and the resources
+            has been fetched and transmitted in the message body
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestPaginationResponseModel-array_bitbucket_org_Amartha_go-fp-transaction_internal_models_GetAccountResponse'
+        "400":
+          description: Bad request error. This can happen if there is an error while
+            delete account
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "500":
+          description: Internal server error. This can happen if there is an error
+            while delete account
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+      summary: Get All account
+      tags:
+      - Accounts
+  /v1/accounts/:
+    post:
+      consumes:
+      - application/json
+      description: Create New Account
+      parameters:
+      - description: A JSON object containing create account payload
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.DoCreateAccountRequest'
+      - description: X-Secret-Key
+        in: header
+        name: X-Secret-Key
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Response indicates that the request succeeded and the resources
+            has been fetched and transmitted in the message body
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.DoCreateAccountResponse'
+        "400":
+          description: Bad request error. This can happen if there is an error while
+            create account
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "404":
+          description: Data not found. This can happen if there is an data not found
+            while create account
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "422":
+          description: Validation error. This can happen if there is an error validation
+            while create account
+          schema:
+            allOf:
+            - $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorValidationResponseModel'
+            - properties:
+                errors:
+                  items:
+                    $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_validation.ErrorValidateResponse'
+                  type: array
+              type: object
+        "500":
+          description: Internal server error. This can happen if there is an error
+            while create account
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+      summary: Create Account
+      tags:
+      - Accounts
+  /v1/accounts/{accountNumber}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete account's data by account number
+      parameters:
+      - description: account identifier
+        in: path
+        name: accountNumber
+        required: true
+        type: string
+      - description: X-Secret-Key
+        in: header
+        name: X-Secret-Key
+        required: true
+        type: string
+      - example: "21100100000001"
+        in: query
+        name: accountNumber
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: Empty response
+        "400":
+          description: Bad request error. This can happen if there is an error while
+            get account
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "404":
+          description: Data not found. This can happen if data not found while get
+            account
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "500":
+          description: Internal server error. This can happen if there is an error
+            while get account
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+      summary: Delete account's data
+      tags:
+      - Accounts
+    get:
+      consumes:
+      - application/json
+      description: Get one account detail by account number
+      parameters:
+      - description: account identifier
+        in: path
+        name: accountNumber
+        required: true
+        type: string
+      - description: X-Secret-Key
+        in: header
+        name: X-Secret-Key
+        required: true
+        type: string
+      - example: "21100100000001"
+        in: query
+        name: accountNumber
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Response indicates that the request succeeded and the resources
+            has been fetched and transmitted in the message body
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.GetAccountResponse'
+        "400":
+          description: Bad request error. This can happen if there is an error while
+            get account
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "404":
+          description: Data not found. This can happen if data not found while get
+            account
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "500":
+          description: Internal server error. This can happen if there is an error
+            while get account
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+      summary: Get one account by account number
+      tags:
+      - Accounts
+    patch:
+      consumes:
+      - application/json
+      description: Update account's data by account number
+      parameters:
+      - description: account identifier
+        in: path
+        name: accountNumber
+        required: true
+        type: string
+      - description: X-Secret-Key
+        in: header
+        name: X-Secret-Key
+        required: true
+        type: string
+      - description: A JSON object containing payload
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.UpdateAccountRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Response indicates that the request succeeded and the resources
+            has been fetched and transmitted in the message body
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.GetAccountResponse'
+        "400":
+          description: Bad request error. This can happen if there is an error while
+            get account
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "404":
+          description: Data not found. This can happen if data not found while get
+            account
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "500":
+          description: Internal server error. This can happen if there is an error
+            while get account
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+      summary: Update account's data
+      tags:
+      - Accounts
+  /v1/accounts/{accountNumber}/balances:
+    get:
+      consumes:
+      - application/json
+      description: Get one account detail by account number
+      parameters:
+      - description: account identifier
+        in: path
+        name: accountNumber
+        required: true
+        type: string
+      - description: X-Secret-Key
+        in: header
+        name: X-Secret-Key
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Response indicates that the request succeeded and the resources
+            has been fetched and transmitted in the message body
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.DoGetAccountBalanceResponse'
+        "400":
+          description: Bad request error. This can happen if there is an error while
+            get account
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "404":
+          description: Data not found. This can happen if data not found while get
+            account
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "500":
+          description: Internal server error. This can happen if there is an error
+            while get account
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+      summary: Get one account by account number
+      tags:
+      - Accounts
+  /v1/accounts/{accountNumber}/features:
+    post:
+      consumes:
+      - application/json
+      description: create account features related to internal wallet
+      parameters:
+      - description: account identifier
+        in: path
+        name: accountNumber
+        required: true
+        type: string
+      - description: X-Secret-Key
+        in: header
+        name: X-Secret-Key
+        required: true
+        type: string
+      - description: A JSON object containing payload
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.CreateWalletReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Response indicates that the request succeeded and the resources
+            has been created in system
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.WalletResponse'
+        "400":
+          description: Bad request error. This happens due to incorrect format payload
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "422":
+          description: Unprocessable entity. This happens due to missing mandatory
+            fields in payload
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "500":
+          description: Internal server error. This happens if there is an unexpected
+            error while creating account feature
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+      summary: Create account feature
+      tags:
+      - Accounts
+  /v1/accounts/balances:
+    get:
+      consumes:
+      - application/json
+      description: Get total balance of all account
+      parameters:
+      - description: X-Secret-Key
+        in: header
+        name: X-Secret-Key
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Response indicates that the request succeeded and the resources
+            has been fetched and transmitted in the message body
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.AccountsTotalBalanceResponse'
+        "400":
+          description: Bad request error. This can happen if there is an error while
+            delete account
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "500":
+          description: Internal server error. This can happen if there is an error
+            while delete account
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+      summary: Get total balance of all account
+      tags:
+      - Accounts
+  /v1/accounts/sub-category/:subCategoryCode:
+    patch:
+      consumes:
+      - application/json
+      description: Update account's data by sub category
+      parameters:
+      - description: account identifier
+        in: path
+        name: accountNumber
+        required: true
+        type: string
+      - description: X-Secret-Key
+        in: header
+        name: X-Secret-Key
+        required: true
+        type: string
+      - description: A JSON object containing payload
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.UpdateAccountBySubCategoryRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Response indicates that the request succeeded and the resources
+            has been fetched and transmitted in the message body
+        "400":
+          description: Bad request error. This can happen if there is an error while
+            update account
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "422":
+          description: Validation error. This can happen if payload failed to be validated
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "500":
+          description: Internal server error. This can happen if there is an error
+            while update account
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+      summary: Update account's data by sub category
+      tags:
+      - Accounts
+  /v1/categories:
+    get:
+      consumes:
+      - application/json
+      description: Get all data category
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestTotalRowResponseModel'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+      summary: Get all data category
+      tags:
+      - Categories
+    post:
+      consumes:
+      - application/json
+      description: Create data category
+      parameters:
+      - description: body
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.CreateCategoryRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestTotalRowResponseModel'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorValidationResponseModel'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+      summary: Create data category
+      tags:
+      - Categories
+  /v1/entities:
+    get:
+      consumes:
+      - application/json
+      description: Get all data entity
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestTotalRowResponseModel'
+            - properties:
+                contents:
+                  items:
+                    $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.EntityOut'
+                  type: array
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+      summary: Get all data entity
+      tags:
+      - Entities
+    post:
+      consumes:
+      - application/json
+      description: Create data entity
+      parameters:
+      - description: body
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.CreateEntityRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestTotalRowResponseModel'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorValidationResponseModel'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+      summary: Create data entity
+      tags:
+      - Entities
+  /v1/files/upload:
+    post:
+      consumes:
+      - application/json
+      description: Upload transaction from CSV file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Response indicates that the request succeeded and the resources
+            has been fetched and transmitted in the message body
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.FileOut'
+        "400":
+          description: Bad request error. This can happen if there is an error while
+            create account
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "500":
+          description: Internal server error. This can happen if there is an error
+            while create account
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+      summary: Upload transaction file
+      tags:
+      - Files
+  /v1/internal-wallets/accounts/{accountNumber}/transactions:
+    get:
+      consumes:
+      - application/json
+      description: Get all wallet transaction by accountNumber
+      parameters:
+      - description: X-Secret-Key
+        in: header
+        name: X-Secret-Key
+        required: true
+        type: string
+      - example: "21100100000001"
+        in: query
+        name: accountNumber
+        required: true
+        type: string
+      - example: "2023-01-07"
+        in: query
+        name: endDate
+        type: string
+      - example: 10
+        in: query
+        name: limit
+        type: integer
+      - example: abc
+        in: query
+        name: nextCursor
+        type: string
+      - example: cba
+        in: query
+        name: prevCursor
+        type: string
+      - in: query
+        name: sortBy
+        type: string
+      - in: query
+        name: sortDirection
+        type: string
+      - example: "2023-01-01"
+        in: query
+        name: startDate
+        type: string
+      - enum:
+        - CANCEL
+        - PENDING
+        - SUCCESS
+        example: PENDING
+        in: query
+        name: status
+        type: string
+      - example: TUPVA
+        in: query
+        name: transactionType
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Response indicates that the request succeeded and the resources
+            has been fetched and transmitted in the message body
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestPaginationResponseModel-array_bitbucket_org_Amartha_go-fp-transaction_internal_models_ListWalletTrxByAccountNumberResponse'
+        "400":
+          description: Bad request error. This can happen if there is an error while
+            get all transaction
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "500":
+          description: Internal server error. This can happen if there is an error
+            while get all transaction
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+      summary: Get all wallet transaction by accountNumber
+      tags:
+      - Internal Wallet
+  /v1/internal-wallets/accounts/transactions:
+    get:
+      consumes:
+      - application/json
+      description: Get all wallet transaction
+      parameters:
+      - description: X-Secret-Key
+        in: header
+        name: X-Secret-Key
+        required: true
+        type: string
+      - example: 21100100000001,21100100000002,21100100000003
+        in: query
+        name: accountNumbers
+        type: string
+      - example: "2023-01-07"
+        in: query
+        name: endDate
+        type: string
+      - example: 10
+        in: query
+        name: limit
+        type: integer
+      - example: abc
+        in: query
+        name: nextCursor
+        type: string
+      - example: cba
+        in: query
+        name: prevCursor
+        type: string
+      - in: query
+        name: sortBy
+        type: string
+      - in: query
+        name: sortDirection
+        type: string
+      - example: "2023-01-01"
+        in: query
+        name: startDate
+        type: string
+      - enum:
+        - CANCEL
+        - PENDING
+        - SUCCESS
+        example: PENDING
+        in: query
+        name: status
+        type: string
+      - example: TUPVA
+        in: query
+        name: transactionType
+        type: string
+      - example: VOLTR,TUPVA
+        in: query
+        name: transactionTypes
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Response indicates that the request succeeded and the resources
+            has been fetched and transmitted in the message body
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestPaginationResponseModel-array_bitbucket_org_Amartha_go-fp-transaction_internal_models_ListWalletTrxByAccountNumberResponse'
+        "400":
+          description: Bad request error. This can happen if there is an error while
+            get all transaction
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "500":
+          description: Internal server error. This can happen if there is an error
+            while get all transaction
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+      summary: Get all wallet transaction
+      tags:
+      - Internal Wallet
+  /v1/order-types:
+    get:
+      consumes:
+      - application/json
+      description: Get all data order type
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestTotalRowResponseModel'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+      summary: Get all data order type
+      tags:
+      - OrderType
+    post:
+      consumes:
+      - application/json
+      description: Create data order type
+      parameters:
+      - description: body
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.OrderType'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestTotalRowResponseModel'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorValidationResponseModel'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+      summary: Create data order type
+      tags:
+      - OrderType
+  /v1/order-types/:orderTypeCode:
+    get:
+      consumes:
+      - application/json
+      description: Get order type detail
+      parameters:
+      - description: order type code
+        in: path
+        name: orderTypeCode
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.OrderTypeOut'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+      summary: Get order type detail
+      tags:
+      - OrderType
+  /v1/recon-tools:
+    get:
+      consumes:
+      - application/json
+      description: Get All Recon History
+      parameters:
+      - description: X-Secret-Key
+        in: header
+        name: X-Secret-Key
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Response indicates that the request succeeded and the resources
+            has been fetched and transmitted in the message body
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestPaginationResponseModel-array_bitbucket_org_Amartha_go-fp-transaction_internal_models_ReconToolHistory'
+        "400":
+          description: Bad request error. This can happen if there is an error while
+            delete account
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "500":
+          description: Internal server error. This can happen if there is an error
+            while delete account
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+      summary: Get All Recon History
+      tags:
+      - ReconTools
+  /v1/recon-tools/:id/download:
+    get:
+      consumes:
+      - application/json
+      description: Get result file URL Recon History
+      parameters:
+      - description: X-Secret-Key
+        in: header
+        name: X-Secret-Key
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Response indicates that the request succeeded and the resources
+            has been fetched and transmitted in the message body
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.GetURLReconFileResponse'
+        "400":
+          description: Bad request error. This can happen if there is an error while
+            delete account
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "500":
+          description: Internal server error. This can happen if there is an error
+            while delete account
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+      summary: Get result file URL Recon History
+      tags:
+      - ReconTools
+  /v1/recon-tools/upload:
+    post:
+      consumes:
+      - application/json
+      description: Upload reconciliation template file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Response indicates that the request succeeded and the resources
+            has been fetched and transmitted in the message body
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.FileOut'
+        "400":
+          description: Bad request error. This can happen if there is an error while
+            create account
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "500":
+          description: Internal server error. This can happen if there is an error
+            while create account
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+      summary: Upload reconciliation template file
+      tags:
+      - ReconTools
+  /v1/report/repayment:
+    get:
+      consumes:
+      - application/json
+      description: Get aggregated repayment report from yesterday - 6 days before
+      parameters:
+      - description: X-Secret-Key
+        in: header
+        name: X-Secret-Key
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Response indicates that the request succeeded and the resources
+            have been fetched and transmitted in the message body
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.DoGetReportRepaymentResponse'
+        "500":
+          description: Internal server error. This can happen if there is an error
+            while getting repayment report
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+      summary: Get repayment report (last 7 days)
+      tags:
+      - Transactions
+  /v1/sub-categories:
+    get:
+      consumes:
+      - application/json
+      description: Get all data sub category
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestTotalRowResponseModel'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+      summary: Get all data sub category
+      tags:
+      - Sub Categories
+    post:
+      consumes:
+      - application/json
+      description: Create data sub category
+      parameters:
+      - description: body
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.CreateSubCategoryRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestTotalRowResponseModel'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorValidationResponseModel'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+      summary: Create data sub category
+      tags:
+      - Sub Categories
+  /v1/transaction:
+    get:
+      consumes:
+      - application/json
+      description: Get All transaction
+      parameters:
+      - description: X-Secret-Key
+        in: header
+        name: X-Secret-Key
+        required: true
+        type: string
+      - example: "2023-01-07"
+        in: query
+        name: endDate
+        type: string
+      - example: 10
+        in: query
+        name: limit
+        type: integer
+      - example: abc
+        in: query
+        name: nextCursor
+        type: string
+      - example: TOPUP
+        in: query
+        name: orderType
+        type: string
+      - example: cba
+        in: query
+        name: prevCursor
+        type: string
+      - example: Poket
+        in: query
+        name: productTypeName
+        type: string
+      - example: value of accountNumber refNumber transactionId
+        in: query
+        name: search
+        type: string
+      - example: accountNumber refNumber transactionId
+        in: query
+        name: searchBy
+        type: string
+      - example: "2023-01-01"
+        in: query
+        name: startDate
+        type: string
+      - description: 'Deprecated: /v1/transaction not use this anymore'
+        example: TOPUP
+        in: query
+        name: transactionType
+        type: string
+      - collectionFormat: csv
+        example:
+        - TOPUP
+        in: query
+        items:
+          type: string
+        name: transactionTypes
+        type: array
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Response indicates that the request succeeded and the resources
+            has been fetched and transmitted in the message body
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestPaginationResponseModel-array_bitbucket_org_Amartha_go-fp-transaction_internal_models_DoGetTransactionResponse'
+        "400":
+          description: Bad request error. This can happen if there is an error while
+            get all transaction
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "500":
+          description: Internal server error. This can happen if there is an error
+            while get all transaction
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+      summary: Get All transaction
+      tags:
+      - Transactions
+  /v1/transaction-types:
+    get:
+      consumes:
+      - application/json
+      description: Get all data transaction type
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestTotalRowResponseModel'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+      summary: Get all data transaction type
+      tags:
+      - TransactionType
+  /v1/transaction-types/:transactionTypeCode:
+    get:
+      consumes:
+      - application/json
+      description: Get transaction type detail
+      parameters:
+      - description: transaction type code
+        in: path
+        name: transactionTypeCode
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.TransactionTypeOut'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+      summary: Get transaction type detail
+      tags:
+      - TransactionType
+  /v1/transaction/{transactionId}:
+    patch:
+      consumes:
+      - application/json
+      description: Update status reserved transaction
+      parameters:
+      - description: X-Secret-Key
+        in: header
+        name: X-Secret-Key
+        required: true
+        type: string
+      - description: transactionId
+        in: path
+        name: transactionId
+        required: true
+        type: string
+      - description: A JSON object containing payload
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.UpdateStatusReservedTransactionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Response indicates that the request succeeded
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.UpdateStatusReservedTransactionResponse'
+        "400":
+          description: Bad request error
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+      summary: Update status reserved transaction
+      tags:
+      - Transaction
+  /v1/transaction/{transactionType}/{refNumber}:
+    get:
+      consumes:
+      - application/json
+      description: Get single transaction with criteria
+      parameters:
+      - description: X-Secret-Key
+        in: header
+        name: X-Secret-Key
+        required: true
+        type: string
+      - description: transactionType
+        in: path
+        name: transactionType
+        required: true
+        type: string
+      - description: refNumber
+        in: path
+        name: refNumber
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Response indicates that the request succeeded and the resources
+            has been fetched and transmitted in the message body
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.DoGetTransactionResponse'
+        "400":
+          description: Bad request error. This can happen if there is an error while
+            get all transaction
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "500":
+          description: Internal server error. This can happen if there is an error
+            while get all transaction
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+      summary: Get single transaction with criteria
+      tags:
+      - Transactions
+  /v1/transaction/download:
+    get:
+      consumes:
+      - application/json
+      description: Get All transaction
+      parameters:
+      - description: X-Secret-Key
+        in: header
+        name: X-Secret-Key
+        required: true
+        type: string
+      - example: "2023-01-07"
+        in: query
+        name: endDate
+        type: string
+      - example: 10
+        in: query
+        name: limit
+        type: integer
+      - example: abc
+        in: query
+        name: nextCursor
+        type: string
+      - example: TOPUP
+        in: query
+        name: orderType
+        type: string
+      - example: cba
+        in: query
+        name: prevCursor
+        type: string
+      - example: Poket
+        in: query
+        name: productTypeName
+        type: string
+      - example: value of accountNumber refNumber transactionId
+        in: query
+        name: search
+        type: string
+      - example: accountNumber refNumber transactionId
+        in: query
+        name: searchBy
+        type: string
+      - example: "2023-01-01"
+        in: query
+        name: startDate
+        type: string
+      - description: 'Deprecated: /v1/transaction not use this anymore'
+        example: TOPUP
+        in: query
+        name: transactionType
+        type: string
+      - collectionFormat: csv
+        example:
+        - TOPUP
+        in: query
+        items:
+          type: string
+        name: transactionTypes
+        type: array
+      produces:
+      - text/csv
+      responses:
+        "400":
+          description: Bad request error. This can happen if there is an error while
+            get all transaction
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "500":
+          description: Internal server error. This can happen if there is an error
+            while get all transaction
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+      summary: Get All transaction
+      tags:
+      - Transactions
+  /v1/transaction/publish:
+    post:
+      consumes:
+      - application/json
+      description: Publish transaction to kafka to create data transaction
+      parameters:
+      - description: X-Secret-Key
+        in: header
+        name: X-Secret-Key
+        required: true
+        type: string
+      - description: A JSON object containing publish transaction payload
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.DoPublishTransactionRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Response indicates that the request succeeded and the resources
+            has been fetched and transmitted in the message body
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.DoPublishTransactionResponse'
+        "400":
+          description: Bad request error. This can happen if there is an error while
+            publish transaction
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "422":
+          description: Validation error. This can happen if there is an error validation
+            while publish transaction
+          schema:
+            allOf:
+            - $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorValidationResponseModel'
+            - properties:
+                errors:
+                  items:
+                    $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_validation.ErrorValidateResponse'
+                  type: array
+              type: object
+        "500":
+          description: Internal server error. This can happen if there is an error
+            while publish transaction
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+      summary: Publish transaction to kafka
+      tags:
+      - Transactions
+  /v1/transaction/status-count:
+    get:
+      consumes:
+      - application/json
+      description: Get transaction status count
+      parameters:
+      - description: X-Secret-Key
+        in: header
+        name: X-Secret-Key
+        required: true
+        type: string
+      - example: "2023-01-07"
+        in: query
+        name: endDate
+        type: string
+      - example: 10
+        in: query
+        name: limit
+        type: integer
+      - example: abc
+        in: query
+        name: nextCursor
+        type: string
+      - example: TOPUP
+        in: query
+        name: orderType
+        type: string
+      - example: cba
+        in: query
+        name: prevCursor
+        type: string
+      - example: Poket
+        in: query
+        name: productTypeName
+        type: string
+      - example: value of accountNumber refNumber transactionId
+        in: query
+        name: search
+        type: string
+      - example: accountNumber refNumber transactionId
+        in: query
+        name: searchBy
+        type: string
+      - example: "2023-01-01"
+        in: query
+        name: startDate
+        type: string
+      - example: 10
+        in: query
+        name: threshold
+        type: integer
+      - description: 'Deprecated: /v1/transaction not use this anymore'
+        example: TOPUP
+        in: query
+        name: transactionType
+        type: string
+      - collectionFormat: csv
+        example:
+        - TOPUP
+        in: query
+        items:
+          type: string
+        name: transactionTypes
+        type: array
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Response indicates that the request succeeded and the resources
+            has been fetched and transmitted in the message body
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.DoGetStatusCountTransactionResponse'
+        "400":
+          description: Bad request error. This can happen if there is an error while
+            get status count transaction
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "500":
+          description: Internal server error. This can happen if there is an error
+            while get status count transaction
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+      summary: Get transaction status count
+      tags:
+      - Transactions
+  /v1/vat-configs:
+    get:
+      consumes:
+      - application/json
+      description: Get all data vat config
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestTotalRowResponseModel'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+      summary: Get all data vat config
+      tags:
+      - VATConfig
+    patch:
+      consumes:
+      - application/json
+      description: Update data vat config
+      parameters:
+      - description: body
+        in: body
+        name: payload
+        required: true
+        schema:
+          items:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.ConfigVatRevenue'
+          type: array
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestTotalRowResponseModel'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorValidationResponseModel'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+      summary: Update data vat config
+      tags:
+      - VATConfig
+  /v2/files/upload:
+    post:
+      consumes:
+      - application/json
+      description: Upload transaction from CSV file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Response indicates that the request succeeded and the resources
+            has been fetched and transmitted in the message body
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.FileOut'
+        "400":
+          description: Bad request error. This can happen if there is an error while
+            create account
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "500":
+          description: Internal server error. This can happen if there is an error
+            while create account
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+      summary: Upload transaction file
+      tags:
+      - Files
+  /wallet-transactions:
+    post:
+      consumes:
+      - application/json
+      description: Create wallet transaction
+      parameters:
+      - description: A JSON object containing create transaction payload
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.CreateWalletTransactionRequest'
+      - description: X-Secret-Key
+        in: header
+        name: X-Secret-Key
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Response indicates that the request succeeded and the resources
+            has been fetched and transmitted in the message body
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.WalletTransactionResponse'
+        "400":
+          description: Bad request error. This can happen if there is an error while
+            create transaction
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "404":
+          description: Data not found. This can happen if there is a data not found
+            while create transaction
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "422":
+          description: Validation error. This can happen if there is an error validation
+            while create transaction
+          schema:
+            allOf:
+            - $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorValidationResponseModel'
+            - properties:
+                errors:
+                  items:
+                    $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_validation.ErrorValidateResponse'
+                  type: array
+              type: object
+        "500":
+          description: Internal server error. This can happen if there is an error
+            while create transaction
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+      summary: Create wallet transaction
+      tags:
+      - WalletTransaction
+  /wallet-transactions/{id}:
+    patch:
+      consumes:
+      - application/json
+      description: Update status wallet transaction
+      parameters:
+      - description: A JSON object containing create transaction payload
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.UpdateStatusWalletTransactionRequest'
+      - description: X-Secret-Key
+        in: header
+        name: X-Secret-Key
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Response indicates that the request succeeded and the resources
+            has been fetched and transmitted in the message body
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_models.UpdateStatusWalletTransactionResponse'
+        "400":
+          description: Bad request error. This can happen if there is an error while
+            update status transaction
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "404":
+          description: Data not found. This can happen if there is a data not found
+            while update status transaction
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+        "422":
+          description: Validation error. This can happen if there is an error validation
+            while update status transaction
+          schema:
+            allOf:
+            - $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorValidationResponseModel'
+            - properties:
+                errors:
+                  items:
+                    $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_validation.ErrorValidateResponse'
+                  type: array
+              type: object
+        "500":
+          description: Internal server error. This can happen if there is an error
+            while update status transaction
+          schema:
+            $ref: '#/definitions/bitbucket_org_Amartha_go-fp-transaction_internal_common_http.RestErrorResponseModel'
+      summary: Update status wallet transaction
+      tags:
+      - WalletTransaction
+schemes:
+- http
+swagger: "2.0"

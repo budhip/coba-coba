@@ -1,0 +1,91 @@
+replicaCount: 1
+
+env: dev
+
+image:
+  repository: asia-southeast2-docker.pkg.dev/amartha-ewallet-dev-370304/docker/go-fp-transaction
+  pullPolicy: IfNotPresent
+  tag: ""
+
+serviceAccount:
+  create: true
+  annotations:
+    iam.gke.io/gcp-service-account: go-fp-transaction@amartha-ewallet-dev-370304.iam.gserviceaccount.com
+  name: ""
+
+readinessProbe:
+  failureThreshold: 10
+  httpGet:
+    path: /api/health
+    port: 9567
+    scheme: HTTP
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  successThreshold: 1
+  timeoutSeconds: 10
+
+service:
+  type: ClusterIP
+  port: 9567
+
+ingress:
+  enabled: true
+  className: ""
+  annotations:
+    kubernetes.io/ingress.class: nginx-internal
+    nginx.ingress.kubernetes.io/proxy-body-size: "3m"
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: go-fp-transaction.payments-dev.amartha.id
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  tls:
+    - secretName: go-fp-transaction-payments-dev-amartha-id-tls
+      hosts:
+        - go-fp-transaction.payments-dev.amartha.id
+
+resources:
+  limits:
+    cpu: 100m
+    memory: 128Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi
+
+extraEnvs:
+  - name: GOMEMLIMIT
+    valueFrom:
+      resourceFieldRef:
+        resource: limits.memory
+  - name: GOMAXPROCS
+    valueFrom:
+      resourceFieldRef:
+        resource: limits.cpu
+
+autoscaling:
+  enabled: false
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "9567"
+  prometheus.io/path: "/metrics"
+
+vault:
+  enabled: true
+  secrets:
+    app:
+      secretPath: apps/payments/GO_FP_TRANSACTION
+#    db:
+#      secretPath: database/payments/GO_PAYMENT_API
+volumes:
+  - name: config
+    secret:
+      secretName: go-fp-transaction-api-vault-app
+      items:
+        - key: config.yaml
+          path: config.yaml
+volumeMounts:
+  - name: config
+    readOnly: true
+    mountPath: /config

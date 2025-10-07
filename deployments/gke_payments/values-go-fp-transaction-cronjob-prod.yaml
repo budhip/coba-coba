@@ -1,0 +1,74 @@
+cronjobs:
+  - name: trx-report # the end cronjob name will be <BASE_NAME>+<SUFFIX>
+    suspend: false # Pause job
+    schedule: "*/5 * * * *" #every 5th minute.
+    timeZone: "Asia/Jakarta"
+    concurrencyPolicy: ""
+    failedJobsHistoryLimit: "" # let you see the history of N jobs
+    successfulJobsHistoryLimit: "" # let you see the history of N jobs
+    startingDeadlineSeconds: ""
+
+    # Pod/Container Config
+    restartPolicy: Never
+    containerTemplate:
+      command:
+        - "./go-fp-transaction-cronjob"
+      args:
+        - "-n=GenerateTransactionReport"
+    # Job Config
+    jobTemplate:
+      backoffLimit: 4
+      activeDeadlineSeconds: 600
+      ttlSecondsAfterFinished: 600
+
+image:
+  repository: asia-southeast2-docker.pkg.dev/amartha-ewallet-dev-370304/docker/go-fp-transaction
+  pullPolicy: IfNotPresent
+  tag: ""
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations:
+    iam.gke.io/gcp-service-account: go-fp-transaction@amartha-ewallet-prod.iam.gserviceaccount.com
+  name:
+
+podAnnotations: {}
+podLabels: {}
+
+resources:
+  limits:
+    cpu: 40m
+    memory: 128Mi
+  requests:
+    cpu: 20m
+    memory: 64Mi
+
+globalEnvs: []
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+vault:
+  enabled: true
+  secrets:
+    app:
+      secretPath: apps/payments/GO_FP_TRANSACTION
+#    db:
+#      secretPath: database/payments/GO_FP_TRANSACTION
+volumes:
+  - name: config
+    secret:
+      secretName: go-fp-transaction-cronjob-vault-app
+      items:
+        - key: config.yaml
+          path: config.yaml
+volumeMounts:
+  - name: config
+    readOnly: true
+    mountPath: /config

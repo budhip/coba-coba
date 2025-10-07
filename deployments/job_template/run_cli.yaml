@@ -1,0 +1,19 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: go-fp-transaction-job-create-transaction
+  namespace:
+spec:
+  template:
+    spec:
+      serviceAccount: go-fp-transaction
+      serviceAccountName: go-fp-transaction
+      containers:
+      - name: go-transaction-job
+        image:
+        env:
+          - name: CONSUL_URL
+            value:
+        imagePullPolicy: IfNotPresent
+        command:
+      restartPolicy: Never
