@@ -37,6 +37,7 @@ type Repository struct {
 	rsr  *reconToolHistoryRepo
 	fr   *featureRepository
 	wtr  *walletTrxRepo
+	mfc  *moneyFlowRepository
 
 	accountConfigFromInternal AccountConfigRepository
 	accountConfigFromExternal AccountConfigRepository
@@ -68,6 +69,7 @@ func NewSQLRepository(
 	rtx.rsr = (*reconToolHistoryRepo)(&rtx.common)
 	rtx.fr = (*featureRepository)(&rtx.common)
 	rtx.wtr = (*walletTrxRepo)(&rtx.common)
+	rtx.mfc = (*moneyFlowRepository)(&rtx.common)
 
 	rtx.accountConfigFromInternal = (*accountConfigRepository)(&rtx.common)
 	rtx.accountConfigFromExternal = &accountConfigFromExternal{accountingClient: accounting}
@@ -97,6 +99,8 @@ type SQLRepository interface {
 	// it will make sure query planner will use another plan beside index scan (sequential scan, bitmap scan, etc)
 	// note: make sure only use this inside Atomic function, so it only affect the current transaction
 	DisableIndexScan(ctx context.Context) (err error)
+
+	GetMoneyFlowCalcRepository() MoneyFlowRepository
 }
 
 var _ SQLRepository = (*Repository)(nil)
@@ -195,4 +199,8 @@ func (r *Repository) SubstitutePlaceholder(data string, startInt int) (res strin
 		res = strings.Replace(res, "?", "$"+strconv.Itoa(i), 1)
 	}
 	return res
+}
+
+func (r *Repository) GetMoneyFlowCalcRepository() MoneyFlowRepository {
+	return r.mfc
 }

@@ -50,7 +50,6 @@ type Services struct {
 
 	Account       *account
 	Balance       *balance
-	MoneyFlowCalc *moneyFlowCalc
 	Transaction   *transaction
 	Storage       *storage
 	Entity        *entity
@@ -62,6 +61,7 @@ type Services struct {
 	Recon         *reconService
 	WalletAccount *walletAccount
 	WalletTrx     *walletTrx
+	MoneyFlowCalc *moneyFlowCalc
 }
 
 func New(
@@ -107,7 +107,6 @@ func New(
 	srv.common.srv = srv
 	srv.Account = (*account)(&srv.common)
 	srv.Balance = (*balance)(&srv.common)
-	srv.MoneyFlowCalc = (*moneyFlowCalc)(&srv.common)
 	srv.Transaction = (*transaction)(&srv.common)
 	srv.Storage = (*storage)(&srv.common)
 	srv.Entity = (*entity)(&srv.common)
@@ -118,6 +117,7 @@ func New(
 	srv.MasterData = (*masterData)(&srv.common)
 	srv.WalletAccount = (*walletAccount)(&srv.common)
 	srv.WalletTrx = (*walletTrx)(&srv.common)
+	srv.MoneyFlowCalc = (*moneyFlowCalc)(&srv.common)
 
 	return srv
 }
