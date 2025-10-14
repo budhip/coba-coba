@@ -4,15 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"time"
 
+	goacuanlib "bitbucket.org/Amartha/go-acuan-lib/model"
 	dlqpublisher "bitbucket.org/Amartha/go-fp-transaction/internal/common/dlq_publisher"
+	xlog "bitbucket.org/Amartha/go-x/log"
+
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common/metrics"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/config"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/models"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/services"
-
-	xlog "bitbucket.org/Amartha/go-x/log"
 	"bitbucket.org/Amartha/go-x/log/audit"
 	"bitbucket.org/Amartha/go-x/log/ctxdata"
 
@@ -86,16 +88,33 @@ func (mfc MoneyFlowCalcHandler) ConsumeClaim(session sarama.ConsumerGroupSession
 
 func (mfc MoneyFlowCalcHandler) processMessage(ctx context.Context, message *sarama.ConsumerMessage) (err error) {
 	var (
-		notification models.TransactionNotificationPayload
-		logMsg       = "[PROCESS-MESSAGE]"
+		logMsg = "[PROCESS-MESSAGE]"
 	)
 
 	logField := createLogField(message)
 
-	if err = json.Unmarshal(message.Value, &notification); err != nil {
+	// Unmarshal into a temporary struct using RawMessage
+	var rawNotif models.TransactionNotificationRaw
+	if err = json.Unmarshal(message.Value, &rawNotif); err != nil {
 		logField = append(logField, xlog.Err(err))
 		xlog.Warn(ctx, logMsg, logField...)
-		return fmt.Errorf("error unmarshal json: %w", err)
+		return fmt.Errorf("error unmarshal json to raw: %w", err)
+	}
+
+	// Fix all fields that have amount object structures
+	fixedAcuanData := mfc.fixAmountInJSON(rawNotif.AcuanData)
+
+	// Build final notification struct
+	var notification goacuanlib.Payload[goacuanlib.DataOrder]
+
+	if len(fixedAcuanData) > 0 {
+		var acuanData goacuanlib.Payload[goacuanlib.DataOrder]
+		if err = json.Unmarshal(fixedAcuanData, &acuanData); err != nil {
+			logField = append(logField, xlog.Err(err))
+			xlog.Warn(ctx, logMsg, logField...)
+			return fmt.Errorf("error unmarshal acuan data: %w", err)
+		}
+		notification = acuanData
 	}
 
 	// Process the notification
@@ -153,4 +172,29 @@ func createLogField(msg *sarama.ConsumerMessage) []xlog.Field {
 		xlog.Int64("offset", msg.Offset),
 		xlog.String("message-claimed", string(msg.Value)),
 	}
+}
+
+// fixAmountInJSON replaces all amount object formats to string
+func (mfc MoneyFlowCalcHandler) fixAmountInJSON(data []byte) []byte {
+	if len(data) == 0 {
+		return data
+	}
+
+	dataStr := string(data)
+
+	balanceFields := []string{
+		"actualBalance",
+		"pendingBalance",
+		"availableBalance",
+	}
+
+	// Fix pattern: {"value": NUMBER, "currency": "XXX"} -> "NUMBER"
+	// This handles: netAmount, actualBalance, pendingBalance, availableBalance, amounts, etc.
+	for _, field := range balanceFields {
+		pattern := fmt.Sprintf(`"%s"\s*:\s*\{\s*"value"\s*:\s*(\d+)\s*,\s*"currency"\s*:\s*"[^"]*"\s*\}`, field)
+		re := regexp.MustCompile(pattern)
+		dataStr = re.ReplaceAllString(dataStr, fmt.Sprintf(`"%s":"$1"`, field))
+	}
+
+	return []byte(dataStr)
 }
