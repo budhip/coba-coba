@@ -56,17 +56,17 @@ func (mr *MockFileServiceMockRecorder) Upload(ctx, file any) *gomock.Call {
 }
 
 // UploadWalletTransaction mocks base method.
-func (m *MockFileService) UploadWalletTransaction(ctx context.Context, file *multipart.FileHeader, email, clientID string) error {
+func (m *MockFileService) UploadWalletTransaction(ctx context.Context, file *multipart.FileHeader, reportTo, clientID string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UploadWalletTransaction", ctx, file, email, clientID)
+	ret := m.ctrl.Call(m, "UploadWalletTransaction", ctx, file, reportTo, clientID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UploadWalletTransaction indicates an expected call of UploadWalletTransaction.
-func (mr *MockFileServiceMockRecorder) UploadWalletTransaction(ctx, file, email, clientID any) *gomock.Call {
+func (mr *MockFileServiceMockRecorder) UploadWalletTransaction(ctx, file, reportTo, clientID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UploadWalletTransaction", reflect.TypeOf((*MockFileService)(nil).UploadWalletTransaction), ctx, file, email, clientID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UploadWalletTransaction", reflect.TypeOf((*MockFileService)(nil).UploadWalletTransaction), ctx, file, reportTo, clientID)
 }
 
 // UploadWalletTransactionFromGCS mocks base method.

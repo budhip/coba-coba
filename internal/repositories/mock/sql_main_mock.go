@@ -181,6 +181,20 @@ func (mr *MockSQLRepositoryMockRecorder) GetFeatureRepository() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFeatureRepository", reflect.TypeOf((*MockSQLRepository)(nil).GetFeatureRepository))
 }
 
+// GetMoneyFlowCalcRepository mocks base method.
+func (m *MockSQLRepository) GetMoneyFlowCalcRepository() repositories.MoneyFlowRepository {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetMoneyFlowCalcRepository")
+	ret0, _ := ret[0].(repositories.MoneyFlowRepository)
+	return ret0
+}
+
+// GetMoneyFlowCalcRepository indicates an expected call of GetMoneyFlowCalcRepository.
+func (mr *MockSQLRepositoryMockRecorder) GetMoneyFlowCalcRepository() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMoneyFlowCalcRepository", reflect.TypeOf((*MockSQLRepository)(nil).GetMoneyFlowCalcRepository))
+}
+
 // GetReconToolHistoryRepository mocks base method.
 func (m *MockSQLRepository) GetReconToolHistoryRepository() repositories.ReconToolHistoryRepository {
 	m.ctrl.T.Helper()

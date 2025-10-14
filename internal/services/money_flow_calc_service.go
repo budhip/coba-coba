@@ -15,6 +15,7 @@ import (
 type MoneyFlowService interface {
 	ProcessTransactionNotification(ctx context.Context, notification goacuanlib.Payload[goacuanlib.DataOrder]) error
 	CheckEligibleTransaction(ctx context.Context, breakdownTransactionType string) (*models.BankConfig, error)
+	ProcessTransactionStream(ctx context.Context, event models.TransactionStreamEvent) error
 }
 
 type moneyFlowCalc service
@@ -24,6 +25,11 @@ var _ MoneyFlowService = (*moneyFlowCalc)(nil)
 const (
 	MoneyFlowStatusPending = "PENDING"
 )
+
+var papaValidStatuses = map[string]bool{
+	"SUCCESSFUL": true,
+	"REJECTED":   true,
+}
 
 func (mf *moneyFlowCalc) CheckEligibleTransaction(ctx context.Context, breakdownTransactionType string) (*models.BankConfig, error) {
 	var err error
@@ -163,7 +169,7 @@ func (mf *moneyFlowCalc) processSingleTransaction(ctx context.Context, trx goacu
 			if err != nil {
 				return fmt.Errorf("failed to create detailed summary: %w", err)
 			}
-		} else if processedResult != nil && processedResult.MoneyFlowStatus != "SUCCESS" {
+		} else if processedResult != nil {
 			totalAmount := trx.Amount.Add(processedResult.TotalTransfer)
 
 			updateReq := models.MoneyFlowSummaryUpdate{
@@ -191,4 +197,56 @@ func (mf *moneyFlowCalc) processSingleTransaction(ctx context.Context, trx goacu
 	}
 
 	return summaryID, nil
+}
+
+func (mf *moneyFlowCalc) ProcessTransactionStream(ctx context.Context, event models.TransactionStreamEvent) error {
+	var err error
+
+	monitor := monitoring.New(ctx)
+	defer monitor.Finish(monitoring.WithFinishCheckError(err))
+
+	if !papaValidStatuses[event.Status] {
+		xlog.Info(ctx, "[MONEY-FLOW-UPDATE] Skipping non-successful transaction",
+			xlog.String("status", event.Status),
+			xlog.String("papa_transaction_id", event.TransactionID),
+			xlog.String("ref_number", event.ReferenceNumber))
+		return nil
+	}
+
+	// Get summary ID by PAPA transaction ID
+	summaryID, err := mf.srv.sqlRepo.GetMoneyFlowCalcRepository().GetSummaryIDByPapaTransactionID(ctx, event.TransactionID)
+	if err != nil {
+		return fmt.Errorf("failed to get summary ID by PAPA transaction ID: %w", err)
+	}
+
+	if summaryID == "" {
+		xlog.Warn(ctx, "[MONEY-FLOW-UPDATE] Summary id not found for transaction",
+			xlog.String("transaction_id", event.TransactionID),
+			xlog.String("ref_number", event.ReferenceNumber))
+		return nil
+	}
+
+	status := event.Status
+
+	updateReq := models.MoneyFlowSummaryUpdate{
+		MoneyFlowStatus: &status,
+	}
+
+	err = mf.srv.sqlRepo.GetMoneyFlowCalcRepository().UpdateSummary(ctx, summaryID, updateReq)
+	if err != nil {
+		xlog.Error(ctx, "[MONEY-FLOW-UPDATE] Failed to update status",
+			xlog.String("summary_id", summaryID),
+			xlog.String("papa_transaction_id", event.TransactionID),
+			xlog.String("ref_number", event.ReferenceNumber),
+			xlog.Err(err))
+		return err
+	}
+
+	xlog.Info(ctx, "[MONEY-FLOW-UPDATE] Successfully updated money flow status",
+		xlog.String("summary_id", summaryID),
+		xlog.String("papa_transaction_id", event.TransactionID),
+		xlog.String("ref_number", event.ReferenceNumber),
+		xlog.String("status", status))
+
+	return nil
 }

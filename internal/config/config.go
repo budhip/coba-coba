@@ -192,6 +192,8 @@ type (
 		ConsumerGroupDLQRetrier               string   `json:"consumer_group_dlq_retrier"`
 		ConsumerGroupBalanceHvt               string   `json:"consumer_group_balance_hvt"`
 		ConsumerGroupProcessWalletTransaction string   `json:"consumer_group_process_wallet_transaction"`
+		ConsumerGroupMoneyFlowCalc            string   `json:"consumer_group_money_flow_calc"`
+		ConsumerGroupTransactionStream        string   `json:"consumer_group_transaction_stream"`
 		Topic                                 string   `json:"topic"`
 		TopicDLQ                              string   `json:"topic_dlq"`
 		TopicAccountMutation                  string   `json:"topic_account_mutation"`
@@ -204,6 +206,8 @@ type (
 		TopicBalanceHvtDLQ                    string   `json:"topic_balance_hvt_dlq"`
 		TopicProcessWalletTransaction         string   `json:"topic_process_wallet_transaction"`
 		TopicProcessWalletTransactionDLQ      string   `json:"topic_process_wallet_transaction_dlq"`
+		TopicMoneyFlowCalcDLQ                 string   `json:"topic_money_flow_calc_dlq"`
+		TopicTransactionStream                string   `json:"topic_transaction_stream"`
 		Assignor                              string   `json:"assignor"`
 		IsOldest                              bool     `json:"is_oldest"`
 		IsVerbose                             bool     `json:"is_verbose"`

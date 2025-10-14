@@ -9,7 +9,7 @@ app:
   log_level: debug
 
 postgres:
-  write: 
+  write:
     db_host: {{ vault_db_write.dbhost }}
     db_port: {{ vault_db_write.dbport }}
     db_user: {{ vault_db_write.dbuser }}
@@ -18,7 +18,7 @@ postgres:
     db_schema: {{ vault_db.dbschema }}
     maxOpenConnections: 25
     maxIdleConnections: 2
-  read: 
+  read:
     db_host: {{ vault_db_read.dbhost }}
     db_port: {{ vault_db_read.dbport }}
     db_user: {{ vault_db_read.dbuser }}
@@ -205,11 +205,11 @@ account_config:
   ppob_revenue_account_number:
     Alterra: "292003000000001"
     GoTo: "292003000000002"
-#  hvt_sub_category_codes:
-#    - "21103"
-#    - "21104"
-#    - "21203"
-#    - "21204"
+  #  hvt_sub_category_codes:
+  #    - "21103"
+  #    - "21104"
+  #    - "21203"
+  #    - "21204"
   excluded_balance_update_account_numbers:
     - "00000100000001"
   general_cash_out_holding_account_number: "231003000011012"
@@ -217,7 +217,7 @@ account_config:
     "001": "AMF"
     "003": "AFA"
     "005": "AWF"
-  account_number_bank_tupvi_for_admfe: 
+  account_number_bank_tupvi_for_admfe:
     "AMF": "114001000000003"
     "AWF": "114005000000006"
   account_number_bank_cotlr_for_admfe_by_entity:
@@ -242,6 +242,8 @@ message_broker:
     consumer_group_dlq_retrier: go-fp-transaction-dlq-retrier
     consumer_group_balance_hvt: go-fp-balance-hvt
     consumer_group_process_wallet_transaction: go-fp-process-wallet-transaction
+    consumer_group_money_flow_calc: go-fp-transaction-money-flow-calc
+    consumer_group_transaction_stream: go-fp-transaction-transaction-stream
     topic: "order-transaction"
     topic_dlq: "order-transaction.dlq"
     topic_balance_logs: "acuan_balance_logs"
@@ -254,6 +256,8 @@ message_broker:
     topic_balance_hvt_dlq: "update_balance_hvt.dlq"
     topic_process_wallet_transaction: "process_wallet_transaction"
     topic_process_wallet_transaction_dlq: "process_wallet_transaction.dlq"
+    topic_money_flow_calc_dlq: "money_flow_calc.dlq"
+    topic_transaction_stream: "transaction_stream"
     assignor: sticky
     is_oldest: false
     is_verbose: true

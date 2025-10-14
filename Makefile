@@ -36,7 +36,15 @@ run-consumer-hvt_balance_update: tidy swag-gen
 	CGO_ENABLED=0 go run ./cmd/consumer/main.go run -n=hvt_balance_update
 .PHONY: run-consumer-hvt_balance_update
 
-error-gen: 
+run-consumer-money_flow_calc: tidy swag-gen
+	CGO_ENABLED=0 go run ./cmd/consumer/main.go run -n=money_flow_calc
+.PHONY: run-consumer-money_flow_calc
+
+run-consumer-transaction_stream: tidy swag-gen
+	CGO_ENABLED=0 go run ./cmd/consumer/main.go run -n=transaction_stream
+.PHONY: run-consumer-transaction_stream
+
+error-gen:
 	CGO_ENABLED=0 go run ./cmd/errorgen/main.go
 
 tidy:

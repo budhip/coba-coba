@@ -1,6 +1,8 @@
 package consumer
 
 import (
+	"bitbucket.org/Amartha/go-fp-transaction/internal/deliveries/consumer/money_flow_calc"
+	"bitbucket.org/Amartha/go-fp-transaction/internal/deliveries/consumer/transaction_stream"
 	"context"
 	"fmt"
 
@@ -89,6 +91,28 @@ func NewKafkaConsumer(
 		processWalletDlq := dlqpublisher.New(producer, conf.MessageBroker.KafkaConsumer.TopicProcessWalletTransactionDLQ, contract.Metrics)
 
 		consumerProcess, err = process_wallet_transaction.New(ctx, conf, contract.Metrics, cacheRepo, svc.WalletTrx, processWalletDlq)
+	case "money_flow_calc":
+		producer, errProducer := publisher.NewKafkaSyncProducer(conf.MessageBroker.KafkaConsumer.Brokers)
+		if errProducer != nil {
+			err = fmt.Errorf("failed setup kafka dlq publisher : %w", errProducer)
+			return
+		}
+
+		stoppers = append(stoppers, func(ctx context.Context) error { return producer.Close() })
+
+		moneyFlowCalcDlq := dlqpublisher.New(producer, conf.MessageBroker.KafkaConsumer.TopicMoneyFlowCalcDLQ, contract.Metrics)
+		consumerProcess, err = money_flow_calc.New(ctx, conf, svc.MoneyFlowCalc, moneyFlowCalcDlq, contract.Metrics)
+	case "transaction_stream":
+		producer, errProducer := publisher.NewKafkaSyncProducer(conf.MessageBroker.KafkaConsumer.Brokers)
+		if errProducer != nil {
+			err = fmt.Errorf("failed setup kafka dlq publisher : %w", errProducer)
+			return
+		}
+
+		stoppers = append(stoppers, func(ctx context.Context) error { return producer.Close() })
+
+		moneyFlowCalcDlq := dlqpublisher.New(producer, conf.MessageBroker.KafkaConsumer.TopicMoneyFlowCalcDLQ, contract.Metrics)
+		consumerProcess, err = transaction_stream.New(ctx, conf, svc.MoneyFlowCalc, moneyFlowCalcDlq, contract.Metrics)
 	default:
 		err = fmt.Errorf("consumer type name for %s not found", consumerName)
 	}
