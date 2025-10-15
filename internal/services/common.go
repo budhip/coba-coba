@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/config"
@@ -301,4 +302,8 @@ func updateTransactionAccountNumber(trxReq []models.TransactionReq, balances []m
 	}
 
 	return trxReq
+}
+
+func getCacheKeyReportRepayment(startDate, endDate time.Time) string {
+	return fmt.Sprintf("go-fp:report-repayment:%s:%s", startDate.Format(time.DateOnly), endDate.Format(time.DateOnly))
 }

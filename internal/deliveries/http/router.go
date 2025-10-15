@@ -152,6 +152,8 @@ func NewHTTPServer(
 
 	// v1Group
 	v1Group := apiGroup.Group("/v1")
+	v1finSnapshot.New(v1Group, transactionService)
+
 	// v1Group middleware
 	v1Group.Use(m.InternalAuth())
 	// v1Group register api
@@ -167,7 +169,6 @@ func NewHTTPServer(
 	v1order.New(v1Group, transactionService, m)
 	v1walletTrx.New(conf, v1Group, walletTrxService, accountService, m)
 	v1internalWallet.New(v1Group, walletTrxService)
-	v1finSnapshot.New(v1Group, transactionService, m)
 
 	// v2Group
 	v2Group := apiGroup.Group("/v2")

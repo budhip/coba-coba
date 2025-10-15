@@ -71,21 +71,6 @@ func (mr *MockMoneyFlowRepositoryMockRecorder) CreateSummary(ctx, in any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateSummary", reflect.TypeOf((*MockMoneyFlowRepository)(nil).CreateSummary), ctx, in)
 }
 
-// GetBankConfig mocks base method.
-func (m *MockMoneyFlowRepository) GetBankConfig(ctx context.Context, breakdownTransactionType string) (*models.BankConfig, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetBankConfig", ctx, breakdownTransactionType)
-	ret0, _ := ret[0].(*models.BankConfig)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetBankConfig indicates an expected call of GetBankConfig.
-func (mr *MockMoneyFlowRepositoryMockRecorder) GetBankConfig(ctx, breakdownTransactionType any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBankConfig", reflect.TypeOf((*MockMoneyFlowRepository)(nil).GetBankConfig), ctx, breakdownTransactionType)
-}
-
 // GetSummaryIDByPapaTransactionID mocks base method.
 func (m *MockMoneyFlowRepository) GetSummaryIDByPapaTransactionID(ctx context.Context, papaTransactionID string) (string, error) {
 	m.ctrl.T.Helper()

@@ -15,6 +15,7 @@ import (
 
 	model "bitbucket.org/Amartha/go-acuan-lib/model"
 	models "bitbucket.org/Amartha/go-fp-transaction/internal/models"
+	event "bitbucket.org/Amartha/go-payment-lib/payment-api/models/event"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -43,18 +44,19 @@ func (m *MockMoneyFlowService) EXPECT() *MockMoneyFlowServiceMockRecorder {
 }
 
 // CheckEligibleTransaction mocks base method.
-func (m *MockMoneyFlowService) CheckEligibleTransaction(ctx context.Context, breakdownTransactionType string) (*models.BankConfig, error) {
+func (m *MockMoneyFlowService) CheckEligibleTransaction(ctx context.Context, paymentType, breakdownTransactionType string) (*models.BusinessRuleConfig, string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CheckEligibleTransaction", ctx, breakdownTransactionType)
-	ret0, _ := ret[0].(*models.BankConfig)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret := m.ctrl.Call(m, "CheckEligibleTransaction", ctx, paymentType, breakdownTransactionType)
+	ret0, _ := ret[0].(*models.BusinessRuleConfig)
+	ret1, _ := ret[1].(string)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // CheckEligibleTransaction indicates an expected call of CheckEligibleTransaction.
-func (mr *MockMoneyFlowServiceMockRecorder) CheckEligibleTransaction(ctx, breakdownTransactionType any) *gomock.Call {
+func (mr *MockMoneyFlowServiceMockRecorder) CheckEligibleTransaction(ctx, paymentType, breakdownTransactionType any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckEligibleTransaction", reflect.TypeOf((*MockMoneyFlowService)(nil).CheckEligibleTransaction), ctx, breakdownTransactionType)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckEligibleTransaction", reflect.TypeOf((*MockMoneyFlowService)(nil).CheckEligibleTransaction), ctx, paymentType, breakdownTransactionType)
 }
 
 // ProcessTransactionNotification mocks base method.
@@ -72,15 +74,15 @@ func (mr *MockMoneyFlowServiceMockRecorder) ProcessTransactionNotification(ctx, 
 }
 
 // ProcessTransactionStream mocks base method.
-func (m *MockMoneyFlowService) ProcessTransactionStream(ctx context.Context, event models.TransactionStreamEvent) error {
+func (m *MockMoneyFlowService) ProcessTransactionStream(ctx context.Context, arg1 event.Event) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ProcessTransactionStream", ctx, event)
+	ret := m.ctrl.Call(m, "ProcessTransactionStream", ctx, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // ProcessTransactionStream indicates an expected call of ProcessTransactionStream.
-func (mr *MockMoneyFlowServiceMockRecorder) ProcessTransactionStream(ctx, event any) *gomock.Call {
+func (mr *MockMoneyFlowServiceMockRecorder) ProcessTransactionStream(ctx, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProcessTransactionStream", reflect.TypeOf((*MockMoneyFlowService)(nil).ProcessTransactionStream), ctx, event)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProcessTransactionStream", reflect.TypeOf((*MockMoneyFlowService)(nil).ProcessTransactionStream), ctx, arg1)
 }

@@ -276,6 +276,7 @@ type (
 		UseAccountConfigFromExternal                     string `json:"use_account_config_from_external"`
 		LceRollout                                       string `json:"lce_rollout"`
 		BalanceLimitToggle                               string `json:"balance_limit_toggle"`
+		MoneyFlowCalcBusinessRulesConfig                 string `json:"money_flow_calc_business_rules_config"`
 	}
 
 	AcuanLibKafkaConfig struct {

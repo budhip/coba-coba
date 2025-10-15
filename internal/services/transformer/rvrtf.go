@@ -5,40 +5,45 @@ import (
 
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/models"
+
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 )
 
-type dsbtiTransformer struct {
+type rvrtfTransformer struct {
 	baseWalletTransactionTransformer
 }
 
-func (t dsbtiTransformer) Transform(ctx context.Context, amount models.Amount, parentWalletTransaction models.WalletTransaction) (res []models.TransactionReq, err error) {
+func (t rvrtfTransformer) Transform(_ context.Context, amount models.Amount, parentWalletTransaction models.WalletTransaction) (res []models.TransactionReq, err error) {
 	status, err := transformWalletTransactionStatus(parentWalletTransaction.Status)
 	if err != nil {
 		return nil, err
 	}
 
-	entity := getEntityFromMetadata(parentWalletTransaction.Metadata)
-	if entity == "" {
-		return nil, common.ErrMissingEntityFromMetadata
+	if parentWalletTransaction.TransactionFlow != models.TransactionFlowTransfer {
+		return nil, common.ErrUnsupportedTransactionFlow
 	}
 
-	productType := getProductTypeFromMetadata(parentWalletTransaction.Metadata)
-	if productType == "" {
-		return nil, common.ErrMissingProductTypeFromMetadata
+	debit, ok := parentWalletTransaction.Metadata["debit"].(string)
+	if !ok || debit == "" {
+		return nil, common.ErrMissingDebitFromMetadata
+	}
+
+	credit, ok := parentWalletTransaction.Metadata["credit"].(string)
+	if !ok || credit == "" {
+		return nil, common.ErrMissingCreditFromMetadata
 	}
 
 	return []models.TransactionReq{
 		{
 			TransactionID:   uuid.New().String(),
 			FromAccount:     parentWalletTransaction.AccountNumber,
-			ToAccount:       t.config.AccountConfig.SystemAccountNumber,
+			ToAccount:       parentWalletTransaction.DestinationAccountNumber,
 			TransactionDate: common.FormatDatetimeToStringInLocalTime(parentWalletTransaction.TransactionTime, common.DateFormatYYYYMMDD),
 			Amount:          decimal.NewNullDecimal(amount.ValueDecimal.Decimal),
 			Status:          string(status),
-			TypeTransaction: "DSBTI",
-			OrderType:       "DSB",
+			TypeTransaction: "RVRTF",
+			OrderType:       "RVR",
 			OrderTime:       getOrderTime(parentWalletTransaction),
 			RefNumber:       parentWalletTransaction.RefNumber,
 			Currency:        transformCurrency(amount.Currency),

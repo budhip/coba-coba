@@ -277,6 +277,9 @@ func NewMapTransformer(
 		"DSBTF": &dsbtfTransformer{baseTransformer},
 		"ADMMA": &admmaTransformer{baseTransformer},
 		"TUPPP": &tupppTransformer{baseTransformer},
+		"SIVTF": &sivtfTransformer{baseTransformer},
+		"BBLTF": &bbltfTransformer{baseTransformer},
+		"RVRTF": &rvrtfTransformer{baseTransformer},
 	}
 }
 

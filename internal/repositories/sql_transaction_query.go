@@ -117,11 +117,19 @@ WITH transaction_summary AS (
         SUM(CASE WHEN "typeTransaction" = 'RPYAC' THEN amount ELSE 0 END) AS "pph"
     FROM transaction
     WHERE "typeTransaction" IN ('RPYAE', 'RPYAD', 'RPYAF', 'RPYAB', 'RPYAG', 'RPYAC')
-    AND "transactionDate" = $1::date
+      AND "transactionDate" = $1::date
     GROUP BY "transactionDate"
 )
-SELECT "transactionDate", "outstanding", "principal", "amartha", "lender", "ppn", "pph"
-FROM transaction_summary;
+SELECT 
+    COALESCE(ts."transactionDate", $1::date) AS "transactionDate",
+    COALESCE(ts."outstanding", 0) AS "outstanding",
+    COALESCE(ts."principal", 0) AS "principal",
+    COALESCE(ts."amartha", 0) AS "amartha",
+    COALESCE(ts."lender", 0) AS "lender",
+    COALESCE(ts."ppn", 0) AS "ppn",
+    COALESCE(ts."pph", 0) AS "pph"
+FROM transaction_summary ts
+RIGHT JOIN (SELECT $1::date AS "transactionDate") d ON ts."transactionDate" = d."transactionDate";
 `
 
 	queryReportRepayment = `
@@ -136,7 +144,7 @@ FROM transaction_summary;
         SUM(CASE WHEN "typeTransaction" = 'RPYAC' THEN amount ELSE 0 END) AS "pph"
     FROM transaction
     WHERE "typeTransaction" IN ('RPYAE', 'RPYAD', 'RPYAF', 'RPYAB', 'RPYAG', 'RPYAC')
-      AND "transactionDate" BETWEEN $1::date AND $2::date
+      AND "transactionDate" >= $1::date AND "transactionDate" < $2::date
     GROUP BY "transactionDate"
 )
 SELECT *,

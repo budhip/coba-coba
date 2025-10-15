@@ -5,302 +5,202 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
-	"time"
 
-	"bitbucket.org/Amartha/go-fp-transaction/internal/common"
+	"bitbucket.org/Amartha/go-fp-transaction/internal/common/accounting"
+	"bitbucket.org/Amartha/go-fp-transaction/internal/common/cache"
+	"bitbucket.org/Amartha/go-fp-transaction/internal/common/flag"
+	"bitbucket.org/Amartha/go-fp-transaction/internal/config"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/models"
-	"bitbucket.org/Amartha/go-fp-transaction/internal/monitoring"
-
-	"github.com/google/uuid"
+	xlog "bitbucket.org/Amartha/go-x/log"
 )
 
-type MoneyFlowRepository interface {
-	CreateSummary(ctx context.Context, in models.CreateMoneyFlowSummary) (string, error)
-	CreateDetailedSummary(ctx context.Context, in models.CreateDetailedMoneyFlowSummary) error
-	GetTransactionProcessed(ctx context.Context, breakdownTransactionsFrom string, transactionSourceDate time.Time) (*models.MoneyFlowTransactionProcessed, error)
-	GetBankConfig(ctx context.Context, breakdownTransactionType string) (*models.BankConfig, error)
-	UpdateSummary(ctx context.Context, summaryID string, update models.MoneyFlowSummaryUpdate) error
-	GetSummaryIDByPapaTransactionID(ctx context.Context, papaTransactionID string) (string, error)
+type sqlRepo struct {
+	r *Repository
 }
 
-type moneyFlowRepository sqlRepo
+type Repository struct {
+	dbWrite *sql.DB
+	dbRead  *sql.DB
+	config  config.Config
+	flag    flag.Client
+	common  sqlRepo
 
-var _ MoneyFlowRepository = (*moneyFlowRepository)(nil)
+	ar   *accountRepository
+	br   *balanceRepository
+	tr   *transactionRepository
+	abdr *accountBalanceDailyRepository
+	cr   *categoryRepository
+	scr  *subCategoryRepository
+	er   *entityRepository
+	rsr  *reconToolHistoryRepo
+	fr   *featureRepository
+	wtr  *walletTrxRepo
+	mfc  *moneyFlowRepository
 
-const (
-	queryCreateSummary = `
-		INSERT INTO money_flow_summaries (
-			id, transaction_source_date, transaction_type, payment_type, 
-			reference_number, description, source_account, destination_account, 
-			total_transfer, papa_transaction_id, money_flow_status, 
-			requested_date, actual_date, 
-			source_bank_account_number, source_bank_account_name, source_bank_name,
-			destination_bank_account_number, destination_bank_account_name, destination_bank_name,
-			created_at, updated_at
-		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, NOW(), NOW())
-		RETURNING id
-	`
+	accountConfigFromInternal AccountConfigRepository
+	accountConfigFromExternal AccountConfigRepository
 
-	queryCreateDetailedSummary = `
-		INSERT INTO detailed_money_flow_summaries (
-			id, summary_id, acuan_transaction_id, created_at
-		)
-		VALUES ($1, $2, $3, NOW())
-	`
+	cacheAccount cache.Client[models.GetAccountOut]
+}
 
-	queryGetTransactionProcessed = `
-		SELECT 
-			id, transaction_source_date, transaction_type,
-			payment_type, total_transfer, money_flow_status
-		FROM money_flow_summaries
-		WHERE transaction_type = $1 AND transaction_source_date = $2 AND money_flow_status = 'PENDING'
-	`
-
-	queryGetBankConfig = `
-		SELECT 
-			payment_type, transaction_type, breakdown_transaction_from,
-			source_account_number, source_bank_name, 
-			source_bank_account_number, source_bank_account_name,
-			destination_account_number, 
-			destination_bank_account_number, destination_bank_account_name, destination_bank_name
-		FROM money_flow_bank_config
-		WHERE breakdown_transaction_from = $1
-	`
-
-	queryGetSummaryIDByPapaTransactionID = `
-		SELECT 
-			id
-		FROM money_flow_summaries
-		WHERE papa_transaction_id = $1
-		LIMIT 1
-	`
-)
-
-func (mfr *moneyFlowRepository) CreateSummary(ctx context.Context, in models.CreateMoneyFlowSummary) (string, error) {
-	var err error
-
-	monitor := monitoring.New(ctx)
-	defer monitor.Finish(monitoring.WithFinishCheckError(err))
-
-	db := mfr.r.extractTxWrite(ctx)
-
-	id := uuid.New().String()
-	var returnedID string
-	err = db.QueryRowContext(ctx, queryCreateSummary,
-		id,
-		in.TransactionSourceDate,
-		in.TransactionType,
-		in.PaymentType,
-		in.ReferenceNumber,
-		in.Description,
-		in.SourceAccount,
-		in.DestinationAccount,
-		in.TotalTransfer,
-		in.PapaTransactionID,
-		in.MoneyFlowStatus,
-		in.RequestedDate,
-		in.ActualDate,
-		in.SourceBankAccountNumber,
-		in.SourceBankAccountName,
-		in.SourceBankName,
-		in.DestinationBankAccountNumber,
-		in.DestinationBankAccountName,
-		in.DestinationBankName,
-	).Scan(&returnedID)
-
-	if err != nil {
-		return "", err
+func NewSQLRepository(
+	dbWrite *sql.DB,
+	dbRead *sql.DB,
+	cfg config.Config,
+	f flag.Client,
+	accounting accounting.Client,
+) *Repository {
+	rtx := &Repository{
+		dbWrite: dbWrite,
+		dbRead:  dbRead,
+		config:  cfg,
+		flag:    f,
 	}
+	rtx.common.r = rtx
+	rtx.ar = (*accountRepository)(&rtx.common)
+	rtx.br = (*balanceRepository)(&rtx.common)
+	rtx.tr = (*transactionRepository)(&rtx.common)
+	rtx.abdr = (*accountBalanceDailyRepository)(&rtx.common)
+	rtx.cr = (*categoryRepository)(&rtx.common)
+	rtx.scr = (*subCategoryRepository)(&rtx.common)
+	rtx.er = (*entityRepository)(&rtx.common)
+	rtx.rsr = (*reconToolHistoryRepo)(&rtx.common)
+	rtx.fr = (*featureRepository)(&rtx.common)
+	rtx.wtr = (*walletTrxRepo)(&rtx.common)
+	rtx.mfc = (*moneyFlowRepository)(&rtx.common)
 
-	return returnedID, nil
+	rtx.accountConfigFromInternal = (*accountConfigRepository)(&rtx.common)
+	rtx.accountConfigFromExternal = &accountConfigFromExternal{accountingClient: accounting}
+
+	rtx.cacheAccount = cache.NewInMemoryClient[models.GetAccountOut]()
+
+	return rtx
 }
 
-func (mfr *moneyFlowRepository) CreateDetailedSummary(ctx context.Context, in models.CreateDetailedMoneyFlowSummary) error {
-	var err error
+type SQLRepository interface {
+	Atomic(ctx context.Context, steps func(ctx context.Context, r SQLRepository) error) error
+	GetAccountRepository() AccountRepository
+	GetTransactionRepository() TransactionRepository
+	GetAccountBalanceDailyRepository() AccountBalanceDailyRepository
+	GetCategoryRepository() CategoryRepository
+	GetSubCategoryRepository() SubCategoryRepository
+	GetEntityRepository() EntityRepository
+	GetReconToolHistoryRepository() ReconToolHistoryRepository
+	GetFeatureRepository() FeatureRepository
+	GetWalletTransactionRepository() WalletTransactionRepository
+	GetBalanceRepository() BalanceRepository
 
-	monitor := monitoring.New(ctx)
-	defer monitor.Finish(monitoring.WithFinishCheckError(err))
+	GetAccountConfigInternalRepository() AccountConfigRepository
+	GetAccountConfigExternalRepository() AccountConfigRepository
 
-	db := mfr.r.extractTxWrite(ctx)
+	// DisableIndexScan is a temporary solution to disable index scan
+	// it will make sure query planner will use another plan beside index scan (sequential scan, bitmap scan, etc)
+	// note: make sure only use this inside Atomic function, so it only affect the current transaction
+	DisableIndexScan(ctx context.Context) (err error)
 
-	id := uuid.New().String()
-	res, err := db.ExecContext(ctx, queryCreateDetailedSummary,
-		id,
-		in.SummaryID,
-		in.AcuanTransactionID,
-	)
+	GetMoneyFlowCalcRepository() MoneyFlowRepository
+}
+
+var _ SQLRepository = (*Repository)(nil)
+
+func (r *Repository) Atomic(ctx context.Context, steps func(ctx context.Context, r SQLRepository) error) (err error) {
+	tx, err := r.dbWrite.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 
-	affectedRows, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
+	xlog.Info(ctx, "[DATABASE.TRANSACTION.BEGIN]")
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			err = fmt.Errorf("panic happened because: %v", p)
+			xlog.Panic(ctx, "[DATABASE.TRANSACTION.PANIC]", xlog.Err(err))
+		} else if err != nil {
+			if rbErr := tx.Rollback(); rbErr != nil {
+				err = fmt.Errorf("tx err: %v, rb err: %v", err, rbErr)
+			}
+			xlog.Warn(ctx, "[DATABASE.TRANSACTION.ROLLBACK]", xlog.Err(err))
+		} else {
+			if err = tx.Commit(); err != nil {
+				if errors.Is(err, sql.ErrTxDone) {
+					xlog.Warn(ctx, "[DATABASE.TRANSACTION.ALREADY_COMMITTED_OR_ROLLEDBACK]", xlog.Err(err))
+					err = nil
+				}
+			}
 
-	if affectedRows == 0 {
-		return common.ErrNoRowsAffected
-	}
-
-	return nil
-}
-
-func (mfr *moneyFlowRepository) GetTransactionProcessed(ctx context.Context, breakdownTransactionsFrom string, transactionSourceDate time.Time) (*models.MoneyFlowTransactionProcessed, error) {
-	var err error
-
-	monitor := monitoring.New(ctx)
-	defer monitor.Finish(monitoring.WithFinishCheckError(err))
-
-	db := mfr.r.extractTxRead(ctx)
-
-	var result models.MoneyFlowTransactionProcessed
-	err = db.QueryRowContext(ctx, queryGetTransactionProcessed, breakdownTransactionsFrom, transactionSourceDate).Scan(
-		&result.ID,
-		&result.TransactionSourceDate,
-		&result.TransactionType,
-		&result.PaymentType,
-		&result.TotalTransfer,
-		&result.MoneyFlowStatus)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, nil
+			xlog.Info(ctx, "[DATABASE.TRANSACTION.COMMIT]")
 		}
-		return nil, err
-	}
-
-	return &result, nil
+	}()
+	ctx = injectTx(ctx, tx)
+	err = steps(ctx, r)
+	return
 }
 
-func (mfr *moneyFlowRepository) GetBankConfig(ctx context.Context, breakdownTransactionType string) (*models.BankConfig, error) {
-	var err error
-
-	monitor := monitoring.New(ctx)
-	defer monitor.Finish(monitoring.WithFinishCheckError(err))
-
-	db := mfr.r.extractTxRead(ctx)
-
-	var config models.BankConfig
-	err = db.QueryRowContext(ctx, queryGetBankConfig, breakdownTransactionType).Scan(
-		&config.PaymentType,
-		&config.TransactionType,
-		&config.BreakdownTransactionFrom,
-		&config.SourceAccountNumber,
-		&config.SourceBankName,
-		&config.SourceBankAccountNumber,
-		&config.SourceBankAccountName,
-		&config.DestinationAccountNumber,
-		&config.DestinationBankAccountNumber,
-		&config.DestinationBankAccountName,
-		&config.DestinationBankName,
-	)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, nil
-		}
-		return nil, err
-	}
-
-	return &config, nil
+func (r *Repository) GetAccountRepository() AccountRepository {
+	return r.ar
 }
 
-func (mfr *moneyFlowRepository) UpdateSummary(ctx context.Context, summaryID string, updates models.MoneyFlowSummaryUpdate) error {
-	var err error
-
-	monitor := monitoring.New(ctx)
-	defer monitor.Finish(monitoring.WithFinishCheckError(err))
-
-	db := mfr.r.extractTxWrite(ctx)
-
-	// Build dynamic query
-	setClauses := []string{}
-	args := []interface{}{summaryID} // $1 untuk WHERE clause
-	paramIndex := 2
-
-	if updates.PaymentType != nil {
-		setClauses = append(setClauses, fmt.Sprintf("payment_type = $%d", paramIndex))
-		args = append(args, *updates.PaymentType)
-		paramIndex++
-	}
-
-	if updates.TotalTransfer != nil {
-		setClauses = append(setClauses, fmt.Sprintf("total_transfer = $%d", paramIndex))
-		args = append(args, *updates.TotalTransfer)
-		paramIndex++
-	}
-
-	if updates.PapaTransactionID != nil {
-		setClauses = append(setClauses, fmt.Sprintf("papa_transaction_id = $%d", paramIndex))
-		args = append(args, *updates.PapaTransactionID)
-		paramIndex++
-	}
-
-	if updates.MoneyFlowStatus != nil {
-		setClauses = append(setClauses, fmt.Sprintf("money_flow_status = $%d", paramIndex))
-		args = append(args, *updates.MoneyFlowStatus)
-		paramIndex++
-	}
-
-	if updates.RequestedDate != nil {
-		setClauses = append(setClauses, fmt.Sprintf("requested_date = $%d", paramIndex))
-		args = append(args, *updates.RequestedDate)
-		paramIndex++
-	}
-
-	if updates.ActualDate != nil {
-		setClauses = append(setClauses, fmt.Sprintf("actual_date = $%d", paramIndex))
-		args = append(args, *updates.ActualDate)
-		paramIndex++
-	}
-
-	// If no fields are updated, return an error
-	if len(setClauses) == 0 {
-		return errors.New("Error No Field to Update")
-	}
-
-	// Always update updated_at
-	setClauses = append(setClauses, "updated_at = NOW()")
-
-	// Build final query
-	query := fmt.Sprintf(
-		"UPDATE money_flow_summaries SET %s WHERE id = $1",
-		strings.Join(setClauses, ", "),
-	)
-
-	res, err := db.ExecContext(ctx, query, args...)
-	if err != nil {
-		return err
-	}
-
-	affectedRows, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-
-	if affectedRows == 0 {
-		return common.ErrNoRowsAffected
-	}
-
-	return nil
+func (r *Repository) GetBalanceRepository() BalanceRepository {
+	return r.br
 }
 
-func (mfr *moneyFlowRepository) GetSummaryIDByPapaTransactionID(ctx context.Context, papaTransactionID string) (string, error) {
-	var err error
+func (r *Repository) GetTransactionRepository() TransactionRepository {
+	return r.tr
+}
 
-	monitor := monitoring.New(ctx)
-	defer monitor.Finish(monitoring.WithFinishCheckError(err))
+func (r *Repository) GetAccountBalanceDailyRepository() AccountBalanceDailyRepository {
+	return r.abdr
+}
 
-	db := mfr.r.extractTxRead(ctx)
+func (r *Repository) GetCategoryRepository() CategoryRepository {
+	return r.cr
+}
 
-	var summaryID string
-	err = db.QueryRowContext(ctx, queryGetSummaryIDByPapaTransactionID, papaTransactionID).Scan(&summaryID)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return "", nil
-		}
-		return "", err
+func (r *Repository) GetSubCategoryRepository() SubCategoryRepository {
+	return r.scr
+}
+
+func (r *Repository) GetEntityRepository() EntityRepository {
+	return r.er
+}
+
+func (r *Repository) GetReconToolHistoryRepository() ReconToolHistoryRepository {
+	return r.rsr
+}
+
+func (r *Repository) GetFeatureRepository() FeatureRepository {
+	return r.fr
+}
+
+func (r *Repository) GetWalletTransactionRepository() WalletTransactionRepository {
+	return r.wtr
+}
+
+func (r *Repository) GetAccountConfigInternalRepository() AccountConfigRepository {
+	return r.accountConfigFromInternal
+}
+
+func (r *Repository) GetAccountConfigExternalRepository() AccountConfigRepository {
+	return r.accountConfigFromExternal
+}
+
+func (r *Repository) DisableIndexScan(ctx context.Context) (err error) {
+	db := r.extractTxWrite(ctx)
+	_, err = db.ExecContext(ctx, "SET enable_indexscan = OFF;")
+	return
+}
+
+func (r *Repository) SubstitutePlaceholder(data string, startInt int) (res string) {
+	placeholderCount := strings.Count(data, "?")
+	res = data
+	for i := startInt; i < startInt+placeholderCount; i++ {
+		res = strings.Replace(res, "?", "$"+strconv.Itoa(i), 1)
 	}
+	return res
+}
 
-	return summaryID, nil
+func (r *Repository) GetMoneyFlowCalcRepository() MoneyFlowRepository {
+	return r.mfc
 }

@@ -36,15 +36,18 @@ func createBalanceOptions(abf models.AccountBalanceFeature, ignoredAccounts []st
 		opts = append(opts, models.WithAllowedNegativeBalanceTransactionTypes(defaultFeature.AllowedNegativeTrxType))
 	}
 
-	if abf.AllowedNegativeBalance.Valid {
-		if abf.AllowedNegativeBalance.Bool && abf.NegativeBalanceLimit.Valid {
-			opts = append(opts, models.WithNegativeBalanceLimit(abf.NegativeBalanceLimit.Decimal))
+	isFromDbAllowNegativeBalance := abf.AllowedNegativeBalance.Valid && abf.AllowedNegativeBalance.Bool
+	limit := decimal.NewFromFloat(defaultFeature.NegativeLimit)
+
+	if isFromDbAllowNegativeBalance {
+		if abf.NegativeBalanceLimit.Valid {
+			limit = abf.NegativeBalanceLimit.Decimal
 		}
-	} else {
-		if defaultFeature.NegativeBalanceAllowed {
-			negativeLimit := decimal.NewFromFloat(defaultFeature.NegativeLimit)
-			opts = append(opts, models.WithNegativeBalanceLimit(negativeLimit))
-		}
+		opts = append(opts, models.WithNegativeBalanceLimit(limit))
+	}
+
+	if !abf.AllowedNegativeBalance.Valid && defaultFeature.NegativeBalanceAllowed {
+		opts = append(opts, models.WithNegativeBalanceLimit(limit))
 	}
 
 	if abf.IsHVT.Valid && abf.IsHVT.Bool {

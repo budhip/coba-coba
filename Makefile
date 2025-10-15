@@ -44,7 +44,7 @@ run-consumer-transaction_stream: tidy swag-gen
 	CGO_ENABLED=0 go run ./cmd/consumer/main.go run -n=transaction_stream
 .PHONY: run-consumer-transaction_stream
 
-error-gen:
+error-gen: 
 	CGO_ENABLED=0 go run ./cmd/errorgen/main.go
 
 tidy:

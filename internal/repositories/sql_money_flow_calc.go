@@ -19,8 +19,8 @@ type MoneyFlowRepository interface {
 	CreateSummary(ctx context.Context, in models.CreateMoneyFlowSummary) (string, error)
 	CreateDetailedSummary(ctx context.Context, in models.CreateDetailedMoneyFlowSummary) error
 	GetTransactionProcessed(ctx context.Context, breakdownTransactionsFrom string, transactionSourceDate time.Time) (*models.MoneyFlowTransactionProcessed, error)
-	GetBankConfig(ctx context.Context, breakdownTransactionType string) (*models.BankConfig, error)
 	UpdateSummary(ctx context.Context, summaryID string, update models.MoneyFlowSummaryUpdate) error
+	GetSummaryIDByPapaTransactionID(ctx context.Context, papaTransactionID string) (string, error)
 }
 
 type moneyFlowRepository sqlRepo
@@ -54,18 +54,15 @@ const (
 			id, transaction_source_date, transaction_type,
 			payment_type, total_transfer, money_flow_status
 		FROM money_flow_summaries
-		WHERE transaction_type = $1 AND transaction_source_date = $2
+		WHERE transaction_type = $1 AND transaction_source_date = $2 AND money_flow_status = 'PENDING'
 	`
 
-	queryGetBankConfig = `
+	queryGetSummaryIDByPapaTransactionID = `
 		SELECT 
-			payment_type, transaction_type, breakdown_transaction_from,
-			source_account_number, source_bank_name, 
-			source_bank_account_number, source_bank_account_name,
-			destination_account_number, 
-			destination_bank_account_number, destination_bank_account_name, destination_bank_name
-		FROM money_flow_bank_config
-		WHERE breakdown_transaction_from = $1
+			id
+		FROM money_flow_summaries
+		WHERE papa_transaction_id = $1
+		LIMIT 1
 	`
 )
 
@@ -164,38 +161,6 @@ func (mfr *moneyFlowRepository) GetTransactionProcessed(ctx context.Context, bre
 	return &result, nil
 }
 
-func (mfr *moneyFlowRepository) GetBankConfig(ctx context.Context, breakdownTransactionType string) (*models.BankConfig, error) {
-	var err error
-
-	monitor := monitoring.New(ctx)
-	defer monitor.Finish(monitoring.WithFinishCheckError(err))
-
-	db := mfr.r.extractTxRead(ctx)
-
-	var config models.BankConfig
-	err = db.QueryRowContext(ctx, queryGetBankConfig, breakdownTransactionType).Scan(
-		&config.PaymentType,
-		&config.TransactionType,
-		&config.BreakdownTransactionFrom,
-		&config.SourceAccountNumber,
-		&config.SourceBankName,
-		&config.SourceBankAccountNumber,
-		&config.SourceBankAccountName,
-		&config.DestinationAccountNumber,
-		&config.DestinationBankAccountNumber,
-		&config.DestinationBankAccountName,
-		&config.DestinationBankName,
-	)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, nil
-		}
-		return nil, err
-	}
-
-	return &config, nil
-}
-
 func (mfr *moneyFlowRepository) UpdateSummary(ctx context.Context, summaryID string, updates models.MoneyFlowSummaryUpdate) error {
 	var err error
 
@@ -274,4 +239,24 @@ func (mfr *moneyFlowRepository) UpdateSummary(ctx context.Context, summaryID str
 	}
 
 	return nil
+}
+
+func (mfr *moneyFlowRepository) GetSummaryIDByPapaTransactionID(ctx context.Context, papaTransactionID string) (string, error) {
+	var err error
+
+	monitor := monitoring.New(ctx)
+	defer monitor.Finish(monitoring.WithFinishCheckError(err))
+
+	db := mfr.r.extractTxRead(ctx)
+
+	var summaryID string
+	err = db.QueryRowContext(ctx, queryGetSummaryIDByPapaTransactionID, papaTransactionID).Scan(&summaryID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", nil
+		}
+		return "", err
+	}
+
+	return summaryID, nil
 }

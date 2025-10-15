@@ -673,10 +673,28 @@ func (ts *transaction) GetReportRepayment(ctx context.Context) (out []models.Rep
 	startDate := endDate.AddDate(0, 0, -6)
 
 	trxRepo := ts.srv.sqlRepo.GetTransactionRepository()
+	ttl := 24 * time.Hour
 
-	out, err = trxRepo.GetReportRepayment(ctx, startDate, endDate)
-	if err != nil {
-		return nil, err
+	// Loop day-by-day, get (or cache) each day's result, then merge
+	for d := startDate; !d.After(endDate); d = d.AddDate(0, 0, 1) {
+		dayStart := d
+		dayEnd := d.AddDate(0, 0, 1) // half-open: [dayStart, dayEnd)
+
+		var dayRes []models.ReportRepayment
+		opts := models.GetOrSetCacheOptions[[]models.ReportRepayment]{
+			Key: getCacheKeyReportRepayment(dayStart, dayEnd),
+			TTL: ttl,
+			Fn: func() ([]models.ReportRepayment, error) {
+				return trxRepo.GetReportRepayment(ctx, dayStart, dayEnd)
+			},
+		}
+
+		dayRes, err = repositories.GetOrSetCache[[]models.ReportRepayment](ctx, ts.srv.cacheRepo, opts)
+		if err != nil {
+			return nil, err
+		}
+
+		out = append(out, dayRes...)
 	}
 
 	return out, nil

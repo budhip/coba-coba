@@ -11,6 +11,7 @@ import (
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common/cache"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common/metrics"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/config"
+	"bitbucket.org/Amartha/go-fp-transaction/internal/models"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/monitoring"
 
 	xlog "bitbucket.org/Amartha/go-x/log"
@@ -48,6 +49,14 @@ func New(
 	retryWaitTime := time.Duration(configuration.RetryWaitTime) * time.Millisecond
 
 	restyClient := resty.New()
+	restyClient = restyClient.AddRetryCondition(func(r *resty.Response, err error) bool {
+		if r == nil {
+			return false
+		}
+
+		_, shouldRetry := models.RetryableHTTPCodes[r.StatusCode()]
+		return shouldRetry
+	})
 
 	restyClient = restyClient.
 		SetTransport(monitoring.NewMiddlewareRoundTripper(restyClient.GetClient().Transport)).

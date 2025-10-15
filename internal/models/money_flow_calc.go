@@ -80,21 +80,6 @@ type CreateDetailedMoneyFlowSummary struct {
 	AcuanTransactionID string
 }
 
-// BankConfig represents the bank configuration from engine_bank_config
-type BankConfig struct {
-	PaymentType                  string
-	TransactionType              string
-	BreakdownTransactionFrom     string
-	SourceAccountNumber          string
-	SourceBankName               string
-	SourceBankAccountNumber      string
-	SourceBankAccountName        string
-	DestinationAccountNumber     string
-	DestinationBankAccountNumber string
-	DestinationBankAccountName   string
-	DestinationBankName          string
-}
-
 type TransactionNotificationRaw struct {
 	AcuanData json.RawMessage `json:"acuanData"`
 }
@@ -108,4 +93,22 @@ type MoneyFlowSummaryUpdate struct {
 	MoneyFlowStatus   *string          `json:"money_flow_status,omitempty"`
 	RequestedDate     *time.Time       `json:"requested_date,omitempty"`
 	ActualDate        *time.Time       `json:"actual_date,omitempty"`
+}
+
+type BusinessRulesConfigs struct {
+	BusinessRulesConfigs    map[string]BusinessRuleConfig `json:"payment_configs"`
+	TransactionToPaymentMap map[string]string             `json:"transaction_to_payment_map"`
+}
+
+type BusinessRuleConfig struct {
+	TransactionType string   `json:"transaction_type"`
+	Source          BankInfo `json:"source"`
+	Destination     BankInfo `json:"destination"`
+}
+
+type BankInfo struct {
+	AccountNumber     string `json:"account_number"`
+	BankName          string `json:"bank_name"`
+	BankAccountNumber string `json:"bank_account_number"`
+	BankAccountName   string `json:"bank_account_name"`
 }

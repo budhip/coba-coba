@@ -235,6 +235,8 @@ message_broker:
     consumer_group_dlq_retrier: go-fp-transaction-dlq-retrier
     consumer_group_balance_hvt: go-fp-balance-hvt
     consumer_group_process_wallet_transaction: go-fp-process-wallet-transaction
+    consumer_group_money_flow_calc: go-fp-transaction-money-flow-calc
+    consumer_group_transaction_stream: go-fp-transaction-transaction-stream
     topic: "order-transaction"
     topic_dlq: "order-transaction.dlq"
     topic_balance_logs: "acuan_balance_logs"
@@ -247,6 +249,8 @@ message_broker:
     topic_balance_hvt_dlq: "update_balance_hvt.dlq"
     topic_process_wallet_transaction: "process_wallet_transaction"
     topic_process_wallet_transaction_dlq: "process_wallet_transaction.dlq"
+    topic_money_flow_calc_dlq: "money_flow_calc.dlq"
+    topic_transaction_stream: "transaction_stream"
     assignor: range
     is_oldest: false
     is_verbose: true
@@ -329,6 +333,7 @@ feature_flag_key_lookup:
   use_account_config_from_external: "PAYMENT-BE-use-account-config-from-external"
   lce_rollout: "ICG-BE-PAPA-PAYLOAD-NEW"
   balance_limit_toggle: "PAYMENT-balance-limit-toggle"
+  money_flow_calc_business_rules_config: "PAYMENT-BE-money-flow-business-rules-config"
 
 go_acuan_lib:
   kafka:

@@ -7,12 +7,13 @@ import (
 	"time"
 
 	dlqpublisher "bitbucket.org/Amartha/go-fp-transaction/internal/common/dlq_publisher"
+	gopaymentlib "bitbucket.org/Amartha/go-payment-lib/payment-api/models/event"
+	xlog "bitbucket.org/Amartha/go-x/log"
+
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common/metrics"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/config"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/models"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/services"
-
-	xlog "bitbucket.org/Amartha/go-x/log"
 	"bitbucket.org/Amartha/go-x/log/audit"
 	"bitbucket.org/Amartha/go-x/log/ctxdata"
 
@@ -149,9 +150,9 @@ func (tsh TransactionStreamHandler) processMessage(ctx context.Context, message 
 		xlog.Warn(ctx, logMsg, append(logField, xlog.String("error", "empty message"))...)
 		return fmt.Errorf("empty message received")
 	}
-
+	var transactionEvent gopaymentlib.Event
 	// Step 2: Unmarshal transaction stream event
-	var transactionEvent models.TransactionStreamEvent
+	//var transactionEvent models.TransactionStreamEvent
 	if err := json.Unmarshal(message.Value, &transactionEvent); err != nil {
 		logField = append(logField, xlog.Err(err), xlog.String("raw_message", string(message.Value)))
 		xlog.Warn(ctx, logMsg, logField...)
@@ -159,7 +160,7 @@ func (tsh TransactionStreamHandler) processMessage(ctx context.Context, message 
 	}
 
 	// Step 3: Validate required fields
-	if transactionEvent.TransactionID == "" {
+	if transactionEvent.ID == "" {
 		xlog.Warn(ctx, logMsg, append(logField, xlog.String("error", "missing transaction_id"))...)
 		return fmt.Errorf("papa_transaction_id is required")
 	}
@@ -170,11 +171,12 @@ func (tsh TransactionStreamHandler) processMessage(ctx context.Context, message 
 	}
 
 	// Step 4: Filter - Process only SUCCESSFUL or REJECTED status
-	if !validStatuses[transactionEvent.Status] {
+	status := transactionEvent.Status.ConvertSingleAPI().ToString()
+	if !validStatuses[status] {
 		xlog.Info(ctx, logMsg, append(logField,
-			xlog.String("status", transactionEvent.Status),
-			xlog.String("papa_transaction_id", transactionEvent.TransactionID),
-			xlog.String("payment_type", transactionEvent.PaymentType),
+			xlog.String("status", status),
+			xlog.String("papa_transaction_id", transactionEvent.ID),
+			xlog.String("payment_type", transactionEvent.PaymentType.ConvertSingleAPI().ToString()),
 			xlog.String("info", "skipping invalid transaction status"),
 		)...)
 		return nil
@@ -182,10 +184,9 @@ func (tsh TransactionStreamHandler) processMessage(ctx context.Context, message 
 
 	// Step 5: Additional logging for SUCCESSFUL or REJECTED transactions
 	xlog.Info(ctx, logMsg, append(logField,
-		xlog.String("papa_transaction_id", transactionEvent.TransactionID),
-		xlog.String("payment_type", transactionEvent.PaymentType),
-		xlog.String("status", transactionEvent.Status),
-		xlog.String("amount", transactionEvent.Amount),
+		xlog.String("papa_transaction_id", transactionEvent.ID),
+		xlog.String("payment_type", transactionEvent.PaymentType.ConvertSingleAPI().ToString()),
+		xlog.String("status", status),
 		xlog.String("info", "processing successful/rejected transaction"),
 	)...)
 
@@ -199,8 +200,8 @@ func (tsh TransactionStreamHandler) processMessage(ctx context.Context, message 
 	}
 
 	xlog.Info(ctx, logMsg+" [SUCCESS]", append(logField,
-		xlog.String("papa_transaction_id", transactionEvent.TransactionID),
-		xlog.String("payment_type", transactionEvent.PaymentType),
+		xlog.String("papa_transaction_id", transactionEvent.ID),
+		xlog.String("payment_type", transactionEvent.PaymentType.ConvertSingleAPI().ToString()),
 	)...)
 
 	return nil

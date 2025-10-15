@@ -2,11 +2,14 @@ package repositories
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"time"
 
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common"
+	"bitbucket.org/Amartha/go-fp-transaction/internal/models"
+
 	"github.com/redis/go-redis/v9"
 )
 
@@ -48,4 +51,51 @@ func (cc *cacheClient) Get(ctx context.Context, key string) (string, error) {
 
 func (cc *cacheClient) Del(ctx context.Context, keys ...string) error {
 	return cc.redis.Del(ctx, keys...).Err()
+}
+
+func GetOrSetCache[T any](ctx context.Context, repo CacheRepository, opts models.GetOrSetCacheOptions[T]) (T, error) {
+	res, err := GetCache[T](ctx, repo, opts.Key)
+	if err == nil {
+		return res, nil
+	}
+
+	if !errors.Is(err, common.ErrDataNotFound) {
+		return res, err
+	}
+
+	res, err = opts.Fn()
+	if err != nil {
+		return res, err
+	}
+
+	err = SetCache(ctx, repo, models.SetCacheOptions[T]{
+		Key: opts.Key,
+		TTL: opts.TTL,
+		Val: res,
+	})
+	if err != nil {
+		return res, err
+	}
+
+	return res, nil
+}
+
+func GetCache[T any](ctx context.Context, repo CacheRepository, key string) (T, error) {
+	var res T
+	jsonStr, err := repo.Get(ctx, key)
+	if err != nil {
+		return res, err
+	}
+
+	err = json.Unmarshal([]byte(jsonStr), &res)
+	return res, err
+}
+
+func SetCache[T any](ctx context.Context, repo CacheRepository, opts models.SetCacheOptions[T]) error {
+	b, err := json.Marshal(opts.Val)
+	if err != nil {
+		return err
+	}
+
+	return repo.Set(ctx, opts.Key, string(b), opts.TTL)
 }
