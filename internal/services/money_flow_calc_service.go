@@ -13,6 +13,8 @@ import (
 	"bitbucket.org/Amartha/go-fp-transaction/internal/models"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/monitoring"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/repositories"
+
+	"github.com/google/uuid"
 )
 
 type MoneyFlowService interface {
@@ -28,11 +30,6 @@ var _ MoneyFlowService = (*moneyFlowCalc)(nil)
 const (
 	MoneyFlowStatusPending = "PENDING"
 )
-
-var papaValidStatuses = map[string]bool{
-	"SUCCESSFUL": true,
-	"REJECTED":   true,
-}
 
 func (mf *moneyFlowCalc) CheckEligibleTransaction(ctx context.Context, paymentType, breakdownTransactionType string) (*models.BusinessRuleConfig, string, error) {
 	var err error
@@ -70,15 +67,39 @@ func (mf *moneyFlowCalc) ProcessTransactionNotification(ctx context.Context, not
 	monitor := monitoring.New(ctx)
 	defer monitor.Finish(monitoring.WithFinishCheckError(err))
 
-	refNumber := notification.Body.Data.Order.RefNumber
-
 	// Validate notification status
 	if notification.Body.Data.Order.Transactions[0].Status != 1 {
 		xlog.Info(ctx, "[MONEY-FLOW-CALC] Skipping non-success transaction",
 			xlog.String("status", string(notification.Body.Data.Order.Transactions[0].Status)),
-			xlog.String("ref_number", refNumber))
+			xlog.String("ref_number", notification.Body.Data.Order.RefNumber))
 		return nil
 	}
+
+	// Validate order time
+	if notification.Body.Data.Order.OrderTime.Time == nil {
+		xlog.Warn(ctx, "[MONEY-FLOW-CALC] Transaction time is nil",
+			xlog.String("order_time", notification.Body.Data.Order.OrderTime.Time.String()),
+			xlog.String("ref_number", notification.Body.Data.Order.RefNumber))
+		return nil
+	}
+
+	orderTime := *notification.Body.Data.Order.OrderTime.Time
+	if orderTime.IsZero() {
+		xlog.Warn(ctx, "[MONEY-FLOW-CALC] Invalid transaction time",
+			xlog.String("order_time", notification.Body.Data.Order.OrderTime.Time.String()),
+			xlog.String("ref_number", notification.Body.Data.Order.RefNumber))
+		return nil
+	}
+
+	jakartaLocation, _ := time.LoadLocation("Asia/Jakarta")
+
+	creationDate := time.Date(
+		orderTime.Year(),
+		orderTime.Month(),
+		orderTime.Day(),
+		0, 0, 0, 0,
+		jakartaLocation,
+	)
 
 	// Process each transaction
 	for _, trx := range notification.Body.Data.Order.Transactions {
@@ -92,36 +113,15 @@ func (mf *moneyFlowCalc) ProcessTransactionNotification(ctx context.Context, not
 		if businessRulesData == nil {
 			xlog.Info(ctx, "[MONEY-FLOW-CALC] Skipping ineligible transaction",
 				xlog.String("transaction_type", transactionType),
-				xlog.String("ref_number", refNumber))
+				xlog.String("ref_number", notification.Body.Data.Order.RefNumber))
 			continue
 		}
 
-		// Validate transaction time
-		if trx.TransactionTime.Time == nil {
-			xlog.Warn(ctx, "[MONEY-FLOW-CALC] Transaction time is nil",
-				xlog.String("transaction_id", trx.Id.String()),
-				xlog.String("ref_number", refNumber))
-			continue
-		}
+		summaryID := uuid.New().String()
 
-		transactionTime := *trx.TransactionTime.Time
-		if transactionTime.IsZero() {
-			xlog.Warn(ctx, "[MONEY-FLOW-CALC] Invalid transaction time",
-				xlog.String("transaction_id", trx.Id.String()),
-				xlog.String("ref_number", refNumber))
-			continue
-		}
+		refNumber := "MFC-" + creationDate.Format("2006-01-02") + "-" + summaryID
 
-		// Get transaction date (without time component)
-		transactionDate := time.Date(
-			transactionTime.Year(),
-			transactionTime.Month(),
-			transactionTime.Day(),
-			0, 0, 0, 0,
-			time.UTC,
-		)
-
-		summaryID, errCreate := mf.processSingleTransaction(ctx, trx, refNumber, paymentType, businessRulesData, transactionDate)
+		summaryID, errCreate := mf.processSingleTransaction(ctx, trx, summaryID, refNumber, paymentType, businessRulesData, creationDate)
 		if errCreate != nil {
 			return errCreate
 		}
@@ -138,8 +138,8 @@ func (mf *moneyFlowCalc) ProcessTransactionNotification(ctx context.Context, not
 	return nil
 }
 
-func (mf *moneyFlowCalc) processSingleTransaction(ctx context.Context, trx goacuanlib.Transaction, refNumber, paymentType string, brd *models.BusinessRuleConfig, transactionDate time.Time) (string, error) {
-	var summaryID string
+func (mf *moneyFlowCalc) processSingleTransaction(ctx context.Context, trx goacuanlib.Transaction, summaryID, refNumber, paymentType string, brd *models.BusinessRuleConfig, creationDate time.Time) (string, error) {
+	//var summaryID string
 
 	transactionType := string(trx.TransactionType)
 
@@ -149,31 +149,32 @@ func (mf *moneyFlowCalc) processSingleTransaction(ctx context.Context, trx goacu
 		mfRepo := r.GetMoneyFlowCalcRepository()
 
 		// Check if transaction already processed
-		processedResult, err := mfRepo.GetTransactionProcessed(ctx, transactionType, transactionDate)
+		processedResult, err := mfRepo.GetTransactionProcessed(ctx, transactionType, creationDate)
 		if err != nil {
 			return fmt.Errorf("failed to check transaction is processed: %w", err)
 		}
 
 		if processedResult == nil {
 			summaryID, err := mfRepo.CreateSummary(ctx, models.CreateMoneyFlowSummary{
-				TransactionSourceDate:        transactionDate,
-				TransactionType:              transactionType,
-				PaymentType:                  paymentType,
-				ReferenceNumber:              refNumber,
-				Description:                  trx.Description,
-				SourceAccount:                brd.Source.AccountNumber,
-				DestinationAccount:           brd.Destination.AccountNumber,
-				TotalTransfer:                amount,
-				PapaTransactionID:            "", // Empty string as per requirement
-				MoneyFlowStatus:              MoneyFlowStatusPending,
-				RequestedDate:                nil, // NULL as per requirement
-				ActualDate:                   nil, // NULL as per requirement
-				SourceBankAccountNumber:      brd.Source.BankAccountNumber,
-				SourceBankAccountName:        brd.Source.BankAccountName,
-				SourceBankName:               brd.Source.BankName,
-				DestinationBankAccountNumber: brd.Destination.BankAccountNumber,
-				DestinationBankAccountName:   brd.Destination.BankAccountName,
-				DestinationBankName:          brd.Destination.BankName,
+				ID:                            summaryID,
+				TransactionSourceCreationDate: creationDate,
+				TransactionType:               transactionType,
+				PaymentType:                   paymentType,
+				ReferenceNumber:               refNumber,
+				Description:                   brd.RequestToPAPA.Description,
+				SourceAccount:                 brd.Source.AccountNumber,
+				DestinationAccount:            brd.Destination.AccountNumber,
+				TotalTransfer:                 amount,
+				PapaTransactionID:             "", // Empty string as per requirement
+				MoneyFlowStatus:               MoneyFlowStatusPending,
+				RequestedDate:                 nil, // NULL as per requirement
+				ActualDate:                    nil, // NULL as per requirement
+				SourceBankAccountNumber:       brd.Source.BankAccountNumber,
+				SourceBankAccountName:         brd.Source.BankAccountName,
+				SourceBankName:                brd.Source.BankName,
+				DestinationBankAccountNumber:  brd.Destination.BankAccountNumber,
+				DestinationBankAccountName:    brd.Destination.BankAccountName,
+				DestinationBankName:           brd.Destination.BankName,
 			})
 			if err != nil {
 				return fmt.Errorf("failed to create summary: %w", err)

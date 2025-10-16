@@ -62,24 +62,24 @@ func (suite *moneyFlowTestSuite) TearDownTest() {
 
 func (suite *moneyFlowTestSuite) TestCreateSummary_Success() {
 	input := models.CreateMoneyFlowSummary{
-		TransactionSourceDate:        time.Now(),
-		TransactionType:              "TYPE_A",
-		PaymentType:                  "PAYMENT_A",
-		ReferenceNumber:              "REF123",
-		Description:                  "Test transaction",
-		SourceAccount:                "ACC001",
-		DestinationAccount:           "ACC002",
-		TotalTransfer:                1000.00,
-		PapaTransactionID:            "",
-		MoneyFlowStatus:              "PENDING",
-		RequestedDate:                nil,
-		ActualDate:                   nil,
-		SourceBankAccountNumber:      "1234567890",
-		SourceBankAccountName:        "Account Source",
-		SourceBankName:               "Bank A",
-		DestinationBankAccountNumber: "0987654321",
-		DestinationBankAccountName:   "Account Destination",
-		DestinationBankName:          "Bank B",
+		TransactionSourceCreationDate: time.Now(),
+		TransactionType:               "TYPE_A",
+		PaymentType:                   "PAYMENT_A",
+		ReferenceNumber:               "REF123",
+		Description:                   "Test transaction",
+		SourceAccount:                 "ACC001",
+		DestinationAccount:            "ACC002",
+		TotalTransfer:                 1000.00,
+		PapaTransactionID:             "",
+		MoneyFlowStatus:               "PENDING",
+		RequestedDate:                 nil,
+		ActualDate:                    nil,
+		SourceBankAccountNumber:       "1234567890",
+		SourceBankAccountName:         "Account Source",
+		SourceBankName:                "Bank A",
+		DestinationBankAccountNumber:  "0987654321",
+		DestinationBankAccountName:    "Account Destination",
+		DestinationBankName:           "Bank B",
 	}
 
 	suite.mockSql.
@@ -99,8 +99,8 @@ func (suite *moneyFlowTestSuite) TestCreateSummary_Success() {
 
 func (suite *moneyFlowTestSuite) TestCreateSummary_DatabaseError() {
 	input := models.CreateMoneyFlowSummary{
-		TransactionSourceDate: time.Now(),
-		TransactionType:       "TYPE_A",
+		TransactionSourceCreationDate: time.Now(),
+		TransactionType:               "TYPE_A",
 	}
 
 	suite.mockSql.

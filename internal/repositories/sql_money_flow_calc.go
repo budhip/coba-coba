@@ -30,7 +30,7 @@ var _ MoneyFlowRepository = (*moneyFlowRepository)(nil)
 const (
 	queryCreateSummary = `
 		INSERT INTO money_flow_summaries (
-			id, transaction_source_date, transaction_type, payment_type, 
+			id, transaction_source_creation_date, transaction_type, payment_type, 
 			reference_number, description, source_account, destination_account, 
 			total_transfer, papa_transaction_id, money_flow_status, 
 			requested_date, actual_date, 
@@ -51,10 +51,10 @@ const (
 
 	queryGetTransactionProcessed = `
 		SELECT 
-			id, transaction_source_date, transaction_type,
+			id, transaction_source_creation_date, transaction_type,
 			payment_type, total_transfer, money_flow_status
 		FROM money_flow_summaries
-		WHERE transaction_type = $1 AND transaction_source_date = $2 AND money_flow_status = 'PENDING'
+		WHERE transaction_type = $1 AND transaction_source_creation_date = $2 AND money_flow_status = 'PENDING'
 	`
 
 	queryGetSummaryIDByPapaTransactionID = `
@@ -74,11 +74,9 @@ func (mfr *moneyFlowRepository) CreateSummary(ctx context.Context, in models.Cre
 
 	db := mfr.r.extractTxWrite(ctx)
 
-	id := uuid.New().String()
-	var returnedID string
 	err = db.QueryRowContext(ctx, queryCreateSummary,
-		id,
-		in.TransactionSourceDate,
+		in.ID,
+		in.TransactionSourceCreationDate,
 		in.TransactionType,
 		in.PaymentType,
 		in.ReferenceNumber,
@@ -96,13 +94,13 @@ func (mfr *moneyFlowRepository) CreateSummary(ctx context.Context, in models.Cre
 		in.DestinationBankAccountNumber,
 		in.DestinationBankAccountName,
 		in.DestinationBankName,
-	).Scan(&returnedID)
+	).Scan(&in.ID)
 
 	if err != nil {
 		return "", err
 	}
 
-	return returnedID, nil
+	return in.ID, nil
 }
 
 func (mfr *moneyFlowRepository) CreateDetailedSummary(ctx context.Context, in models.CreateDetailedMoneyFlowSummary) error {
@@ -146,7 +144,7 @@ func (mfr *moneyFlowRepository) GetTransactionProcessed(ctx context.Context, bre
 	var result models.MoneyFlowTransactionProcessed
 	err = db.QueryRowContext(ctx, queryGetTransactionProcessed, breakdownTransactionsFrom, transactionSourceDate).Scan(
 		&result.ID,
-		&result.TransactionSourceDate,
+		&result.TransactionSourceCreationDate,
 		&result.TransactionType,
 		&result.PaymentType,
 		&result.TotalTransfer,
