@@ -56,6 +56,9 @@ func (mf *moneyFlowCalc) CheckEligibleTransaction(ctx context.Context, paymentTy
 		}
 	} else {
 		businessConfig, err = GetBusinessRulesByPaymentType(&businessRulesData, paymentType)
+		if err != nil {
+			return nil, "", err
+		}
 	}
 
 	return businessConfig, paymentType, nil
