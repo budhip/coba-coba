@@ -47,6 +47,7 @@ func main() {
 		s.Service.WalletAccount,
 		s.Service.WalletTrx,
 		s.Metrics,
+		s.Service.MoneyFlowCalc,
 	)
 
 	starters = append(starters, httpServer.Start())

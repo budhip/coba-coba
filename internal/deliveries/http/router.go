@@ -23,6 +23,7 @@ import (
 	v1finSnapshot "bitbucket.org/Amartha/go-fp-transaction/internal/deliveries/http/v1/fin_snapshot"
 	v1internalWallet "bitbucket.org/Amartha/go-fp-transaction/internal/deliveries/http/v1/internal_wallet"
 	v1masterData "bitbucket.org/Amartha/go-fp-transaction/internal/deliveries/http/v1/masterdata"
+	v1moneyflow "bitbucket.org/Amartha/go-fp-transaction/internal/deliveries/http/v1/money_flow_summaries"
 	v1order "bitbucket.org/Amartha/go-fp-transaction/internal/deliveries/http/v1/order"
 	v1reconTools "bitbucket.org/Amartha/go-fp-transaction/internal/deliveries/http/v1/recon_tools"
 	v1subcategory "bitbucket.org/Amartha/go-fp-transaction/internal/deliveries/http/v1/sub_category"
@@ -100,6 +101,7 @@ func NewHTTPServer(
 	walletAccountService services.WalletAccountService,
 	walletTrxService services.WalletTrxService,
 	metrics metrics.Metrics,
+	moneyFlowService services.MoneyFlowService,
 ) *svc {
 	app := fiber.New(fiber.Config{
 		AppName:        conf.App.Name,
@@ -169,6 +171,7 @@ func NewHTTPServer(
 	v1order.New(v1Group, transactionService, m)
 	v1walletTrx.New(conf, v1Group, walletTrxService, accountService, m)
 	v1internalWallet.New(v1Group, walletTrxService)
+	v1moneyflow.New(v1Group, moneyFlowService)
 
 	// v2Group
 	v2Group := apiGroup.Group("/v2")

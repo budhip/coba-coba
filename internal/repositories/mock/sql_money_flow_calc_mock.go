@@ -42,6 +42,21 @@ func (m *MockMoneyFlowRepository) EXPECT() *MockMoneyFlowRepositoryMockRecorder 
 	return m.recorder
 }
 
+// CountSummaryAll mocks base method.
+func (m *MockMoneyFlowRepository) CountSummaryAll(ctx context.Context, opts models.MoneyFlowSummaryFilterOptions) (int, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountSummaryAll", ctx, opts)
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountSummaryAll indicates an expected call of CountSummaryAll.
+func (mr *MockMoneyFlowRepositoryMockRecorder) CountSummaryAll(ctx, opts any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountSummaryAll", reflect.TypeOf((*MockMoneyFlowRepository)(nil).CountSummaryAll), ctx, opts)
+}
+
 // CreateDetailedSummary mocks base method.
 func (m *MockMoneyFlowRepository) CreateDetailedSummary(ctx context.Context, in models.CreateDetailedMoneyFlowSummary) error {
 	m.ctrl.T.Helper()
@@ -69,6 +84,21 @@ func (m *MockMoneyFlowRepository) CreateSummary(ctx context.Context, in models.C
 func (mr *MockMoneyFlowRepositoryMockRecorder) CreateSummary(ctx, in any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateSummary", reflect.TypeOf((*MockMoneyFlowRepository)(nil).CreateSummary), ctx, in)
+}
+
+// GetSummariesList mocks base method.
+func (m *MockMoneyFlowRepository) GetSummariesList(ctx context.Context, opts models.MoneyFlowSummaryFilterOptions) ([]models.MoneyFlowSummaryOut, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSummariesList", ctx, opts)
+	ret0, _ := ret[0].([]models.MoneyFlowSummaryOut)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetSummariesList indicates an expected call of GetSummariesList.
+func (mr *MockMoneyFlowRepositoryMockRecorder) GetSummariesList(ctx, opts any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSummariesList", reflect.TypeOf((*MockMoneyFlowRepository)(nil).GetSummariesList), ctx, opts)
 }
 
 // GetSummaryIDByPapaTransactionID mocks base method.

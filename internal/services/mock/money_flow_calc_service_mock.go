@@ -59,6 +59,22 @@ func (mr *MockMoneyFlowServiceMockRecorder) CheckEligibleTransaction(ctx, paymen
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckEligibleTransaction", reflect.TypeOf((*MockMoneyFlowService)(nil).CheckEligibleTransaction), ctx, paymentType, breakdownTransactionType)
 }
 
+// GetSummariesList mocks base method.
+func (m *MockMoneyFlowService) GetSummariesList(ctx context.Context, opts models.MoneyFlowSummaryFilterOptions) ([]models.MoneyFlowSummaryOut, int, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSummariesList", ctx, opts)
+	ret0, _ := ret[0].([]models.MoneyFlowSummaryOut)
+	ret1, _ := ret[1].(int)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// GetSummariesList indicates an expected call of GetSummariesList.
+func (mr *MockMoneyFlowServiceMockRecorder) GetSummariesList(ctx, opts any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSummariesList", reflect.TypeOf((*MockMoneyFlowService)(nil).GetSummariesList), ctx, opts)
+}
+
 // ProcessTransactionNotification mocks base method.
 func (m *MockMoneyFlowService) ProcessTransactionNotification(ctx context.Context, notification model.Payload[model.DataOrder]) error {
 	m.ctrl.T.Helper()

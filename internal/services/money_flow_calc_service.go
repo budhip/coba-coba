@@ -21,6 +21,7 @@ type MoneyFlowService interface {
 	ProcessTransactionNotification(ctx context.Context, notification goacuanlib.Payload[goacuanlib.DataOrder]) error
 	CheckEligibleTransaction(ctx context.Context, paymentType, breakdownTransactionType string) (*models.BusinessRuleConfig, string, error)
 	ProcessTransactionStream(ctx context.Context, event gopaymentlib.Event) error
+	GetSummariesList(ctx context.Context, opts models.MoneyFlowSummaryFilterOptions) ([]models.MoneyFlowSummaryOut, int, error)
 }
 
 type moneyFlowCalc service
@@ -298,4 +299,27 @@ func GetBusinessRulesByTransactionType(configs *models.BusinessRulesConfigs, tra
 	}
 
 	return paymentConfig, paymentType, nil
+}
+
+func (mf *moneyFlowCalc) GetSummariesList(ctx context.Context, opts models.MoneyFlowSummaryFilterOptions) ([]models.MoneyFlowSummaryOut, int, error) {
+	var err error
+
+	monitor := monitoring.New(ctx)
+	defer monitor.Finish(monitoring.WithFinishCheckError(err))
+
+	mfsRepo := mf.srv.sqlRepo.GetMoneyFlowCalcRepository()
+
+	// Get list
+	summaries, err := mfsRepo.GetSummariesList(ctx, opts)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get money flow summaries: %w", err)
+	}
+
+	// Count total
+	total, err := mfsRepo.CountSummaryAll(ctx, opts)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to count money flow summaries: %w", err)
+	}
+
+	return summaries, total, nil
 }

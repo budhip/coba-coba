@@ -119,3 +119,85 @@ type BankInfo struct {
 	BankAccountNumber string `json:"bank_account_number"`
 	BankAccountName   string `json:"bank_account_name"`
 }
+
+// GetMoneyFlowSummaryRequest represents filter query parameters
+type GetMoneyFlowSummaryRequest struct {
+	PaymentType                   string `query:"paymentType" example:"MF_EARN_DIVEST"`
+	TransactionSourceCreationDate string `query:"transactionSourceCreationDate" example:"2025-10-17"`
+	Status                        string `query:"status" example:"PENDING"`
+	Limit                         int    `query:"limit" example:"10"`
+	NextCursor                    string `query:"nextCursor" example:"2"`
+	PrevCursor                    string `query:"prevCursor" example:"1"`
+}
+
+// MoneyFlowSummaryResponse represents the response for money flow summary detail
+type MoneyFlowSummaryResponse struct {
+	Kind                          string          `json:"kind" example:"moneyFlowCalc"`
+	ID                            string          `json:"id" example:"a232dd33-a036-44c7-8de5-0e8268f23267"`
+	TransactionSourceCreationDate string          `json:"transactionSourceCreationDate" example:"2025-10-17"`
+	PaymentType                   string          `json:"paymentType" example:"MF_EARN_DIVEST"`
+	TotalTransfer                 decimal.Decimal `json:"totalTransfer" example:"24000"`
+	Status                        string          `json:"status" example:"PENDING"`
+	CreatedAt                     string          `json:"createdAt" example:"2025-10-16T22:18:29Z"`
+	RequestedDate                 string          `json:"requestedDate" example:"-"`
+	ActualDate                    string          `json:"actualDate" example:"-"`
+}
+
+// GetMoneyFlowSummaryListResponse represents the list response
+type GetMoneyFlowSummaryListResponse struct {
+	Kind     string                     `json:"kind" example:"collection"`
+	Contents []MoneyFlowSummaryResponse `json:"contents"`
+	//Pagination common.CursorPagination    `json:"pagination"`
+}
+
+// MoneyFlowSummaryOut represents the output from repository
+type MoneyFlowSummaryOut struct {
+	ID                            string
+	TransactionSourceCreationDate time.Time
+	PaymentType                   string
+	TotalTransfer                 decimal.Decimal
+	MoneyFlowStatus               string
+	RequestedDate                 *time.Time
+	ActualDate                    *time.Time
+	CreatedAt                     time.Time
+}
+
+// ToModelResponse implements PaginateableContent interface
+func (m MoneyFlowSummaryOut) ToModelResponse() MoneyFlowSummaryResponse {
+	requestedDate := "-"
+	if m.RequestedDate != nil {
+		requestedDate = m.RequestedDate.Format(time.RFC3339)
+	}
+
+	actualDate := "-"
+	if m.ActualDate != nil {
+		actualDate = m.ActualDate.Format(time.RFC3339)
+	}
+
+	return MoneyFlowSummaryResponse{
+		Kind:                          "moneyFlowCalc",
+		ID:                            m.ID,
+		TransactionSourceCreationDate: m.TransactionSourceCreationDate.Format("2006-01-02"),
+		PaymentType:                   m.PaymentType,
+		TotalTransfer:                 m.TotalTransfer,
+		Status:                        m.MoneyFlowStatus,
+		CreatedAt:                     m.CreatedAt.Format(time.RFC3339),
+		RequestedDate:                 requestedDate,
+		ActualDate:                    actualDate,
+	}
+}
+
+// MoneyFlowSummaryFilterOptions represents filter options for database query
+type MoneyFlowSummaryFilterOptions struct {
+	PaymentType                   string
+	TransactionSourceCreationDate *time.Time
+	Status                        string
+	Limit                         int
+	Cursor                        *MoneFlowSummaryCursor
+}
+
+// MoneFlowSummaryCursor represents cursor for pagination
+type MoneFlowSummaryCursor struct {
+	ID         string
+	IsBackward bool
+}

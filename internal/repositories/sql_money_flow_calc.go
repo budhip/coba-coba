@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	sq "github.com/Masterminds/squirrel"
 	"strings"
 	"time"
 
@@ -21,6 +22,8 @@ type MoneyFlowRepository interface {
 	GetTransactionProcessed(ctx context.Context, breakdownTransactionsFrom string, transactionSourceDate time.Time) (*models.MoneyFlowTransactionProcessed, error)
 	UpdateSummary(ctx context.Context, summaryID string, update models.MoneyFlowSummaryUpdate) error
 	GetSummaryIDByPapaTransactionID(ctx context.Context, papaTransactionID string) (string, error)
+	GetSummariesList(ctx context.Context, opts models.MoneyFlowSummaryFilterOptions) ([]models.MoneyFlowSummaryOut, error)
+	CountSummaryAll(ctx context.Context, opts models.MoneyFlowSummaryFilterOptions) (total int, err error)
 }
 
 type moneyFlowRepository sqlRepo
@@ -257,4 +260,138 @@ func (mfr *moneyFlowRepository) GetSummaryIDByPapaTransactionID(ctx context.Cont
 	}
 
 	return summaryID, nil
+}
+
+func (mfr *moneyFlowRepository) GetSummariesList(ctx context.Context, opts models.MoneyFlowSummaryFilterOptions) ([]models.MoneyFlowSummaryOut, error) {
+	var err error
+
+	monitor := monitoring.New(ctx)
+	defer monitor.Finish(monitoring.WithFinishCheckError(err))
+
+	db := mfr.r.extractTxRead(ctx)
+
+	query, args, err := buildMoneyFlowSummaryQuery(opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build query: %w", err)
+	}
+
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+	var result []models.MoneyFlowSummaryOut
+	for rows.Next() {
+		var mfs models.MoneyFlowSummaryOut
+		err = rows.Scan(
+			&mfs.ID,
+			&mfs.TransactionSourceCreationDate,
+			&mfs.PaymentType,
+			&mfs.TotalTransfer,
+			&mfs.MoneyFlowStatus,
+			&mfs.RequestedDate,
+			&mfs.ActualDate,
+			&mfs.CreatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, mfs)
+	}
+	if rows.Err() != nil {
+		return nil, rows.Err()
+	}
+
+	return result, nil
+}
+
+func (mfr *moneyFlowRepository) CountSummaryAll(ctx context.Context, opts models.MoneyFlowSummaryFilterOptions) (total int, err error) {
+	monitor := monitoring.New(ctx)
+	defer monitor.Finish(monitoring.WithFinishCheckError(err))
+
+	db := mfr.r.extractTxRead(ctx)
+
+	query, args, err := buildMoneyFlowSummaryCountQuery(opts)
+	if err != nil {
+		return 0, fmt.Errorf("failed to build count query: %w", err)
+	}
+
+	err = db.QueryRowContext(ctx, query, args...).Scan(&total)
+	if err != nil {
+		return 0, err
+	}
+
+	return total, nil
+}
+
+func buildMoneyFlowSummaryQuery(opts models.MoneyFlowSummaryFilterOptions) (sql string, args []interface{}, err error) {
+	columns := []string{
+		`mfs."id"`,
+		`mfs."transaction_source_creation_date"`,
+		`mfs."payment_type"`,
+		`mfs."total_transfer"`,
+		`mfs."money_flow_status"`,
+		`mfs."requested_date"`,
+		`mfs."actual_date"`,
+		`mfs."created_at"`,
+	}
+
+	psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
+	query := psql.Select(columns...).From("money_flow_summaries as mfs")
+
+	// Filter by transaction_source_creation_date < today
+	query = query.Where(sq.Lt{`mfs."transaction_source_creation_date"`: time.Now().Truncate(24 * time.Hour)})
+
+	if opts.PaymentType != "" {
+		query = query.Where(sq.Eq{`mfs."payment_type"`: opts.PaymentType})
+	}
+
+	if opts.TransactionSourceCreationDate != nil {
+		query = query.Where(sq.Eq{`mfs."transaction_source_creation_date"`: opts.TransactionSourceCreationDate})
+	}
+
+	if opts.Status != "" {
+		query = query.Where(sq.Eq{`mfs."money_flow_status"`: opts.Status})
+	}
+
+	if opts.Cursor != nil {
+		if opts.Cursor.IsBackward {
+			query = query.Where(sq.Lt{`mfs."id"`: opts.Cursor.ID})
+			query = query.OrderBy(`mfs."id" ASC`)
+		} else {
+			query = query.Where(sq.Lt{`mfs."id"`: opts.Cursor.ID})
+			query = query.OrderBy(`mfs."id" DESC`)
+		}
+	} else {
+		query = query.OrderBy(`mfs."id" DESC`)
+	}
+
+	if opts.Limit > 0 {
+		query = query.Limit(uint64(opts.Limit))
+	}
+
+	return query.ToSql()
+}
+
+func buildMoneyFlowSummaryCountQuery(opts models.MoneyFlowSummaryFilterOptions) (sql string, args []interface{}, err error) {
+	psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
+	query := psql.Select("COUNT(*)").From("money_flow_summaries as mfs")
+
+	// Filter by transaction_source_creation_date < today
+	query = query.Where(sq.Lt{`mfs."transaction_source_creation_date"`: time.Now().Truncate(24 * time.Hour)})
+
+	if opts.PaymentType != "" {
+		query = query.Where(sq.Eq{`mfs."payment_type"`: opts.PaymentType})
+	}
+
+	if opts.TransactionSourceCreationDate != nil {
+		query = query.Where(sq.Eq{`mfs."transaction_source_creation_date"`: opts.TransactionSourceCreationDate})
+	}
+
+	if opts.Status != "" {
+		query = query.Where(sq.Eq{`mfs."money_flow_status"`: opts.Status})
+	}
+
+	return query.ToSql()
 }
