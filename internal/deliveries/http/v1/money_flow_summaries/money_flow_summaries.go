@@ -1,11 +1,13 @@
 package money_flow_summaries
 
 import (
+	"fmt"
+	"strings"
+
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common/http"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common/validation"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/models"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/services"
-	"fmt"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -21,6 +23,7 @@ func New(app fiber.Router, moneyFlowSvc services.MoneyFlowService) {
 	}
 	api := app.Group("/money-flow-summaries")
 	api.Get("/", handler.getSummariesList())
+	api.Get("/:summaryID", handler.getSummaryDetailBySummaryID())
 }
 
 // getList API to get money flow summary with filters
@@ -65,5 +68,38 @@ func (h *moneyFlowSummariesHandler) getSummariesList() fiber.Handler {
 		}
 
 		return http.RestSuccessResponseCursorPagination[models.MoneyFlowSummaryResponse](c, summaries, opts.Limit, total)
+	}
+}
+
+// @Summary 	Get summary detail by summary id
+// @Description Get summary detail by summary id
+// @Tags 		MoneyFlowSummary
+// @Accept		json
+// @Produce		json
+// @Param 	summaryID path string true "summary identifier"
+// @Param	X-Secret-Key header string true "X-Secret-Key"
+// @Param   params query models.DoGetSummaryIDBySummaryIDRequest true "Get summary detail query parameters"
+// @Success 200 {object} models.MoneyFlowSummaryBySummaryIDOut "Response indicates that the request succeeded and the resources has been fetched and transmitted in the message body"
+// @Failure 400 {object} http.RestErrorResponseModel "Bad request error. This can happen if there is an error while get summary detail by summary id"
+// @Failure 404 {object} http.RestErrorResponseModel "Data not found. This can happen if data not found while get summary detail by summary id"
+// @Failure 500 {object} http.RestErrorResponseModel "Internal server error. This can happen if there is an error while get summary detail by summary id"
+// @Router /v1/money-flow-summaries/{summaryID} [get]
+func (h *moneyFlowSummariesHandler) getSummaryDetailBySummaryID() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		req := new(models.DoGetSummaryIDBySummaryIDRequest)
+
+		if err := c.ParamsParser(req); err != nil {
+			return http.RestErrorResponse(c, fiber.StatusBadRequest, err)
+		}
+
+		result, err := h.moneyFlowService.GetSummaryDetailBySummaryID(c.UserContext(), req.SummaryID)
+		if err != nil {
+			if strings.Contains(err.Error(), "not found") {
+				return http.RestErrorResponse(c, fiber.StatusNotFound, err)
+			}
+			return http.RestErrorResponse(c, fiber.StatusInternalServerError, err)
+		}
+
+		return http.RestSuccessResponse(c, fiber.StatusOK, result.ToModelResponse())
 	}
 }

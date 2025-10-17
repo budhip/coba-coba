@@ -22,6 +22,7 @@ type MoneyFlowService interface {
 	CheckEligibleTransaction(ctx context.Context, paymentType, breakdownTransactionType string) (*models.BusinessRuleConfig, string, error)
 	ProcessTransactionStream(ctx context.Context, event gopaymentlib.Event) error
 	GetSummariesList(ctx context.Context, opts models.MoneyFlowSummaryFilterOptions) ([]models.MoneyFlowSummaryOut, int, error)
+	GetSummaryDetailBySummaryID(ctx context.Context, summaryID string) (result models.MoneyFlowSummaryDetailBySummaryIDOut, err error)
 }
 
 type moneyFlowCalc service
@@ -322,4 +323,18 @@ func (mf *moneyFlowCalc) GetSummariesList(ctx context.Context, opts models.Money
 	}
 
 	return summaries, total, nil
+}
+
+// GetSummaryDetailBySummaryID will search summary detail by its summary id then parse it to SummaryDetailResponse.
+func (mf *moneyFlowCalc) GetSummaryDetailBySummaryID(ctx context.Context, summaryID string) (result models.MoneyFlowSummaryDetailBySummaryIDOut, err error) {
+	monitor := monitoring.New(ctx)
+	defer monitor.Finish(monitoring.WithFinishCheckError(err))
+
+	result, err = mf.srv.sqlRepo.GetMoneyFlowCalcRepository().GetSummaryDetailBySummaryID(ctx, summaryID)
+	if err != nil {
+		err = checkDatabaseError(err, models.ErrKeySummaryIdnotFound)
+		return
+	}
+
+	return result, nil
 }

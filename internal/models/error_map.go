@@ -102,6 +102,7 @@ const (
 	ErrKeyFilesMustCsv                                    = "files_mustCsv"
 	ErrKeyFailedFromExternalClient                        = "failedFromExternalClient"
 	ErrKeyUpdateStatusWalletTransactionRequestActionOneof = "UpdateStatusWalletTransactionRequest.action_oneof"
+	ErrKeySummaryIdnotFound                               = "summaryIDNotFound"
 )
 
 const (
@@ -153,6 +154,7 @@ var (
 	errInvalidFormatFile                                  = errors.New("invalid format file")
 	errFailedFromExternalClient                           = errors.New("failed from external client")
 	errActionMustBeCommitOrCancel                         = errors.New("action must be commit or cancel")
+	errSummaryIdNotFound                                  = errors.New("summary id not found")
 )
 
 var MapErrors = MapErrs{
@@ -543,5 +545,9 @@ var MapErrors = MapErrs{
 	ErrKeyUpdateStatusWalletTransactionRequestActionOneof: ErrorDetail{
 		Code:         errCodeInvalidValues,
 		ErrorMessage: errActionMustBeCommitOrCancel,
+	},
+	ErrKeySummaryIdnotFound: ErrorDetail{
+		Code:         errCodeDataNotFound,
+		ErrorMessage: errSummaryIdNotFound,
 	},
 }

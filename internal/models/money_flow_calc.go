@@ -201,3 +201,58 @@ type MoneFlowSummaryCursor struct {
 	ID         string
 	IsBackward bool
 }
+
+type DoGetSummaryIDBySummaryIDRequest struct {
+	SummaryID string `params:"summaryID" example:"bbc15647-0e2e-4f3a-9b2b-a4a918d3f34b"`
+}
+
+// MoneyFlowSummaryBySummaryIDOut represents the output from repository
+type MoneyFlowSummaryBySummaryIDOut struct {
+	Kind                         string
+	ID                           string
+	PaymentType                  string
+	CreatedDate                  string
+	RequestedDate                string
+	ActualDate                   string
+	TotalAmount                  decimal.Decimal
+	Status                       string
+	SourceBankAccountNumber      string
+	DestinationBankAccountNumber string
+}
+
+type MoneyFlowSummaryDetailBySummaryIDOut struct {
+	Kind                         string
+	ID                           string
+	PaymentType                  string
+	CreatedDate                  time.Time
+	RequestedDate                *time.Time
+	ActualDate                   *time.Time
+	TotalAmount                  decimal.Decimal
+	Status                       string
+	SourceBankAccountNumber      string
+	DestinationBankAccountNumber string
+}
+
+func (m MoneyFlowSummaryDetailBySummaryIDOut) ToModelResponse() MoneyFlowSummaryBySummaryIDOut {
+	requestedDate := "-"
+	if m.RequestedDate != nil {
+		requestedDate = m.RequestedDate.Format(time.RFC3339)
+	}
+
+	actualDate := "-"
+	if m.ActualDate != nil {
+		actualDate = m.ActualDate.Format(time.RFC3339)
+	}
+	return MoneyFlowSummaryBySummaryIDOut{
+		Kind:                         "moneyFlowCalc",
+		ID:                           m.ID,
+		PaymentType:                  m.PaymentType,
+		CreatedDate:                  m.CreatedDate.Format(time.RFC3339),
+		RequestedDate:                requestedDate,
+		ActualDate:                   actualDate,
+		TotalAmount:                  m.TotalAmount,
+		Status:                       m.Status,
+		SourceBankAccountNumber:      m.SourceBankAccountNumber,
+		DestinationBankAccountNumber: m.DestinationBankAccountNumber,
+	}
+}

@@ -106,4 +106,5 @@ files_mustCsv,INVALID_VALUES,invalid format file
 failedFromExternalClient,EXTERNAL_SERVER_ERROR,failed from external client
 
 UpdateStatusWalletTransactionRequest.action_oneof,INVALID_VALUES,action must be commit or cancel
+summaryIDNotFound,DATA_NOT_FOUND,summary id not found
 

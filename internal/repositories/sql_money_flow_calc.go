@@ -24,6 +24,7 @@ type MoneyFlowRepository interface {
 	GetSummaryIDByPapaTransactionID(ctx context.Context, papaTransactionID string) (string, error)
 	GetSummariesList(ctx context.Context, opts models.MoneyFlowSummaryFilterOptions) ([]models.MoneyFlowSummaryOut, error)
 	CountSummaryAll(ctx context.Context, opts models.MoneyFlowSummaryFilterOptions) (total int, err error)
+	GetSummaryDetailBySummaryID(ctx context.Context, summaryID string) (result models.MoneyFlowSummaryDetailBySummaryIDOut, err error)
 }
 
 type moneyFlowRepository sqlRepo
@@ -66,6 +67,15 @@ const (
 		FROM money_flow_summaries
 		WHERE papa_transaction_id = $1
 		LIMIT 1
+	`
+
+	queryGetSummaryDetailBySummaryID = `
+		SELECT
+		    id, payment_type, created_at, requested_date, actual_date,
+			total_transfer, money_flow_status, 
+			source_bank_account_number, destination_bank_account_number
+		FROM money_flow_summaries
+		WHERE id = $1
 	`
 )
 
@@ -394,4 +404,29 @@ func buildMoneyFlowSummaryCountQuery(opts models.MoneyFlowSummaryFilterOptions) 
 	}
 
 	return query.ToSql()
+}
+
+// GetOneByAccountNumber will search account by it's account number on database.
+func (mfr *moneyFlowRepository) GetSummaryDetailBySummaryID(ctx context.Context, summaryID string) (result models.MoneyFlowSummaryDetailBySummaryIDOut, err error) {
+	monitor := monitoring.New(ctx)
+	defer monitor.Finish(monitoring.WithFinishCheckError(err))
+
+	db := mfr.r.extractTxWrite(ctx)
+
+	err = db.QueryRowContext(ctx, queryGetSummaryDetailBySummaryID, summaryID).Scan(
+		&result.ID,
+		&result.PaymentType,
+		&result.CreatedDate,
+		&result.RequestedDate,
+		&result.ActualDate,
+		&result.TotalAmount,
+		&result.Status,
+		&result.SourceBankAccountNumber,
+		&result.DestinationBankAccountNumber,
+	)
+	if err != nil {
+		return
+	}
+
+	return
 }

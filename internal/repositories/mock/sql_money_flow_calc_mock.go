@@ -101,6 +101,21 @@ func (mr *MockMoneyFlowRepositoryMockRecorder) GetSummariesList(ctx, opts any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSummariesList", reflect.TypeOf((*MockMoneyFlowRepository)(nil).GetSummariesList), ctx, opts)
 }
 
+// GetSummaryDetailBySummaryID mocks base method.
+func (m *MockMoneyFlowRepository) GetSummaryDetailBySummaryID(ctx context.Context, summaryID string) (models.MoneyFlowSummaryDetailBySummaryIDOut, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSummaryDetailBySummaryID", ctx, summaryID)
+	ret0, _ := ret[0].(models.MoneyFlowSummaryDetailBySummaryIDOut)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetSummaryDetailBySummaryID indicates an expected call of GetSummaryDetailBySummaryID.
+func (mr *MockMoneyFlowRepositoryMockRecorder) GetSummaryDetailBySummaryID(ctx, summaryID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSummaryDetailBySummaryID", reflect.TypeOf((*MockMoneyFlowRepository)(nil).GetSummaryDetailBySummaryID), ctx, summaryID)
+}
+
 // GetSummaryIDByPapaTransactionID mocks base method.
 func (m *MockMoneyFlowRepository) GetSummaryIDByPapaTransactionID(ctx context.Context, papaTransactionID string) (string, error) {
 	m.ctrl.T.Helper()
