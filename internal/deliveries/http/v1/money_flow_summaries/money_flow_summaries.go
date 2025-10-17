@@ -24,6 +24,7 @@ func New(app fiber.Router, moneyFlowSvc services.MoneyFlowService) {
 	api := app.Group("/money-flow-summaries")
 	api.Get("/", handler.getSummariesList())
 	api.Get("/:summaryID", handler.getSummaryDetailBySummaryID())
+	api.Get("/:summaryID/transactions", handler.getDetailedTransactionsBySummaryID())
 }
 
 // getList API to get money flow summary with filters
@@ -101,5 +102,47 @@ func (h *moneyFlowSummariesHandler) getSummaryDetailBySummaryID() fiber.Handler 
 		}
 
 		return http.RestSuccessResponse(c, fiber.StatusOK, result.ToModelResponse())
+	}
+}
+
+// @Summary 	Get detailed transactions by summary id
+// @Description Get detailed list of transactions by summary id
+// @Tags 		MoneyFlowSummary
+// @Accept		json
+// @Produce		json
+// @Param 	summaryID path string true "summary identifier"
+// @Param	X-Secret-Key header string true "X-Secret-Key"
+// @Param   params query models.DoGetDetailedTransactionsBySummaryIDRequest true "Get detailed transactions query parameters"
+// @Success 200 {object} http.RestPaginationResponseModel[[]models.DetailedTransactionResponse] "Response indicates that the request succeeded and the resources has been fetched and transmitted in the message body"
+// @Failure 400 {object} http.RestErrorResponseModel "Bad request error. This can happen if there is an error while get detailed transactions by summary id"
+// @Failure 404 {object} http.RestErrorResponseModel "Data not found. This can happen if data not found while get detailed transactions by summary id"
+// @Failure 500 {object} http.RestErrorResponseModel "Internal server error. This can happen if there is an error while get detailed transactions by summary id"
+// @Router /v1/money-flow-summaries/{summaryID}/transactions [get]
+func (h *moneyFlowSummariesHandler) getDetailedTransactionsBySummaryID() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		req := new(models.DoGetDetailedTransactionsBySummaryIDRequest)
+
+		if err := c.ParamsParser(req); err != nil {
+			return http.RestErrorResponse(c, fiber.StatusBadRequest, err)
+		}
+
+		if err := c.QueryParser(req); err != nil {
+			return http.RestErrorResponse(c, fiber.StatusBadRequest, err)
+		}
+
+		opts, err := req.ToFilterOpts()
+		if err != nil {
+			return http.RestErrorResponse(c, fiber.StatusBadRequest, err)
+		}
+
+		transactions, total, err := h.moneyFlowService.GetDetailedTransactionsBySummaryID(c.UserContext(), req.SummaryID, *opts)
+		if err != nil {
+			if strings.Contains(err.Error(), "not found") {
+				return http.RestErrorResponse(c, fiber.StatusNotFound, err)
+			}
+			return http.RestErrorResponse(c, fiber.StatusInternalServerError, err)
+		}
+
+		return http.RestSuccessResponseCursorPagination[models.DetailedTransactionResponse](c, transactions, opts.Limit, total)
 	}
 }

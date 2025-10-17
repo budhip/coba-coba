@@ -2,6 +2,7 @@ package models
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/shopspring/decimal"
@@ -254,5 +255,136 @@ func (m MoneyFlowSummaryDetailBySummaryIDOut) ToModelResponse() MoneyFlowSummary
 		Status:                       m.Status,
 		SourceBankAccountNumber:      m.SourceBankAccountNumber,
 		DestinationBankAccountNumber: m.DestinationBankAccountNumber,
+	}
+}
+
+// DoGetDetailedTransactionsBySummaryIDRequest represents request to get detailed transactions
+type DoGetDetailedTransactionsBySummaryIDRequest struct {
+	SummaryID  string `params:"summaryID" example:"bbc15647-0e2e-4f3a-9b2b-a4a918d3f34b"`
+	Limit      int    `query:"limit" example:"10"`
+	NextCursor string `query:"nextCursor" example:"2"`
+	PrevCursor string `query:"prevCursor" example:"1"`
+}
+
+// DetailedTransactionFilterOptions represents filter options for detailed transactions query
+type DetailedTransactionFilterOptions struct {
+	SummaryID string
+	Limit     int
+	Cursor    *DetailedTransactionCursor
+}
+
+// DetailedTransactionCursor represents cursor for pagination
+type DetailedTransactionCursor struct {
+	ID         string
+	IsBackward bool
+}
+
+func (c DetailedTransactionCursor) String() string {
+	return c.ID
+}
+
+func decodeDetailedTransactionCursor(cursor string) (*DetailedTransactionCursor, error) {
+	if cursor == "" {
+		return nil, fmt.Errorf("cursor is empty")
+	}
+
+	return &DetailedTransactionCursor{
+		ID: cursor,
+	}, nil
+}
+
+// ToFilterOpts converts request to filter options
+func (req DoGetDetailedTransactionsBySummaryIDRequest) ToFilterOpts() (*DetailedTransactionFilterOptions, error) {
+	opts := &DetailedTransactionFilterOptions{
+		SummaryID: req.SummaryID,
+		Limit:     req.Limit,
+	}
+
+	if req.Limit < 0 {
+		return nil, GetErrMap(ErrKeyLimitMustBeGreaterThanZero)
+	}
+
+	if req.Limit == 0 {
+		opts.Limit = 10
+	}
+
+	// use over-fetch limit for check next page exists or not
+	opts.Limit += 1
+
+	// forward pagination
+	if req.NextCursor != "" {
+		tc, err := decodeDetailedTransactionCursor(req.NextCursor)
+		if err != nil {
+			return nil, err
+		}
+		opts.Cursor = tc
+	}
+
+	// backward pagination
+	if req.NextCursor == "" && req.PrevCursor != "" {
+		tc, err := decodeDetailedTransactionCursor(req.PrevCursor)
+		if err != nil {
+			return nil, err
+		}
+		tc.IsBackward = true
+		opts.Cursor = tc
+	}
+
+	return opts, nil
+}
+
+// DetailedTransactionOut represents output from repository
+type DetailedTransactionOut struct {
+	ID                 string
+	TransactionID      string
+	TransactionDate    time.Time
+	RefNumber          string
+	TypeTransaction    string
+	SourceAccount      string
+	DestinationAccount string
+	Amount             decimal.Decimal
+	Description        string
+	Metadata           string
+}
+
+// GetCursor returns cursor for pagination
+func (d DetailedTransactionOut) GetCursor() string {
+	return d.ID
+}
+
+// DetailedTransactionResponse represents API response for detailed transaction
+type DetailedTransactionResponse struct {
+	TransactionID      string          `json:"transactionID" example:"b14431aa-b3bf-44d0-b287-f504dfb957fe"`
+	TransactionDate    string          `json:"transactionDate" example:"2025-10-17"`
+	RefNumber          string          `json:"refNumber" example:"423423423523523"`
+	TypeTransaction    string          `json:"typeTransaction" example:"SIVEP"`
+	SourceAccount      string          `json:"sourceAccount" example:"1310014234242342342"`
+	DestinationAccount string          `json:"destinationAccount" example:"42423523523523"`
+	Amount             decimal.Decimal `json:"amount" example:"10000"`
+	Description        string          `json:"description" example:"NORMAL"`
+	Metadata           map[string]any  `json:"metadata" swaggertype:"object"`
+}
+
+// ToModelResponse converts DetailedTransactionOut to DetailedTransactionResponse
+func (d DetailedTransactionOut) ToModelResponse() DetailedTransactionResponse {
+	var metadata map[string]interface{}
+	if d.Metadata != "" {
+		_ = json.Unmarshal([]byte(d.Metadata), &metadata)
+	}
+
+	if metadata == nil {
+		metadata = make(map[string]interface{})
+	}
+
+	return DetailedTransactionResponse{
+		TransactionID:      d.TransactionID,
+		TransactionDate:    d.TransactionDate.Format("2006-01-02"),
+		RefNumber:          d.RefNumber,
+		TypeTransaction:    d.TypeTransaction,
+		SourceAccount:      d.SourceAccount,
+		DestinationAccount: d.DestinationAccount,
+		Amount:             d.Amount,
+		Description:        d.Description,
+		Metadata:           metadata,
 	}
 }

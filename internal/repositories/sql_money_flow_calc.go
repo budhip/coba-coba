@@ -25,6 +25,8 @@ type MoneyFlowRepository interface {
 	GetSummariesList(ctx context.Context, opts models.MoneyFlowSummaryFilterOptions) ([]models.MoneyFlowSummaryOut, error)
 	CountSummaryAll(ctx context.Context, opts models.MoneyFlowSummaryFilterOptions) (total int, err error)
 	GetSummaryDetailBySummaryID(ctx context.Context, summaryID string) (result models.MoneyFlowSummaryDetailBySummaryIDOut, err error)
+	GetDetailedTransactionsBySummaryID(ctx context.Context, opts models.DetailedTransactionFilterOptions) ([]models.DetailedTransactionOut, error)
+	CountDetailedTransactions(ctx context.Context, summaryID string) (total int, err error)
 }
 
 type moneyFlowRepository sqlRepo
@@ -76,6 +78,11 @@ const (
 			source_bank_account_number, destination_bank_account_number
 		FROM money_flow_summaries
 		WHERE id = $1
+	`
+	queryCountDetailedTransactions = `
+		SELECT COUNT(*)
+		FROM detailed_money_flow_summaries
+		WHERE summary_id = $1
 	`
 )
 
@@ -429,4 +436,105 @@ func (mfr *moneyFlowRepository) GetSummaryDetailBySummaryID(ctx context.Context,
 	}
 
 	return
+}
+
+func (mfr *moneyFlowRepository) GetDetailedTransactionsBySummaryID(ctx context.Context, opts models.DetailedTransactionFilterOptions) ([]models.DetailedTransactionOut, error) {
+	var err error
+
+	monitor := monitoring.New(ctx)
+	defer monitor.Finish(monitoring.WithFinishCheckError(err))
+
+	db := mfr.r.extractTxRead(ctx)
+
+	query, args, err := buildDetailedTransactionsQuery(opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build query: %w", err)
+	}
+
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []models.DetailedTransactionOut
+	for rows.Next() {
+		var dt models.DetailedTransactionOut
+		err = rows.Scan(
+			&dt.ID,
+			&dt.TransactionID,
+			&dt.TransactionDate,
+			&dt.RefNumber,
+			&dt.TypeTransaction,
+			&dt.SourceAccount,
+			&dt.DestinationAccount,
+			&dt.Amount,
+			&dt.Description,
+			&dt.Metadata,
+		)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, dt)
+	}
+
+	if rows.Err() != nil {
+		return nil, rows.Err()
+	}
+
+	return result, nil
+}
+
+func (mfr *moneyFlowRepository) CountDetailedTransactions(ctx context.Context, summaryID string) (total int, err error) {
+	monitor := monitoring.New(ctx)
+	defer monitor.Finish(monitoring.WithFinishCheckError(err))
+
+	db := mfr.r.extractTxRead(ctx)
+
+	err = db.QueryRowContext(ctx, queryCountDetailedTransactions, summaryID).Scan(&total)
+	if err != nil {
+		return 0, err
+	}
+
+	return total, nil
+}
+
+func buildDetailedTransactionsQuery(opts models.DetailedTransactionFilterOptions) (sql string, args []interface{}, err error) {
+	psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
+
+	columns := []string{
+		`dmfs."id"`,
+		`t."transactionId"`,
+		`t."transactionDate"`,
+		`t."refNumber"`,
+		`t."typeTransaction"`,
+		`t."fromAccount"`,
+		`t."toAccount"`,
+		`t."amount"`,
+		`t."description"`,
+		`COALESCE(t."metadata", '{}'::jsonb) as "metadata"`,
+	}
+
+	query := psql.Select(columns...).
+		From("detailed_money_flow_summaries as dmfs").
+		InnerJoin(`transaction t ON t."transactionId" = dmfs.acuan_transaction_id`).
+		Where(sq.Eq{`dmfs."summary_id"`: opts.SummaryID})
+
+	if opts.Cursor != nil {
+		if opts.Cursor.IsBackward {
+			query = query.Where(sq.Gt{`dmfs."id"`: opts.Cursor.ID})
+			query = query.OrderBy(`dmfs."id" ASC`)
+		} else {
+			query = query.Where(sq.Gt{`dmfs."id"`: opts.Cursor.ID})
+			query = query.OrderBy(`dmfs."id" DESC`)
+		}
+	} else {
+		query = query.OrderBy(`dmfs."id" DESC`)
+	}
+
+	if opts.Limit > 0 {
+		query = query.Limit(uint64(opts.Limit))
+	}
+
+	return query.ToSql()
 }
