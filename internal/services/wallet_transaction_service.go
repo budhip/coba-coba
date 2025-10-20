@@ -510,18 +510,13 @@ func (ts *walletTrx) validateTransactionInput(ctx context.Context, in models.Cre
 		return fmt.Errorf("%w: %v", common.ErrInvalidTransactionType, in.TransactionType)
 	}
 
-	// netAmount
-	if in.NetAmount.ValueDecimal.LessThanOrEqual(decimal.Zero) {
-		return common.ErrInvalidAmount
-	}
-
 	// amounts
 	for _, v := range in.Amounts {
 		if !slices.Contains(acceptedTransactionType, v.Type) {
 			return fmt.Errorf("%w: %v", common.ErrInvalidTransactionType, v.Type)
 		}
 
-		if v.Amount.ValueDecimal.LessThanOrEqual(decimal.Zero) {
+		if in.NetAmount.ValueDecimal.LessThanOrEqual(decimal.Zero) && v.Amount.ValueDecimal.LessThanOrEqual(decimal.Zero) {
 			return common.ErrInvalidAmount
 		}
 	}

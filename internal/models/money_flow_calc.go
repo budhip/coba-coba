@@ -1,9 +1,12 @@
 package models
 
 import (
+	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"time"
+
+	"bitbucket.org/Amartha/go-fp-transaction/internal/common/constants"
+	"bitbucket.org/Amartha/go-fp-transaction/internal/common/dateutil"
 
 	"github.com/shopspring/decimal"
 )
@@ -87,7 +90,6 @@ type TransactionNotificationRaw struct {
 }
 
 // MoneyFlowSummaryUpdate struct for update with optional fields
-// Use pointers to distinguish between zero value and not set
 type MoneyFlowSummaryUpdate struct {
 	PaymentType       *string          `json:"payment_type,omitempty"`
 	TotalTransfer     *decimal.Decimal `json:"total_transfer,omitempty"`
@@ -148,7 +150,6 @@ type MoneyFlowSummaryResponse struct {
 type GetMoneyFlowSummaryListResponse struct {
 	Kind     string                     `json:"kind" example:"collection"`
 	Contents []MoneyFlowSummaryResponse `json:"contents"`
-	//Pagination common.CursorPagination    `json:"pagination"`
 }
 
 // MoneyFlowSummaryOut represents the output from repository
@@ -165,26 +166,18 @@ type MoneyFlowSummaryOut struct {
 
 // ToModelResponse implements PaginateableContent interface
 func (m MoneyFlowSummaryOut) ToModelResponse() MoneyFlowSummaryResponse {
-	requestedDate := "-"
-	if m.RequestedDate != nil {
-		requestedDate = m.RequestedDate.Format(time.RFC3339)
-	}
-
-	actualDate := "-"
-	if m.ActualDate != nil {
-		actualDate = m.ActualDate.Format(time.RFC3339)
-	}
+	dates := dateutil.FormatNullableTimes(time.RFC3339, m.RequestedDate, m.ActualDate)
 
 	return MoneyFlowSummaryResponse{
-		Kind:                          "moneyFlowCalc",
+		Kind:                          constants.MoneyFlowKind,
 		ID:                            m.ID,
-		TransactionSourceCreationDate: m.TransactionSourceCreationDate.Format("2006-01-02"),
+		TransactionSourceCreationDate: m.TransactionSourceCreationDate.Format(constants.DateFormatYYYYMMDD),
 		PaymentType:                   m.PaymentType,
 		TotalTransfer:                 m.TotalTransfer,
 		Status:                        m.MoneyFlowStatus,
 		CreatedAt:                     m.CreatedAt.Format(time.RFC3339),
-		RequestedDate:                 requestedDate,
-		ActualDate:                    actualDate,
+		RequestedDate:                 dates[0],
+		ActualDate:                    dates[1],
 	}
 }
 
@@ -194,13 +187,17 @@ type MoneyFlowSummaryFilterOptions struct {
 	TransactionSourceCreationDate *time.Time
 	Status                        string
 	Limit                         int
-	Cursor                        *MoneFlowSummaryCursor
+	Cursor                        *MoneyFlowSummaryCursor
 }
 
 // MoneFlowSummaryCursor represents cursor for pagination
-type MoneFlowSummaryCursor struct {
+type MoneyFlowSummaryCursor struct {
 	ID         string
 	IsBackward bool
+}
+
+func (c MoneyFlowSummaryCursor) String() string {
+	return c.ID
 }
 
 type DoGetSummaryIDBySummaryIDRequest struct {
@@ -235,22 +232,15 @@ type MoneyFlowSummaryDetailBySummaryIDOut struct {
 }
 
 func (m MoneyFlowSummaryDetailBySummaryIDOut) ToModelResponse() MoneyFlowSummaryBySummaryIDOut {
-	requestedDate := "-"
-	if m.RequestedDate != nil {
-		requestedDate = m.RequestedDate.Format(time.RFC3339)
-	}
+	dates := dateutil.FormatNullableTimes(time.RFC3339, m.RequestedDate, m.ActualDate)
 
-	actualDate := "-"
-	if m.ActualDate != nil {
-		actualDate = m.ActualDate.Format(time.RFC3339)
-	}
 	return MoneyFlowSummaryBySummaryIDOut{
-		Kind:                         "moneyFlowCalc",
+		Kind:                         constants.MoneyFlowKind,
 		ID:                           m.ID,
 		PaymentType:                  m.PaymentType,
 		CreatedDate:                  m.CreatedDate.Format(time.RFC3339),
-		RequestedDate:                requestedDate,
-		ActualDate:                   actualDate,
+		RequestedDate:                dates[0],
+		ActualDate:                   dates[1],
 		TotalAmount:                  m.TotalAmount,
 		Status:                       m.Status,
 		SourceBankAccountNumber:      m.SourceBankAccountNumber,
@@ -283,56 +273,6 @@ func (c DetailedTransactionCursor) String() string {
 	return c.ID
 }
 
-func decodeDetailedTransactionCursor(cursor string) (*DetailedTransactionCursor, error) {
-	if cursor == "" {
-		return nil, fmt.Errorf("cursor is empty")
-	}
-
-	return &DetailedTransactionCursor{
-		ID: cursor,
-	}, nil
-}
-
-// ToFilterOpts converts request to filter options
-func (req DoGetDetailedTransactionsBySummaryIDRequest) ToFilterOpts() (*DetailedTransactionFilterOptions, error) {
-	opts := &DetailedTransactionFilterOptions{
-		SummaryID: req.SummaryID,
-		Limit:     req.Limit,
-	}
-
-	if req.Limit < 0 {
-		return nil, GetErrMap(ErrKeyLimitMustBeGreaterThanZero)
-	}
-
-	if req.Limit == 0 {
-		opts.Limit = 10
-	}
-
-	// use over-fetch limit for check next page exists or not
-	opts.Limit += 1
-
-	// forward pagination
-	if req.NextCursor != "" {
-		tc, err := decodeDetailedTransactionCursor(req.NextCursor)
-		if err != nil {
-			return nil, err
-		}
-		opts.Cursor = tc
-	}
-
-	// backward pagination
-	if req.NextCursor == "" && req.PrevCursor != "" {
-		tc, err := decodeDetailedTransactionCursor(req.PrevCursor)
-		if err != nil {
-			return nil, err
-		}
-		tc.IsBackward = true
-		opts.Cursor = tc
-	}
-
-	return opts, nil
-}
-
 // DetailedTransactionOut represents output from repository
 type DetailedTransactionOut struct {
 	ID                 string
@@ -349,7 +289,7 @@ type DetailedTransactionOut struct {
 
 // GetCursor returns cursor for pagination
 func (d DetailedTransactionOut) GetCursor() string {
-	return d.ID
+	return base64.StdEncoding.EncodeToString([]byte(d.ID))
 }
 
 // DetailedTransactionResponse represents API response for detailed transaction
@@ -378,7 +318,7 @@ func (d DetailedTransactionOut) ToModelResponse() DetailedTransactionResponse {
 
 	return DetailedTransactionResponse{
 		TransactionID:      d.TransactionID,
-		TransactionDate:    d.TransactionDate.Format("2006-01-02"),
+		TransactionDate:    d.TransactionDate.Format(constants.DateFormatYYYYMMDD),
 		RefNumber:          d.RefNumber,
 		TypeTransaction:    d.TypeTransaction,
 		SourceAccount:      d.SourceAccount,

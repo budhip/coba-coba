@@ -9,7 +9,7 @@ import (
 const IDRCurrency = "IDR"
 
 type Amount struct {
-	ValueDecimal Decimal `json:"value" validate:"required,decimalGreaterThan=0"`
+	ValueDecimal Decimal `json:"value" validate:"required"`
 	Currency     string  `json:"currency"`
 }
 

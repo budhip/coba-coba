@@ -2,6 +2,8 @@ package models
 
 import (
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common"
+	"bitbucket.org/Amartha/go-fp-transaction/internal/common/constants"
+	"bitbucket.org/Amartha/go-fp-transaction/internal/common/pagination"
 	"encoding/base64"
 	"fmt"
 )
@@ -11,80 +13,72 @@ func (req GetMoneyFlowSummaryRequest) ToFilterOpts() (*MoneyFlowSummaryFilterOpt
 	opts := &MoneyFlowSummaryFilterOptions{
 		PaymentType: req.PaymentType,
 		Status:      req.Status,
-		Limit:       req.Limit,
 	}
 
 	// Validate and parse transactionSourceCreationDate
 	if req.TransactionSourceCreationDate != "" {
-		date, err := common.ParseStringToDatetime(common.DateFormatYYYYMMDD, req.TransactionSourceCreationDate)
+		date, err := common.ParseStringToDatetime(constants.DateFormatYYYYMMDD, req.TransactionSourceCreationDate)
 		if err != nil {
 			return nil, GetErrMap(ErrKeyInvalidFormatDate, fmt.Sprintf("date %s format must be YYYY-MM-DD", req.TransactionSourceCreationDate))
 		}
 		opts.TransactionSourceCreationDate = &date
 	}
 
-	// Set default limit
-	if opts.Limit == 0 {
-		opts.Limit = 10
+	// Build pagination using helper
+	paginationOpts := pagination.Options{
+		Limit:      req.Limit,
+		NextCursor: req.NextCursor,
+		PrevCursor: req.PrevCursor,
 	}
 
-	if opts.Limit < 0 {
-		return nil, GetErrMap(ErrKeyLimitMustBeGreaterThanZero)
+	cursor, limit, err := paginationOpts.BuildCursorAndLimit()
+	if err != nil {
+		return nil, err
 	}
 
-	// Use over-fetch limit for check next page exists or not
-	opts.Limit += 1
+	opts.Limit = limit
 
-	// Forward pagination
-	if req.NextCursor != "" {
-		cursor, err := decodeMoneFlowSummaryCursor(req.NextCursor)
-		if err != nil {
-			return nil, err
+	if cursor != nil {
+		opts.Cursor = &MoneyFlowSummaryCursor{
+			ID:         cursor.GetID(),
+			IsBackward: cursor.IsBackward(),
 		}
-		opts.Cursor = cursor
-	}
-
-	// Backward pagination
-	if req.NextCursor == "" && req.PrevCursor != "" {
-		cursor, err := decodeMoneFlowSummaryCursor(req.PrevCursor)
-		if err != nil {
-			return nil, err
-		}
-		cursor.IsBackward = true
-		opts.Cursor = cursor
 	}
 
 	return opts, nil
 }
 
-// decodeMoneFlowSummaryCursor decodes base64 encoded cursor
-func decodeMoneFlowSummaryCursor(cursor string) (*MoneFlowSummaryCursor, error) {
-	decodedBytes, err := base64.StdEncoding.DecodeString(cursor)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse cursor string: %w", err)
-	}
-
-	id := string(decodedBytes)
-	if id == "" {
-		return nil, fmt.Errorf("failed to parse cursor string: invalid format")
-	}
-
-	return &MoneFlowSummaryCursor{
-		ID:         id,
-		IsBackward: false,
-	}, nil
-}
-
-// String encodes cursor to base64 string
-func (c MoneFlowSummaryCursor) String() string {
-	return base64.StdEncoding.EncodeToString([]byte(c.ID))
-}
-
 // GetCursor returns encoded cursor
 func (m MoneyFlowSummaryOut) GetCursor() string {
-	cursor := MoneFlowSummaryCursor{
-		ID:         m.ID,
-		IsBackward: false,
+	return base64.StdEncoding.EncodeToString([]byte(m.ID))
+}
+
+// ToFilterOpts converts request to filter options
+func (req DoGetDetailedTransactionsBySummaryIDRequest) ToFilterOpts() (*DetailedTransactionFilterOptions, error) {
+	opts := &DetailedTransactionFilterOptions{
+		SummaryID: req.SummaryID,
 	}
-	return cursor.String()
+
+	// Build pagination using helper
+	paginationOpts := pagination.Options{
+		Limit:      req.Limit,
+		NextCursor: req.NextCursor,
+		PrevCursor: req.PrevCursor,
+	}
+
+	cursor, limit, err := paginationOpts.BuildCursorAndLimit()
+	if err != nil {
+		return nil, err
+	}
+
+	opts.Limit = limit
+
+	if cursor != nil {
+		opts.Cursor = &DetailedTransactionCursor{
+			ID:         cursor.GetID(),
+			IsBackward: cursor.IsBackward(),
+		}
+	}
+
+	return opts, nil
 }

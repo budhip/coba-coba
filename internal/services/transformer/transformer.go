@@ -13,6 +13,7 @@ import (
 	"bitbucket.org/Amartha/go-fp-transaction/internal/repositories"
 
 	"github.com/hashicorp/go-multierror"
+	"github.com/shopspring/decimal"
 )
 
 // Transformer is an interface that will be used to transform wallet transaction to acuan transaction
@@ -304,12 +305,15 @@ func (m MapTransformer) Transform(ctx context.Context, in models.WalletTransacti
 		return nil, err
 	}
 
-	transformed, err := transformer.Transform(ctx, in.NetAmount, in)
-	if err != nil {
-		return nil, err
-	}
+	var transformed []models.TransactionReq
+	if in.NetAmount.ValueDecimal.GreaterThan(decimal.Zero) {
+		transformed, err = transformer.Transform(ctx, in.NetAmount, in)
+		if err != nil {
+			return nil, err
+		}
 
-	res = append(res, transformed...)
+		res = append(res, transformed...)
+	}
 
 	var errs *multierror.Error
 	for _, amount := range in.Amounts {
@@ -319,13 +323,15 @@ func (m MapTransformer) Transform(ctx context.Context, in models.WalletTransacti
 			continue
 		}
 
-		transformed, err = transformer.Transform(ctx, *amount.Amount, in)
-		if err != nil {
-			errs = multierror.Append(errs, err)
-			continue
-		}
+		if amount.Amount.ValueDecimal.GreaterThan(decimal.Zero) {
+			transformed, err = transformer.Transform(ctx, *amount.Amount, in)
+			if err != nil {
+				errs = multierror.Append(errs, err)
+				continue
+			}
 
-		res = append(res, transformed...)
+			res = append(res, transformed...)
+		}
 	}
 
 	return res, errs.ErrorOrNil()

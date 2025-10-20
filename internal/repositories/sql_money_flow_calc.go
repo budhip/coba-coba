@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	sq "github.com/Masterminds/squirrel"
 	"strings"
 	"time"
 
@@ -64,8 +63,7 @@ const (
 	`
 
 	queryGetSummaryIDByPapaTransactionID = `
-		SELECT 
-			id
+		SELECT id
 		FROM money_flow_summaries
 		WHERE papa_transaction_id = $1
 		LIMIT 1
@@ -79,6 +77,7 @@ const (
 		FROM money_flow_summaries
 		WHERE id = $1
 	`
+
 	queryCountDetailedTransactions = `
 		SELECT COUNT(*)
 		FROM detailed_money_flow_summaries
@@ -189,7 +188,7 @@ func (mfr *moneyFlowRepository) UpdateSummary(ctx context.Context, summaryID str
 
 	// Build dynamic query
 	setClauses := []string{}
-	args := []interface{}{summaryID} // $1 untuk WHERE clause
+	args := []interface{}{summaryID} // $1 for WHERE clause
 	paramIndex := 2
 
 	if updates.PaymentType != nil {
@@ -287,7 +286,8 @@ func (mfr *moneyFlowRepository) GetSummariesList(ctx context.Context, opts model
 
 	db := mfr.r.extractTxRead(ctx)
 
-	query, args, err := buildMoneyFlowSummaryQuery(opts)
+	queryBuilder := NewMoneyFlowQueryBuilder()
+	query, args, err := queryBuilder.BuildListQuery(opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build query: %w", err)
 	}
@@ -296,8 +296,8 @@ func (mfr *moneyFlowRepository) GetSummariesList(ctx context.Context, opts model
 	if err != nil {
 		return nil, err
 	}
-
 	defer rows.Close()
+
 	var result []models.MoneyFlowSummaryOut
 	for rows.Next() {
 		var mfs models.MoneyFlowSummaryOut
@@ -316,6 +316,7 @@ func (mfr *moneyFlowRepository) GetSummariesList(ctx context.Context, opts model
 		}
 		result = append(result, mfs)
 	}
+
 	if rows.Err() != nil {
 		return nil, rows.Err()
 	}
@@ -329,7 +330,8 @@ func (mfr *moneyFlowRepository) CountSummaryAll(ctx context.Context, opts models
 
 	db := mfr.r.extractTxRead(ctx)
 
-	query, args, err := buildMoneyFlowSummaryCountQuery(opts)
+	queryBuilder := NewMoneyFlowQueryBuilder()
+	query, args, err := queryBuilder.BuildCountQuery(opts)
 	if err != nil {
 		return 0, fmt.Errorf("failed to build count query: %w", err)
 	}
@@ -342,78 +344,6 @@ func (mfr *moneyFlowRepository) CountSummaryAll(ctx context.Context, opts models
 	return total, nil
 }
 
-func buildMoneyFlowSummaryQuery(opts models.MoneyFlowSummaryFilterOptions) (sql string, args []interface{}, err error) {
-	columns := []string{
-		`mfs."id"`,
-		`mfs."transaction_source_creation_date"`,
-		`mfs."payment_type"`,
-		`mfs."total_transfer"`,
-		`mfs."money_flow_status"`,
-		`mfs."requested_date"`,
-		`mfs."actual_date"`,
-		`mfs."created_at"`,
-	}
-
-	psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
-	query := psql.Select(columns...).From("money_flow_summaries as mfs")
-
-	// Filter by transaction_source_creation_date < today
-	query = query.Where(sq.Lt{`mfs."transaction_source_creation_date"`: time.Now().Truncate(24 * time.Hour)})
-
-	if opts.PaymentType != "" {
-		query = query.Where(sq.Eq{`mfs."payment_type"`: opts.PaymentType})
-	}
-
-	if opts.TransactionSourceCreationDate != nil {
-		query = query.Where(sq.Eq{`mfs."transaction_source_creation_date"`: opts.TransactionSourceCreationDate})
-	}
-
-	if opts.Status != "" {
-		query = query.Where(sq.Eq{`mfs."money_flow_status"`: opts.Status})
-	}
-
-	if opts.Cursor != nil {
-		if opts.Cursor.IsBackward {
-			query = query.Where(sq.Lt{`mfs."id"`: opts.Cursor.ID})
-			query = query.OrderBy(`mfs."id" ASC`)
-		} else {
-			query = query.Where(sq.Lt{`mfs."id"`: opts.Cursor.ID})
-			query = query.OrderBy(`mfs."id" DESC`)
-		}
-	} else {
-		query = query.OrderBy(`mfs."id" DESC`)
-	}
-
-	if opts.Limit > 0 {
-		query = query.Limit(uint64(opts.Limit))
-	}
-
-	return query.ToSql()
-}
-
-func buildMoneyFlowSummaryCountQuery(opts models.MoneyFlowSummaryFilterOptions) (sql string, args []interface{}, err error) {
-	psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
-	query := psql.Select("COUNT(*)").From("money_flow_summaries as mfs")
-
-	// Filter by transaction_source_creation_date < today
-	query = query.Where(sq.Lt{`mfs."transaction_source_creation_date"`: time.Now().Truncate(24 * time.Hour)})
-
-	if opts.PaymentType != "" {
-		query = query.Where(sq.Eq{`mfs."payment_type"`: opts.PaymentType})
-	}
-
-	if opts.TransactionSourceCreationDate != nil {
-		query = query.Where(sq.Eq{`mfs."transaction_source_creation_date"`: opts.TransactionSourceCreationDate})
-	}
-
-	if opts.Status != "" {
-		query = query.Where(sq.Eq{`mfs."money_flow_status"`: opts.Status})
-	}
-
-	return query.ToSql()
-}
-
-// GetOneByAccountNumber will search account by it's account number on database.
 func (mfr *moneyFlowRepository) GetSummaryDetailBySummaryID(ctx context.Context, summaryID string) (result models.MoneyFlowSummaryDetailBySummaryIDOut, err error) {
 	monitor := monitoring.New(ctx)
 	defer monitor.Finish(monitoring.WithFinishCheckError(err))
@@ -446,7 +376,8 @@ func (mfr *moneyFlowRepository) GetDetailedTransactionsBySummaryID(ctx context.C
 
 	db := mfr.r.extractTxRead(ctx)
 
-	query, args, err := buildDetailedTransactionsQuery(opts)
+	queryBuilder := NewMoneyFlowQueryBuilder()
+	query, args, err := queryBuilder.BuildDetailedTransactionsQuery(opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build query: %w", err)
 	}
@@ -497,44 +428,4 @@ func (mfr *moneyFlowRepository) CountDetailedTransactions(ctx context.Context, s
 	}
 
 	return total, nil
-}
-
-func buildDetailedTransactionsQuery(opts models.DetailedTransactionFilterOptions) (sql string, args []interface{}, err error) {
-	psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
-
-	columns := []string{
-		`dmfs."id"`,
-		`t."transactionId"`,
-		`t."transactionDate"`,
-		`t."refNumber"`,
-		`t."typeTransaction"`,
-		`t."fromAccount"`,
-		`t."toAccount"`,
-		`t."amount"`,
-		`t."description"`,
-		`COALESCE(t."metadata", '{}'::jsonb) as "metadata"`,
-	}
-
-	query := psql.Select(columns...).
-		From("detailed_money_flow_summaries as dmfs").
-		InnerJoin(`transaction t ON t."transactionId" = dmfs.acuan_transaction_id`).
-		Where(sq.Eq{`dmfs."summary_id"`: opts.SummaryID})
-
-	if opts.Cursor != nil {
-		if opts.Cursor.IsBackward {
-			query = query.Where(sq.Gt{`dmfs."id"`: opts.Cursor.ID})
-			query = query.OrderBy(`dmfs."id" ASC`)
-		} else {
-			query = query.Where(sq.Gt{`dmfs."id"`: opts.Cursor.ID})
-			query = query.OrderBy(`dmfs."id" DESC`)
-		}
-	} else {
-		query = query.OrderBy(`dmfs."id" DESC`)
-	}
-
-	if opts.Limit > 0 {
-		query = query.Limit(uint64(opts.Limit))
-	}
-
-	return query.ToSql()
 }

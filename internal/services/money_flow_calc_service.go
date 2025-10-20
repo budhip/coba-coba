@@ -10,6 +10,7 @@ import (
 	gopaymentlib "bitbucket.org/Amartha/go-payment-lib/payment-api/models/event"
 	xlog "bitbucket.org/Amartha/go-x/log"
 
+	"bitbucket.org/Amartha/go-fp-transaction/internal/common/constants"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/models"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/monitoring"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/repositories"
@@ -23,44 +24,39 @@ type MoneyFlowService interface {
 	ProcessTransactionStream(ctx context.Context, event gopaymentlib.Event) error
 	GetSummariesList(ctx context.Context, opts models.MoneyFlowSummaryFilterOptions) ([]models.MoneyFlowSummaryOut, int, error)
 	GetSummaryDetailBySummaryID(ctx context.Context, summaryID string) (result models.MoneyFlowSummaryDetailBySummaryIDOut, err error)
+	GetDetailedTransactionsBySummaryID(ctx context.Context, summaryID string, opts models.DetailedTransactionFilterOptions) ([]models.DetailedTransactionOut, int, error)
 }
 
 type moneyFlowCalc service
 
 var _ MoneyFlowService = (*moneyFlowCalc)(nil)
 
-const (
-	MoneyFlowStatusPending = "PENDING"
-)
-
 func (mf *moneyFlowCalc) CheckEligibleTransaction(ctx context.Context, paymentType, breakdownTransactionType string) (*models.BusinessRuleConfig, string, error) {
 	var err error
-	var businessConfig *models.BusinessRuleConfig
 
 	monitor := monitoring.New(ctx)
 	defer monitor.Finish(monitoring.WithFinishCheckError(err))
 
-	getBusinessRules := mf.srv.flag.GetVariant(mf.srv.conf.FeatureFlagKeyLookup.MoneyFlowCalcBusinessRulesConfig)
+	variant := mf.srv.flag.GetVariant(mf.srv.conf.FeatureFlagKeyLookup.MoneyFlowCalcBusinessRulesConfig)
 
 	var businessRulesData models.BusinessRulesConfigs
-	err = json.Unmarshal([]byte(getBusinessRules.Payload.Value), &businessRulesData)
+	err = json.Unmarshal([]byte(variant.Payload.Value), &businessRulesData)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to unmarshal business rules: %w", err)
 	}
 
+	helper := NewBusinessRulesHelper(&businessRulesData)
+
 	if paymentType == "" {
-		businessConfig, paymentType, err = GetBusinessRulesByTransactionType(&businessRulesData, breakdownTransactionType)
-		if err != nil {
-			return nil, "", err
-		}
-	} else {
-		businessConfig, err = GetBusinessRulesByPaymentType(&businessRulesData, paymentType)
-		if err != nil {
-			return nil, "", err
-		}
+		return helper.GetByTransactionType(breakdownTransactionType)
 	}
 
-	return businessConfig, paymentType, nil
+	config, err := helper.GetByPaymentType(paymentType)
+	if err != nil {
+		return nil, "", err
+	}
+
+	return config, paymentType, nil
 }
 
 func (mf *moneyFlowCalc) ProcessTransactionNotification(ctx context.Context, notification goacuanlib.Payload[goacuanlib.DataOrder]) error {
@@ -80,7 +76,6 @@ func (mf *moneyFlowCalc) ProcessTransactionNotification(ctx context.Context, not
 	// Validate order time
 	if notification.Body.Data.Order.OrderTime.Time == nil {
 		xlog.Warn(ctx, "[MONEY-FLOW-CALC] Transaction time is nil",
-			xlog.String("order_time", notification.Body.Data.Order.OrderTime.Time.String()),
 			xlog.String("ref_number", notification.Body.Data.Order.RefNumber))
 		return nil
 	}
@@ -88,13 +83,11 @@ func (mf *moneyFlowCalc) ProcessTransactionNotification(ctx context.Context, not
 	orderTime := *notification.Body.Data.Order.OrderTime.Time
 	if orderTime.IsZero() {
 		xlog.Warn(ctx, "[MONEY-FLOW-CALC] Invalid transaction time",
-			xlog.String("order_time", notification.Body.Data.Order.OrderTime.Time.String()),
 			xlog.String("ref_number", notification.Body.Data.Order.RefNumber))
 		return nil
 	}
 
 	jakartaLocation, _ := time.LoadLocation("Asia/Jakarta")
-
 	creationDate := time.Date(
 		orderTime.Year(),
 		orderTime.Month(),
@@ -119,105 +112,64 @@ func (mf *moneyFlowCalc) ProcessTransactionNotification(ctx context.Context, not
 			continue
 		}
 
-		summaryID := uuid.New().String()
-
-		refNumber := "MFC-" + creationDate.Format("2006-01-02") + "-" + summaryID
-
-		summaryID, errCreate := mf.processSingleTransaction(ctx, trx, summaryID, refNumber, paymentType, businessRulesData, creationDate)
-		if errCreate != nil {
-			return errCreate
+		summaryID, err := mf.processSingleTransaction(ctx, trx, paymentType, businessRulesData, creationDate)
+		if err != nil {
+			xlog.Error(ctx, "[MONEY-FLOW-CALC] Failed to process transaction",
+				xlog.String("summary_id", summaryID),
+				xlog.String("acuan_transaction_id", trx.Id.String()),
+				xlog.Err(err))
+			return err
 		}
-
-		xlog.Error(ctx, "[MONEY-FLOW-CALC] Failed to process transaction",
-			xlog.String("summary_id", summaryID),
-			xlog.String("acuan_transaction_id", trx.Id.String()),
-			xlog.String("ref_number", refNumber),
-			xlog.Err(err))
-		return err
-
 	}
 
 	return nil
 }
 
-func (mf *moneyFlowCalc) processSingleTransaction(ctx context.Context, trx goacuanlib.Transaction, summaryID, refNumber, paymentType string, brd *models.BusinessRuleConfig, creationDate time.Time) (string, error) {
-	//var summaryID string
-
+func (mf *moneyFlowCalc) processSingleTransaction(
+	ctx context.Context,
+	trx goacuanlib.Transaction,
+	paymentType string,
+	brd *models.BusinessRuleConfig,
+	creationDate time.Time,
+) (string, error) {
 	transactionType := string(trx.TransactionType)
-
 	amount, _ := trx.Amount.Float64()
 
+	summaryID := uuid.New().String()
+	refNumber := constants.MoneyFlowReferencePrefix + creationDate.Format(constants.DateFormatYYYYMMDD) + "-" + summaryID
+
+	var resultSummaryID string
 	err := mf.srv.sqlRepo.Atomic(ctx, func(ctx context.Context, r repositories.SQLRepository) error {
-		mfRepo := r.GetMoneyFlowCalcRepository()
+		processor := NewTransactionProcessor(r.GetMoneyFlowCalcRepository())
 
-		// Check if transaction already processed
-		processedResult, err := mfRepo.GetTransactionProcessed(ctx, transactionType, creationDate)
-		if err != nil {
-			return fmt.Errorf("failed to check transaction is processed: %w", err)
+		summaryData := models.CreateMoneyFlowSummary{
+			ID:                            summaryID,
+			TransactionSourceCreationDate: creationDate,
+			TransactionType:               transactionType,
+			PaymentType:                   paymentType,
+			ReferenceNumber:               refNumber,
+			Description:                   brd.RequestToPAPA.Description,
+			SourceAccount:                 brd.Source.AccountNumber,
+			DestinationAccount:            brd.Destination.AccountNumber,
+			TotalTransfer:                 amount,
+			PapaTransactionID:             "",
+			MoneyFlowStatus:               constants.MoneyFlowStatusPending,
+			RequestedDate:                 nil,
+			ActualDate:                    nil,
+			SourceBankAccountNumber:       brd.Source.BankAccountNumber,
+			SourceBankAccountName:         brd.Source.BankAccountName,
+			SourceBankName:                brd.Source.BankName,
+			DestinationBankAccountNumber:  brd.Destination.BankAccountNumber,
+			DestinationBankAccountName:    brd.Destination.BankAccountName,
+			DestinationBankName:           brd.Destination.BankName,
 		}
 
-		if processedResult == nil {
-			summaryID, err := mfRepo.CreateSummary(ctx, models.CreateMoneyFlowSummary{
-				ID:                            summaryID,
-				TransactionSourceCreationDate: creationDate,
-				TransactionType:               transactionType,
-				PaymentType:                   paymentType,
-				ReferenceNumber:               refNumber,
-				Description:                   brd.RequestToPAPA.Description,
-				SourceAccount:                 brd.Source.AccountNumber,
-				DestinationAccount:            brd.Destination.AccountNumber,
-				TotalTransfer:                 amount,
-				PapaTransactionID:             "", // Empty string as per requirement
-				MoneyFlowStatus:               MoneyFlowStatusPending,
-				RequestedDate:                 nil, // NULL as per requirement
-				ActualDate:                    nil, // NULL as per requirement
-				SourceBankAccountNumber:       brd.Source.BankAccountNumber,
-				SourceBankAccountName:         brd.Source.BankAccountName,
-				SourceBankName:                brd.Source.BankName,
-				DestinationBankAccountNumber:  brd.Destination.BankAccountNumber,
-				DestinationBankAccountName:    brd.Destination.BankAccountName,
-				DestinationBankName:           brd.Destination.BankName,
-			})
-			if err != nil {
-				return fmt.Errorf("failed to create summary: %w", err)
-			}
-
-			// Create detailed summary
-			err = mfRepo.CreateDetailedSummary(ctx, models.CreateDetailedMoneyFlowSummary{
-				SummaryID:          summaryID,
-				AcuanTransactionID: trx.Id.String(),
-			})
-			if err != nil {
-				return fmt.Errorf("failed to create detailed summary: %w", err)
-			}
-		} else if processedResult != nil {
-			totalAmount := trx.Amount.Add(processedResult.TotalTransfer)
-
-			updateReq := models.MoneyFlowSummaryUpdate{
-				TotalTransfer: &totalAmount,
-			}
-
-			err = mfRepo.UpdateSummary(ctx, processedResult.ID, updateReq)
-			if err != nil {
-				return fmt.Errorf("failed to create summary: %w", err)
-			}
-
-			// Create detailed summary
-			err = mfRepo.CreateDetailedSummary(ctx, models.CreateDetailedMoneyFlowSummary{
-				SummaryID:          processedResult.ID,
-				AcuanTransactionID: trx.Id.String(),
-			})
-			if err != nil {
-				return fmt.Errorf("failed to create detailed summary: %w", err)
-			}
-		}
-		return nil
+		var err error
+		resultSummaryID, err = processor.ProcessOrUpdate(ctx, summaryData, trx.Id.String(), trx.Amount)
+		return err
 	})
-	if err != nil {
-		return "", err
-	}
 
-	return summaryID, nil
+	return resultSummaryID, err
 }
 
 func (mf *moneyFlowCalc) ProcessTransactionStream(ctx context.Context, event gopaymentlib.Event) error {
@@ -226,7 +178,7 @@ func (mf *moneyFlowCalc) ProcessTransactionStream(ctx context.Context, event gop
 	monitor := monitoring.New(ctx)
 	defer monitor.Finish(monitoring.WithFinishCheckError(err))
 
-	// check whether payment type is eligible or not
+	// Check whether payment type is eligible or not
 	businessRulesData, _, err := mf.CheckEligibleTransaction(ctx, event.PaymentType.ConvertSingleAPI().ToString(), "")
 	if err != nil {
 		return err
@@ -254,7 +206,6 @@ func (mf *moneyFlowCalc) ProcessTransactionStream(ctx context.Context, event gop
 	}
 
 	status := event.Status.ConvertSingleAPI().ToString()
-
 	updateReq := models.MoneyFlowSummaryUpdate{
 		MoneyFlowStatus: &status,
 	}
@@ -276,30 +227,6 @@ func (mf *moneyFlowCalc) ProcessTransactionStream(ctx context.Context, event gop
 		xlog.String("status", status))
 
 	return nil
-}
-
-// GetBusinessRulesByPaymentType to get config by payment type
-func GetBusinessRulesByPaymentType(configs *models.BusinessRulesConfigs, paymentType string) (*models.BusinessRuleConfig, error) {
-	config, exists := configs.BusinessRulesConfigs[paymentType]
-	if !exists {
-		return nil, fmt.Errorf("payment type not found: %s", paymentType)
-	}
-	return &config, nil
-}
-
-// GetBusinessRulesByTransactionType to get config by transaction type
-func GetBusinessRulesByTransactionType(configs *models.BusinessRulesConfigs, transactionType string) (*models.BusinessRuleConfig, string, error) {
-	paymentType, exists := configs.TransactionToPaymentMap[transactionType]
-	if !exists {
-		return nil, "", fmt.Errorf("transaction type not found: %s", transactionType)
-	}
-
-	paymentConfig, err := GetBusinessRulesByPaymentType(configs, paymentType)
-	if err != nil {
-		return nil, "", err
-	}
-
-	return paymentConfig, paymentType, nil
 }
 
 func (mf *moneyFlowCalc) GetSummariesList(ctx context.Context, opts models.MoneyFlowSummaryFilterOptions) ([]models.MoneyFlowSummaryOut, int, error) {
@@ -325,7 +252,6 @@ func (mf *moneyFlowCalc) GetSummariesList(ctx context.Context, opts models.Money
 	return summaries, total, nil
 }
 
-// GetSummaryDetailBySummaryID will search summary detail by its summary id then parse it to SummaryDetailResponse.
 func (mf *moneyFlowCalc) GetSummaryDetailBySummaryID(ctx context.Context, summaryID string) (result models.MoneyFlowSummaryDetailBySummaryIDOut, err error) {
 	monitor := monitoring.New(ctx)
 	defer monitor.Finish(monitoring.WithFinishCheckError(err))
@@ -337,4 +263,27 @@ func (mf *moneyFlowCalc) GetSummaryDetailBySummaryID(ctx context.Context, summar
 	}
 
 	return result, nil
+}
+
+func (mf *moneyFlowCalc) GetDetailedTransactionsBySummaryID(ctx context.Context, summaryID string, opts models.DetailedTransactionFilterOptions) ([]models.DetailedTransactionOut, int, error) {
+	var err error
+
+	monitor := monitoring.New(ctx)
+	defer monitor.Finish(monitoring.WithFinishCheckError(err))
+
+	mfsRepo := mf.srv.sqlRepo.GetMoneyFlowCalcRepository()
+
+	// Get detailed transactions
+	transactions, err := mfsRepo.GetDetailedTransactionsBySummaryID(ctx, opts)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get detailed transactions: %w", err)
+	}
+
+	// Count total
+	total, err := mfsRepo.CountDetailedTransactions(ctx, summaryID)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to count detailed transactions: %w", err)
+	}
+
+	return transactions, total, nil
 }

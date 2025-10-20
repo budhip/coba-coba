@@ -1,9 +1,6 @@
 package money_flow_summaries
 
 import (
-	"fmt"
-	"strings"
-
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common/http"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common/validation"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/models"
@@ -61,8 +58,6 @@ func (h *moneyFlowSummariesHandler) getSummariesList() fiber.Handler {
 			return http.RestErrorResponse(c, fiber.StatusBadRequest, err)
 		}
 
-		fmt.Println("opts: ", opts.TransactionSourceCreationDate)
-
 		summaries, total, err := h.moneyFlowService.GetSummariesList(c.UserContext(), *opts)
 		if err != nil {
 			return http.RestErrorResponse(c, fiber.StatusInternalServerError, err)
@@ -95,10 +90,7 @@ func (h *moneyFlowSummariesHandler) getSummaryDetailBySummaryID() fiber.Handler 
 
 		result, err := h.moneyFlowService.GetSummaryDetailBySummaryID(c.UserContext(), req.SummaryID)
 		if err != nil {
-			if strings.Contains(err.Error(), "not found") {
-				return http.RestErrorResponse(c, fiber.StatusNotFound, err)
-			}
-			return http.RestErrorResponse(c, fiber.StatusInternalServerError, err)
+			return http.HandleRepositoryError(c, err)
 		}
 
 		return http.RestSuccessResponse(c, fiber.StatusOK, result.ToModelResponse())
@@ -137,10 +129,7 @@ func (h *moneyFlowSummariesHandler) getDetailedTransactionsBySummaryID() fiber.H
 
 		transactions, total, err := h.moneyFlowService.GetDetailedTransactionsBySummaryID(c.UserContext(), req.SummaryID, *opts)
 		if err != nil {
-			if strings.Contains(err.Error(), "not found") {
-				return http.RestErrorResponse(c, fiber.StatusNotFound, err)
-			}
-			return http.RestErrorResponse(c, fiber.StatusInternalServerError, err)
+			return http.HandleRepositoryError(c, err)
 		}
 
 		return http.RestSuccessResponseCursorPagination[models.DetailedTransactionResponse](c, transactions, opts.Limit, total)
