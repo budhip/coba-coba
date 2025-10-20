@@ -43,8 +43,10 @@ func (qb *MoneyFlowQueryBuilder) applyCommonFilters(query sq.SelectBuilder, opts
 func (qb *MoneyFlowQueryBuilder) applyCursorPagination(query sq.SelectBuilder, cursor *models.MoneyFlowSummaryCursor, limit int) sq.SelectBuilder {
 	if cursor != nil {
 		if cursor.IsBackward {
-			query = query.Where(sq.Lt{`mfs."id"`: cursor.ID}).OrderBy(`mfs."id" ASC`)
+			// Backward: get records GREATER than cursor, order ASC (then reverse in code)
+			query = query.Where(sq.Gt{`mfs."id"`: cursor.ID}).OrderBy(`mfs."id" ASC`)
 		} else {
+			// Forward: get records LESS than cursor, order DESC
 			query = query.Where(sq.Lt{`mfs."id"`: cursor.ID}).OrderBy(`mfs."id" DESC`)
 		}
 	} else {
@@ -109,9 +111,11 @@ func (qb *MoneyFlowQueryBuilder) BuildDetailedTransactionsQuery(opts models.Deta
 	// Apply cursor pagination for detailed transactions
 	if opts.Cursor != nil {
 		if opts.Cursor.IsBackward {
+			// Backward: get records GREATER than cursor, order ASC (then reverse in code)
 			query = query.Where(sq.Gt{`dmfs."id"`: opts.Cursor.ID}).OrderBy(`dmfs."id" ASC`)
 		} else {
-			query = query.Where(sq.Gt{`dmfs."id"`: opts.Cursor.ID}).OrderBy(`dmfs."id" DESC`)
+			// Forward: get records LESS than cursor, order DESC
+			query = query.Where(sq.Lt{`dmfs."id"`: opts.Cursor.ID}).OrderBy(`dmfs."id" DESC`)
 		}
 	} else {
 		query = query.OrderBy(`dmfs."id" DESC`)
