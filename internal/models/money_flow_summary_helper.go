@@ -15,7 +15,6 @@ func (req GetMoneyFlowSummaryRequest) ToFilterOpts() (*MoneyFlowSummaryFilterOpt
 		Status:      req.Status,
 	}
 
-	// Validate and parse transactionSourceCreationDate
 	if req.TransactionSourceCreationDate != "" {
 		date, err := common.ParseStringToDatetime(constants.DateFormatYYYYMMDD, req.TransactionSourceCreationDate)
 		if err != nil {
@@ -24,7 +23,6 @@ func (req GetMoneyFlowSummaryRequest) ToFilterOpts() (*MoneyFlowSummaryFilterOpt
 		opts.TransactionSourceCreationDate = &date
 	}
 
-	// Build pagination using helper
 	paginationOpts := pagination.Options{
 		Limit:      req.Limit,
 		NextCursor: req.NextCursor,
@@ -59,7 +57,6 @@ func (req DoGetDetailedTransactionsBySummaryIDRequest) ToFilterOpts() (*Detailed
 		SummaryID: req.SummaryID,
 	}
 
-	// Build pagination using helper
 	paginationOpts := pagination.Options{
 		Limit:      req.Limit,
 		NextCursor: req.NextCursor,

@@ -25,3 +25,12 @@ func FormatNullableTimes(layout string, times ...*time.Time) []string {
 	}
 	return results
 }
+
+// Add batch formatting helper
+func FormatTimeToRFC3339(t *time.Time) string {
+	return FormatNullableTime(t, time.RFC3339)
+}
+
+func FormatTimesToRFC3339(times ...*time.Time) []string {
+	return FormatNullableTimes(time.RFC3339, times...)
+}

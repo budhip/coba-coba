@@ -7,12 +7,12 @@ import (
 	"time"
 
 	dlqpublisher "bitbucket.org/Amartha/go-fp-transaction/internal/common/dlq_publisher"
+	kafkacommon "bitbucket.org/Amartha/go-fp-transaction/internal/common/kafka"
 	gopaymentlib "bitbucket.org/Amartha/go-payment-lib/payment-api/models/event"
 	xlog "bitbucket.org/Amartha/go-x/log"
 
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common/metrics"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/config"
-	"bitbucket.org/Amartha/go-fp-transaction/internal/models"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/services"
 	"bitbucket.org/Amartha/go-x/log/audit"
 	"bitbucket.org/Amartha/go-x/log/ctxdata"
@@ -27,14 +27,11 @@ var validStatuses = map[string]bool{
 }
 
 type TransactionStreamHandler struct {
-	clientId        string
-	mfs             services.MoneyFlowService
-	cfg             config.Config
-	dlq             dlqpublisher.Publisher
-	consumerMetrics *metrics.ConsumerMetrics
+	kafkacommon.BaseHandler
+	mfs services.MoneyFlowService
+	cfg config.Config
 }
 
-// NewTransactionStreamHandler creates a new handler instance
 func NewTransactionStreamHandler(
 	clientId string,
 	mfs services.MoneyFlowService,
@@ -43,15 +40,17 @@ func NewTransactionStreamHandler(
 	consumerMetrics *metrics.ConsumerMetrics,
 ) sarama.ConsumerGroupHandler {
 	return &TransactionStreamHandler{
-		clientId:        clientId,
-		mfs:             mfs,
-		cfg:             cfg,
-		dlq:             dlq,
-		consumerMetrics: consumerMetrics,
+		BaseHandler: kafkacommon.BaseHandler{
+			ClientID:        clientId,
+			ConsumerMetrics: consumerMetrics,
+			DLQ:             dlq,
+			LogPrefix:       logMessage,
+		},
+		mfs: mfs,
+		cfg: cfg,
 	}
 }
 
-// Setup is run at the beginning of a new session, before ConsumeClaim
 func (tsh TransactionStreamHandler) Setup(session sarama.ConsumerGroupSession) error {
 	xlog.Info(
 		context.Background(),
@@ -62,7 +61,6 @@ func (tsh TransactionStreamHandler) Setup(session sarama.ConsumerGroupSession) e
 	return nil
 }
 
-// Cleanup is run at the end of a session, once all ConsumeClaim goroutines have exited
 func (tsh TransactionStreamHandler) Cleanup(session sarama.ConsumerGroupSession) error {
 	xlog.Info(
 		context.Background(),
@@ -72,8 +70,6 @@ func (tsh TransactionStreamHandler) Cleanup(session sarama.ConsumerGroupSession)
 	return nil
 }
 
-// ConsumeClaim must start a consumer loop of ConsumerGroupClaim's Messages().
-// This is the main processing loop for incoming Kafka messages
 func (tsh TransactionStreamHandler) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
 	xlog.Info(
 		session.Context(),
@@ -91,20 +87,17 @@ func (tsh TransactionStreamHandler) ConsumeClaim(session sarama.ConsumerGroupSes
 				return nil
 			}
 
-			// Create context with correlation ID and host info
 			ctx := ctxdata.Sets(session.Context(),
 				ctxdata.SetCorrelationId(uuid.New().String()),
-				ctxdata.SetHost(tsh.clientId),
+				ctxdata.SetHost(tsh.ClientID),
 			)
 
 			start := time.Now()
-			logField := createLogField(message)
+			logField := tsh.CreateLogField(message)
 
-			// Process the message
 			err := tsh.handler(ctx, message)
 
 			if err != nil {
-				// Log error with details
 				logField = append(logField,
 					xlog.Duration("response-time", time.Since(start)),
 					xlog.Err(err),
@@ -112,22 +105,18 @@ func (tsh TransactionStreamHandler) ConsumeClaim(session sarama.ConsumerGroupSes
 				)
 				xlog.Warn(ctx, logMessage+"[PROCESS-FAILED]", logField...)
 
-				// Send to DLQ and mark as consumed
 				tsh.Nack(ctx, session, message, err)
 				continue
 			}
 
-			// Log success
 			logField = append(logField,
 				xlog.Duration("response-time", time.Since(start)),
 				xlog.String("status", "success"),
 			)
 			xlog.Info(ctx, logMessage+"[PROCESS-SUCCESS]", logField...)
 
-			// Audit log for tracking
 			audit.Info(ctx, audit.Message{ActivityData: string(message.Value)})
 
-			// Mark message as consumed
 			tsh.Ack(session, message)
 
 		case <-session.Context().Done():
@@ -137,29 +126,25 @@ func (tsh TransactionStreamHandler) ConsumeClaim(session sarama.ConsumerGroupSes
 	}
 }
 
-// processMessage handles the actual message processing logic
 func (tsh TransactionStreamHandler) processMessage(ctx context.Context, message *sarama.ConsumerMessage) error {
 	var (
 		logMsg = logMessage + "[PROCESS-MESSAGE]"
 	)
 
-	logField := createLogField(message)
+	logField := tsh.CreateLogField(message)
 
-	// Step 1: Validate message is not empty
 	if len(message.Value) == 0 {
 		xlog.Warn(ctx, logMsg, append(logField, xlog.String("error", "empty message"))...)
 		return fmt.Errorf("empty message received")
 	}
+
 	var transactionEvent gopaymentlib.Event
-	// Step 2: Unmarshal transaction stream event
-	//var transactionEvent models.TransactionStreamEvent
 	if err := json.Unmarshal(message.Value, &transactionEvent); err != nil {
 		logField = append(logField, xlog.Err(err), xlog.String("raw_message", string(message.Value)))
 		xlog.Warn(ctx, logMsg, logField...)
 		return fmt.Errorf("error unmarshal json: %w", err)
 	}
 
-	// Step 3: Validate required fields
 	if transactionEvent.ID == "" {
 		xlog.Warn(ctx, logMsg, append(logField, xlog.String("error", "missing transaction_id"))...)
 		return fmt.Errorf("papa_transaction_id is required")
@@ -170,7 +155,6 @@ func (tsh TransactionStreamHandler) processMessage(ctx context.Context, message 
 		return fmt.Errorf("payment_type is required")
 	}
 
-	// Step 4: Filter - Process only SUCCESSFUL or REJECTED status
 	status := transactionEvent.Status.ConvertSingleAPI().ToString()
 	if !validStatuses[status] {
 		xlog.Info(ctx, logMsg, append(logField,
@@ -182,7 +166,6 @@ func (tsh TransactionStreamHandler) processMessage(ctx context.Context, message 
 		return nil
 	}
 
-	// Step 5: Additional logging for SUCCESSFUL or REJECTED transactions
 	xlog.Info(ctx, logMsg, append(logField,
 		xlog.String("papa_transaction_id", transactionEvent.ID),
 		xlog.String("payment_type", transactionEvent.PaymentType.ConvertSingleAPI().ToString()),
@@ -190,7 +173,6 @@ func (tsh TransactionStreamHandler) processMessage(ctx context.Context, message 
 		xlog.String("info", "processing successful/rejected transaction"),
 	)...)
 
-	// Step 6: Process the transaction stream event via service layer
 	err := tsh.mfs.ProcessTransactionStream(ctx, transactionEvent)
 	if err != nil {
 		err = fmt.Errorf("unable to process transaction stream: %w", err)
@@ -207,74 +189,9 @@ func (tsh TransactionStreamHandler) processMessage(ctx context.Context, message 
 	return nil
 }
 
-// handler wraps processMessage with metrics tracking
 func (tsh TransactionStreamHandler) handler(ctx context.Context, message *sarama.ConsumerMessage) (err error) {
 	startTime := time.Now()
-
-	// Process the message
 	err = tsh.processMessage(ctx, message)
-
-	// Generate and record metrics if available
-	if tsh.consumerMetrics != nil {
-		tsh.consumerMetrics.GenerateMetrics(startTime, message, err)
-	}
-
+	tsh.RecordMetrics(startTime, message, err)
 	return err
-}
-
-// Ack marks a message as successfully processed
-func (tsh TransactionStreamHandler) Ack(session sarama.ConsumerGroupSession, message *sarama.ConsumerMessage) {
-	session.MarkMessage(message, "")
-
-	xlog.Debug(
-		context.Background(),
-		logMessage+"[ACK]",
-		xlog.String("topic", message.Topic),
-		xlog.Int32("partition", message.Partition),
-		xlog.Int64("offset", message.Offset),
-	)
-}
-
-// Nack handles failed messages by sending them to DLQ and marking as consumed
-// This prevents the message from being reprocessed indefinitely
-func (tsh TransactionStreamHandler) Nack(ctx context.Context, session sarama.ConsumerGroupSession, message *sarama.ConsumerMessage, causeErr error) {
-	logField := createLogField(message)
-	logField = append(logField, xlog.Err(causeErr))
-
-	// Attempt to publish to DLQ
-	err := tsh.dlq.Publish(models.FailedMessage{
-		Payload:    message.Value,
-		Timestamp:  message.Timestamp,
-		CauseError: causeErr,
-	})
-
-	if err != nil {
-		// Log DLQ publish failure
-		logField = append(logField,
-			xlog.Err(fmt.Errorf("dlq publish failed: %w", err)),
-			xlog.String("dlq_status", "failed"),
-		)
-		xlog.Error(ctx, logMessage+"[NACK-DLQ-FAILED]", logField...)
-	} else {
-		logField = append(logField, xlog.String("dlq_status", "success"))
-		xlog.Info(ctx, logMessage+"[NACK-DLQ-SUCCESS]", logField...)
-	}
-
-	// Mark message as consumed to prevent reprocessing
-	// This is intentional - we don't want to retry indefinitely
-	session.MarkMessage(message, "")
-
-	xlog.Warn(ctx, logMessage+"[NACK]", logField...)
-}
-
-// createLogField creates standardized log fields from a Kafka message
-func createLogField(msg *sarama.ConsumerMessage) []xlog.Field {
-	return []xlog.Field{
-		xlog.Time("timestamp", msg.Timestamp),
-		xlog.String("topic", msg.Topic),
-		xlog.String("key", string(msg.Key)),
-		xlog.Int32("partition", msg.Partition),
-		xlog.Int64("offset", msg.Offset),
-		xlog.String("message-claimed", string(msg.Value)),
-	}
 }

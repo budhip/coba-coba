@@ -166,7 +166,7 @@ type MoneyFlowSummaryOut struct {
 
 // ToModelResponse implements PaginateableContent interface
 func (m MoneyFlowSummaryOut) ToModelResponse() MoneyFlowSummaryResponse {
-	dates := dateutil.FormatNullableTimes(time.RFC3339, m.RequestedDate, m.ActualDate)
+	dates := dateutil.FormatTimesToRFC3339(m.RequestedDate, m.ActualDate)
 
 	return MoneyFlowSummaryResponse{
 		Kind:                          constants.MoneyFlowKind,
@@ -232,7 +232,7 @@ type MoneyFlowSummaryDetailBySummaryIDOut struct {
 }
 
 func (m MoneyFlowSummaryDetailBySummaryIDOut) ToModelResponse() MoneyFlowSummaryBySummaryIDOut {
-	dates := dateutil.FormatNullableTimes(time.RFC3339, m.RequestedDate, m.ActualDate)
+	dates := dateutil.FormatTimesToRFC3339(m.RequestedDate, m.ActualDate)
 
 	return MoneyFlowSummaryBySummaryIDOut{
 		Kind:                         constants.MoneyFlowKind,

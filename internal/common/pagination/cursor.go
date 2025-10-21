@@ -63,3 +63,22 @@ func DecodeCursor(cursor string) (*BaseCursor, error) {
 
 	return NewBaseCursor(id, false), nil
 }
+
+// Add generic cursor builder
+func BuildCursorFromString(cursorStr string, isBackward bool) (*BaseCursor, error) {
+	if cursorStr == "" {
+		return nil, nil
+	}
+
+	decodedBytes, err := base64.StdEncoding.DecodeString(cursorStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse cursor string: %w", err)
+	}
+
+	id := string(decodedBytes)
+	if id == "" {
+		return nil, fmt.Errorf("failed to parse cursor string: invalid format")
+	}
+
+	return NewBaseCursor(id, isBackward), nil
+}

@@ -39,18 +39,12 @@ func (o *Options) BuildCursorAndLimit() (*BaseCursor, int, error) {
 }
 
 func (o *Options) buildCursor() (*BaseCursor, error) {
-	// Forward pagination
 	if o.NextCursor != "" {
-		cursor, err := DecodeCursor(o.NextCursor)
-		if err != nil {
-			return nil, err
-		}
-		return cursor, nil
+		return BuildCursorFromString(o.NextCursor, false)
 	}
 
-	// Backward pagination
 	if o.PrevCursor != "" {
-		cursor, err := DecodeCursor(o.PrevCursor)
+		cursor, err := BuildCursorFromString(o.PrevCursor, false)
 		if err != nil {
 			return nil, err
 		}

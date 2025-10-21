@@ -9,6 +9,7 @@ import (
 
 	goacuanlib "bitbucket.org/Amartha/go-acuan-lib/model"
 	dlqpublisher "bitbucket.org/Amartha/go-fp-transaction/internal/common/dlq_publisher"
+	kafkacommon "bitbucket.org/Amartha/go-fp-transaction/internal/common/kafka"
 	xlog "bitbucket.org/Amartha/go-x/log"
 
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common/metrics"
@@ -23,11 +24,9 @@ import (
 )
 
 type MoneyFlowCalcHandler struct {
-	clientId        string
-	mfs             services.MoneyFlowService
-	cfg             config.Config
-	dlq             dlqpublisher.Publisher
-	consumerMetrics *metrics.ConsumerMetrics
+	kafkacommon.BaseHandler
+	mfs services.MoneyFlowService
+	cfg config.Config
 }
 
 func NewMoneyFlowCalcHandler(
@@ -37,20 +36,26 @@ func NewMoneyFlowCalcHandler(
 	cfg config.Config,
 	consumerMetrics *metrics.ConsumerMetrics,
 ) sarama.ConsumerGroupHandler {
-	return &MoneyFlowCalcHandler{clientId, mfs, cfg, dlq, consumerMetrics}
+	return &MoneyFlowCalcHandler{
+		BaseHandler: kafkacommon.BaseHandler{
+			ClientID:        clientId,
+			ConsumerMetrics: consumerMetrics,
+			DLQ:             dlq,
+			LogPrefix:       logMessage,
+		},
+		mfs: mfs,
+		cfg: cfg,
+	}
 }
 
-// Setup is run at the beginning of a new session, before ConsumeClaim
 func (mfc MoneyFlowCalcHandler) Setup(_ sarama.ConsumerGroupSession) error {
 	return nil
 }
 
-// Cleanup is run at the end of a session, once all ConsumeClaim goroutines have exited
 func (mfc MoneyFlowCalcHandler) Cleanup(_ sarama.ConsumerGroupSession) error {
 	return nil
 }
 
-// ConsumeClaim must start a consumer loop of ConsumerGroupClaim's Messages().
 func (mfc MoneyFlowCalcHandler) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
 	for {
 		select {
@@ -60,11 +65,11 @@ func (mfc MoneyFlowCalcHandler) ConsumeClaim(session sarama.ConsumerGroupSession
 			}
 			ctx := ctxdata.Sets(session.Context(),
 				ctxdata.SetCorrelationId(uuid.New().String()),
-				ctxdata.SetHost(mfc.clientId),
+				ctxdata.SetHost(mfc.ClientID),
 			)
 
 			start := time.Now()
-			logField := createLogField(message)
+			logField := mfc.CreateLogField(message)
 
 			err := mfc.handler(ctx, message)
 			if err != nil {
@@ -91,9 +96,8 @@ func (mfc MoneyFlowCalcHandler) processMessage(ctx context.Context, message *sar
 		logMsg = "[PROCESS-MESSAGE]"
 	)
 
-	logField := createLogField(message)
+	logField := mfc.CreateLogField(message)
 
-	// Unmarshal into a temporary struct using RawMessage
 	var rawNotif models.TransactionNotificationRaw
 	if err = json.Unmarshal(message.Value, &rawNotif); err != nil {
 		logField = append(logField, xlog.Err(err))
@@ -101,10 +105,8 @@ func (mfc MoneyFlowCalcHandler) processMessage(ctx context.Context, message *sar
 		return fmt.Errorf("error unmarshal json to raw: %w", err)
 	}
 
-	// Fix all fields that have amount object structures
 	fixedAcuanData := mfc.fixAmountInJSON(rawNotif.AcuanData)
 
-	// Build final notification struct
 	var notification goacuanlib.Payload[goacuanlib.DataOrder]
 
 	if len(fixedAcuanData) > 0 {
@@ -117,7 +119,6 @@ func (mfc MoneyFlowCalcHandler) processMessage(ctx context.Context, message *sar
 		notification = acuanData
 	}
 
-	// Process the notification
 	err = mfc.mfs.ProcessTransactionNotification(ctx, notification)
 	if err != nil {
 		err = fmt.Errorf("unable to process transaction notification: %w", err)
@@ -133,48 +134,10 @@ func (mfc MoneyFlowCalcHandler) processMessage(ctx context.Context, message *sar
 func (mfc MoneyFlowCalcHandler) handler(ctx context.Context, message *sarama.ConsumerMessage) (err error) {
 	startTime := time.Now()
 	err = mfc.processMessage(ctx, message)
-
-	if mfc.consumerMetrics != nil {
-		mfc.consumerMetrics.GenerateMetrics(startTime, message, err)
-	}
-
+	mfc.RecordMetrics(startTime, message, err)
 	return
 }
 
-func (mfc MoneyFlowCalcHandler) Ack(session sarama.ConsumerGroupSession, message *sarama.ConsumerMessage) {
-	session.MarkMessage(message, "")
-}
-
-// Nack is a custom function for handling failed messages during Kafka consumer processing.
-// It publishes the failed message to a DLQ and mark the message as consumed.
-func (mfc MoneyFlowCalcHandler) Nack(ctx context.Context, session sarama.ConsumerGroupSession, message *sarama.ConsumerMessage, causeErr error) {
-	logField := createLogField(message)
-
-	err := mfc.dlq.Publish(models.FailedMessage{
-		Payload:    message.Value,
-		Timestamp:  message.Timestamp,
-		CauseError: causeErr,
-	})
-	if err != nil {
-		logField = append(logField, xlog.Err(err))
-		xlog.Warn(ctx, logMessage, logField...)
-	}
-
-	session.MarkMessage(message, "")
-}
-
-func createLogField(msg *sarama.ConsumerMessage) []xlog.Field {
-	return []xlog.Field{
-		xlog.Time("timestamp", msg.Timestamp),
-		xlog.String("topic", msg.Topic),
-		xlog.String("key", string(msg.Key)),
-		xlog.Int32("partition", msg.Partition),
-		xlog.Int64("offset", msg.Offset),
-		xlog.String("message-claimed", string(msg.Value)),
-	}
-}
-
-// fixAmountInJSON replaces all amount object formats to string
 func (mfc MoneyFlowCalcHandler) fixAmountInJSON(data []byte) []byte {
 	if len(data) == 0 {
 		return data
@@ -188,8 +151,6 @@ func (mfc MoneyFlowCalcHandler) fixAmountInJSON(data []byte) []byte {
 		"availableBalance",
 	}
 
-	// Fix pattern: {"value": NUMBER, "currency": "XXX"} -> "NUMBER"
-	// This handles: netAmount, actualBalance, pendingBalance, availableBalance, amounts, etc.
 	for _, field := range balanceFields {
 		pattern := fmt.Sprintf(`"%s"\s*:\s*\{\s*"value"\s*:\s*(\d+)\s*,\s*"currency"\s*:\s*"[^"]*"\s*\}`, field)
 		re := regexp.MustCompile(pattern)
