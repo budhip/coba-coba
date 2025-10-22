@@ -10,31 +10,31 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-type mfmepTransformer struct {
+type rpyenTransformer struct {
 	baseWalletTransactionTransformer
 }
 
-func (t mfmepTransformer) Transform(_ context.Context, amount models.Amount, parentWalletTransaction models.WalletTransaction) (res []models.TransactionReq, err error) {
+func (t rpyenTransformer) Transform(ctx context.Context, amount models.Amount, parentWalletTransaction models.WalletTransaction) (res []models.TransactionReq, err error) {
 	status, err := transformWalletTransactionStatus(parentWalletTransaction.Status)
 	if err != nil {
 		return nil, err
 	}
 
-	entity := getEntityFromMetadata(parentWalletTransaction.Metadata)
-	if entity == "" {
-		return nil, common.ErrMissingEntityFromMetadata
+	fromInvested, err := t.accountingClient.GetInvestedAccountNumber(ctx, parentWalletTransaction.AccountNumber)
+	if err != nil {
+		return nil, err
 	}
 
 	return []models.TransactionReq{
 		{
 			TransactionID:   uuid.New().String(),
-			FromAccount:     parentWalletTransaction.AccountNumber,
-			ToAccount:       t.config.AccountConfig.BRIEscrowAFAAccountNumber,
+			FromAccount:     fromInvested,
+			ToAccount:       parentWalletTransaction.AccountNumber,
 			TransactionDate: common.FormatDatetimeToStringInLocalTime(parentWalletTransaction.TransactionTime, common.DateFormatYYYYMMDD),
 			Amount:          decimal.NewNullDecimal(amount.ValueDecimal.Decimal),
 			Status:          string(status),
-			TypeTransaction: "MFMEP",
-			OrderType:       "MFM",
+			TypeTransaction: "RPYEN",
+			OrderType:       "RPY",
 			OrderTime:       getOrderTime(parentWalletTransaction),
 			RefNumber:       parentWalletTransaction.RefNumber,
 			Currency:        transformCurrency(amount.Currency),

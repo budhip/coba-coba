@@ -1,20 +1,21 @@
 package http
 
 import (
+	nethttp "net/http"
 	"strings"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/labstack/echo/v4"
 )
 
 // HandleRepositoryError handles common repository errors
-func HandleRepositoryError(c *fiber.Ctx, err error) error {
+func HandleRepositoryError(c echo.Context, err error) error {
 	if err == nil {
 		return nil
 	}
 
 	if strings.Contains(err.Error(), "not found") {
-		return RestErrorResponse(c, fiber.StatusNotFound, err)
+		return RestErrorResponse(c, nethttp.StatusNotFound, err)
 	}
 
-	return RestErrorResponse(c, fiber.StatusInternalServerError, err)
+	return RestErrorResponse(c, nethttp.StatusInternalServerError, err)
 }

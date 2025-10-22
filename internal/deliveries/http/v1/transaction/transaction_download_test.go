@@ -12,7 +12,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/valyala/fasthttp"
 	"go.uber.org/mock/gomock"
 )
 
@@ -94,9 +93,9 @@ func Test_Handler_downloadTransaction(t *testing.T) {
 				wantCode: 500,
 			},
 			doMock: func(args *args, mockData *mockData) {
-				c := testHelper.router.AcquireCtx(&fasthttp.RequestCtx{})
-				args.opts.Writer = c
-				testHelper.router.ReleaseCtx(c)
+				c := testHelper.router.AcquireContext()
+				args.opts.Writer = c.Response().Writer
+				testHelper.router.ReleaseContext(c)
 				testHelper.mockTrxService.EXPECT().DownloadTransactionFileCSV(args.ctx, gomock.Any()).Return(assert.AnError)
 			},
 		},
@@ -109,8 +108,11 @@ func Test_Handler_downloadTransaction(t *testing.T) {
 
 			req := httptest.NewRequest(http.MethodGet, tt.urlCalled, nil)
 
-			resp, err := testHelper.router.Test(req)
-			require.NoError(t, err)
+			rec := httptest.NewRecorder()
+			testHelper.router.ServeHTTP(rec, req)
+
+			resp := rec.Result()
+			defer resp.Body.Close()
 
 			require.Equal(t, tt.mockData.wantCode, resp.StatusCode)
 		})

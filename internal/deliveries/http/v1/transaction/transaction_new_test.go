@@ -8,12 +8,12 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/models"
 
-	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -115,16 +115,19 @@ func Test_Handler_publishTransaction(t *testing.T) {
 			require.NoError(t, err)
 
 			req := httptest.NewRequest(http.MethodPost, tt.urlCalled, &b)
-			req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
+			req.Header.Set("Content-Type", "application/json")
 
-			resp, err := testHelper.router.Test(req)
-			require.NoError(t, err)
+			rec := httptest.NewRecorder()
+			testHelper.router.ServeHTTP(rec, req)
+
+			resp := rec.Result()
+			defer resp.Body.Close()
 
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 
 			require.Equal(t, tt.mockData.wantCode, resp.StatusCode)
-			require.Equal(t, tt.mockData.wantRes, string(body))
+			require.Equal(t, tt.mockData.wantRes, strings.TrimSuffix(string(body), "\n"))
 		})
 	}
 }
@@ -177,14 +180,17 @@ func Test_Handler_getByTypeAndRefNumber(t *testing.T) {
 			var b bytes.Buffer
 			req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/transaction/%s/%s", tc.request.TransactionType, tc.request.RefNumber), &b)
 
-			resp, err := testHelper.router.Test(req)
-			require.NoError(t, err)
+			rec := httptest.NewRecorder()
+			testHelper.router.ServeHTTP(rec, req)
+
+			resp := rec.Result()
+			defer resp.Body.Close()
 
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 
 			require.Equal(t, tc.wantCode, resp.StatusCode)
-			require.Equal(t, tc.wantRes, string(body))
+			require.Equal(t, tc.wantRes, strings.TrimSuffix(string(body), "\n"))
 		})
 	}
 }
@@ -206,7 +212,7 @@ func Test_Handler_UpdateStatusReserved(t *testing.T) {
 				Status:        models.TransactionRequestCommitStatus,
 			},
 			wantRes:  `{"kind":"transaction","transactionId":"123","status":"SUCCESS"}`,
-			wantCode: fiber.StatusOK,
+			wantCode: http.StatusOK,
 			doMock: func(request *models.UpdateStatusReservedTransactionRequest) {
 				testHelper.mockTrxService.EXPECT().
 					CommitReservedTransaction(gomock.AssignableToTypeOf(context.Background()), request.TransactionId, gomock.Any()).
@@ -220,7 +226,7 @@ func Test_Handler_UpdateStatusReserved(t *testing.T) {
 				Status:        models.TransactionRequestCancelStatus,
 			},
 			wantRes:  `{"kind":"transaction","transactionId":"123","status":"CANCEL"}`,
-			wantCode: fiber.StatusOK,
+			wantCode: http.StatusOK,
 			doMock: func(request *models.UpdateStatusReservedTransactionRequest) {
 				testHelper.mockTrxService.EXPECT().
 					CancelReservedTransaction(gomock.AssignableToTypeOf(context.Background()), request.TransactionId).
@@ -234,7 +240,7 @@ func Test_Handler_UpdateStatusReserved(t *testing.T) {
 				Status:        models.TransactionRequestCommitStatus,
 			},
 			wantRes:  `{"status":"error","code":500,"message":"assert.AnError general error for testing"}`,
-			wantCode: fiber.StatusInternalServerError,
+			wantCode: http.StatusInternalServerError,
 			doMock: func(request *models.UpdateStatusReservedTransactionRequest) {
 				testHelper.mockTrxService.EXPECT().
 					CommitReservedTransaction(gomock.AssignableToTypeOf(context.Background()), request.TransactionId, gomock.Any()).
@@ -248,7 +254,7 @@ func Test_Handler_UpdateStatusReserved(t *testing.T) {
 				Status:        models.TransactionRequestCommitStatus,
 			},
 			wantRes:  `{"status":"error","code":"DATA_NOT_FOUND","message":"data not found"}`,
-			wantCode: fiber.StatusNotFound,
+			wantCode: http.StatusNotFound,
 			doMock: func(request *models.UpdateStatusReservedTransactionRequest) {
 				testHelper.mockTrxService.EXPECT().
 					CommitReservedTransaction(gomock.AssignableToTypeOf(context.Background()), request.TransactionId, gomock.Any()).
@@ -262,7 +268,7 @@ func Test_Handler_UpdateStatusReserved(t *testing.T) {
 				Status:        models.TransactionRequestCommitStatus,
 			},
 			wantRes:  `{"status":"error","code":409,"message":"transaction status not reserved"}`,
-			wantCode: fiber.StatusConflict,
+			wantCode: http.StatusConflict,
 			doMock: func(request *models.UpdateStatusReservedTransactionRequest) {
 				testHelper.mockTrxService.EXPECT().
 					CommitReservedTransaction(gomock.AssignableToTypeOf(context.Background()), request.TransactionId, gomock.Any()).
@@ -281,16 +287,19 @@ func Test_Handler_UpdateStatusReserved(t *testing.T) {
 			require.NoError(t, err)
 
 			req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/api/v1/transactions/%s", tc.request.TransactionId), &b)
-			req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
+			req.Header.Set("Content-Type", "application/json")
 
-			resp, err := testHelper.router.Test(req)
-			require.NoError(t, err)
+			rec := httptest.NewRecorder()
+			testHelper.router.ServeHTTP(rec, req)
+
+			resp := rec.Result()
+			defer resp.Body.Close()
 
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 
 			require.Equal(t, tc.wantCode, resp.StatusCode)
-			require.Equal(t, tc.wantRes, string(body))
+			require.Equal(t, tc.wantRes, strings.TrimSuffix(string(body), "\n"))
 		})
 	}
 }
@@ -349,14 +358,17 @@ func Test_Handler_getTransactionStatusCount(t *testing.T) {
 			url := fmt.Sprintf("/api/v1/transaction/status-count/?threshold=%v", tc.request.Threshold)
 			req := httptest.NewRequest(http.MethodGet, url, &b)
 
-			resp, err := testHelper.router.Test(req)
-			require.NoError(t, err)
+			rec := httptest.NewRecorder()
+			testHelper.router.ServeHTTP(rec, req)
+
+			resp := rec.Result()
+			defer resp.Body.Close()
 
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 
 			require.Equal(t, tc.wantCode, resp.StatusCode)
-			require.Equal(t, tc.wantRes, string(body))
+			require.Equal(t, tc.wantRes, strings.TrimSuffix(string(body), "\n"))
 		})
 	}
 }

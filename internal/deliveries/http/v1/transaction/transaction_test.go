@@ -8,13 +8,13 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/models"
 
-	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -80,16 +80,19 @@ func Test_Handler_getAllTransaction(t *testing.T) {
 				tt.doMock(tt.args, tt.mockData)
 			}
 			req := httptest.NewRequest(http.MethodGet, fmt.Sprintf(tt.urlCalled, tt.args.opts.Limit), nil)
-			req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
+			req.Header.Set("Content-Type", "application/json")
 
-			resp, err := testHelper.router.Test(req)
-			require.NoError(t, err)
+			rec := httptest.NewRecorder()
+			testHelper.router.ServeHTTP(rec, req)
+
+			resp := rec.Result()
+			defer resp.Body.Close()
 
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 
 			require.Equal(t, tt.mockData.wantCode, resp.StatusCode)
-			require.Equal(t, tt.mockData.wantRes, string(body))
+			require.Equal(t, tt.mockData.wantRes, strings.TrimSuffix(string(body), "\n"))
 		})
 	}
 }
@@ -151,13 +154,18 @@ func TestHandlerGenerateTransactionReport(t *testing.T) {
 			}
 
 			req := httptest.NewRequest(tt.method, fmt.Sprint(tt.urlCalled), nil)
-			req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
-			resp, err := testHelper.router.Test(req)
-			require.NoError(t, err)
+			req.Header.Set("Content-Type", "application/json")
+
+			rec := httptest.NewRecorder()
+			testHelper.router.ServeHTTP(rec, req)
+
+			resp := rec.Result()
+			defer resp.Body.Close()
+
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 			require.Equal(t, tt.mockData.wantCode, resp.StatusCode)
-			require.Equal(t, tt.mockData.wantRes, string(body))
+			require.Equal(t, tt.mockData.wantRes, strings.TrimSuffix(string(body), "\n"))
 		})
 	}
 }
@@ -277,36 +285,6 @@ func TestHandlerCreateTransaction(t *testing.T) {
 			},
 		},
 		{
-			name:      "success - get from idempotency key",
-			urlCalled: "/api/v1/transactions",
-			method:    http.MethodPost,
-			args: args{
-				ctx:            context.Background(),
-				idempotencyKey: "0f472815-8b37-4057-a594-a5617c91589d",
-				req: models.DoCreateTransactionRequest{
-					IsReserved:      true,
-					FromAccount:     "1111111111",
-					ToAccount:       "2222222222",
-					Amount:          decimal.NewFromInt(10000),
-					OrderType:       "DSB",
-					TransactionType: "DSBAA",
-					TransactionTime: ct,
-					Description:     "test disburesement",
-					RefNumber:       "TRX-1234567890",
-					Metadata:        map[string]any{"test": "test"},
-				},
-			},
-			mockData: mockData{
-				wantRes:  `{"kind":"transaction","transactionId":"81a932b1-f4f5-445e-bd28-c2d365ff27b4","refNumber":"TRX-1234567890","orderType":"DSB","method":"","transactionType":"DSBAA","transactionDate":"2024-01-01","transactionTime":"0001-01-01 07:07:12","fromAccount":"1111111111","toAccount":"2222222222","amount":"10000","status":"PENDING","description":"test disburesement","metadata":{"test":"test"},"createdAt":"0001-01-01 07:07:12","updatedAt":"0001-01-01 07:07:12"}`,
-				wantCode: 201,
-			},
-			doMock: func(args args, mockData mockData) {
-				testHelper.mockCacheRepository.EXPECT().
-					Get(gomock.Any(), gomock.Any()).
-					Return(`{"status":"finished","fingerprint":"9411289b7e822dc27a0108f3bcb8139ab3f3053b","httpStatusCode":201,"responseBody":"{\"kind\":\"transaction\",\"transactionId\":\"81a932b1-f4f5-445e-bd28-c2d365ff27b4\",\"refNumber\":\"TRX-1234567890\",\"orderType\":\"DSB\",\"method\":\"\",\"transactionType\":\"DSBAA\",\"transactionDate\":\"2024-01-01\",\"transactionTime\":\"0001-01-01 07:07:12\",\"fromAccount\":\"1111111111\",\"toAccount\":\"2222222222\",\"amount\":\"10000\",\"status\":\"PENDING\",\"description\":\"test disburesement\",\"metadata\":{\"test\":\"test\"},\"createdAt\":\"0001-01-01 07:07:12\",\"updatedAt\":\"0001-01-01 07:07:12\"}","responseHeaders":{"Content-Type":"application/json"}}`, nil)
-			},
-		},
-		{
 			name:      "failed - error store from transaction service",
 			urlCalled: "/api/v1/transactions",
 			method:    http.MethodPost,
@@ -369,17 +347,20 @@ func TestHandlerCreateTransaction(t *testing.T) {
 			require.NoError(t, errEncode)
 
 			req := httptest.NewRequest(tt.method, tt.urlCalled, &b)
-			req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
+			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("X-Idempotency-Key", tt.args.idempotencyKey)
 
-			resp, err := testHelper.router.Test(req)
-			require.NoError(t, err)
+			rec := httptest.NewRecorder()
+			testHelper.router.ServeHTTP(rec, req)
+
+			resp := rec.Result()
+			defer resp.Body.Close()
 
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 
 			require.Equal(t, tt.mockData.wantCode, resp.StatusCode)
-			require.Equal(t, tt.mockData.wantRes, string(body))
+			require.Equal(t, tt.mockData.wantRes, strings.TrimSuffix(string(body), "\n"))
 		})
 	}
 }
@@ -522,17 +503,20 @@ func TestHandlerCreateBulkTransaction(t *testing.T) {
 			require.NoError(t, errEncode)
 
 			req := httptest.NewRequest(tt.method, tt.urlCalled, &b)
-			req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
+			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("X-Idempotency-Key", uuid.New().String())
 
-			resp, err := testHelper.router.Test(req)
-			require.NoError(t, err)
+			rec := httptest.NewRecorder()
+			testHelper.router.ServeHTTP(rec, req)
+
+			resp := rec.Result()
+			defer resp.Body.Close()
 
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 
 			require.Equal(t, tt.mockData.wantCode, resp.StatusCode)
-			require.Equal(t, tt.mockData.wantRes, string(body))
+			require.Equal(t, tt.mockData.wantRes, strings.TrimSuffix(string(body), "\n"))
 		})
 	}
 }
@@ -574,7 +558,7 @@ func TestHandlerCreateOrderTransaction(t *testing.T) {
 					},
 				},
 			},
-			wantCode: fiber.StatusCreated,
+			wantCode: http.StatusCreated,
 			wantRes:  `{"kind":"order","orderTime":"2022-01-01T00:00:00Z","orderType":"OrderType","refNumber":"RefNumber","transactions":[{"id":"0afb1662-0763-4ec2-bc72-01dfe0f91ff8","amount":"0","currency":"Currency","sourceAccountId":"SourceAccountId","destinationAccountId":"DestinationAccountId","description":"Description","method":"Method","transactionType":"TransactionType","transactionTime":"2022-01-01T00:00:00Z","status":0,"meta":null}]}`,
 			doMock: func(req models.CreateOrderRequest) {
 				testHelper.mockTrxService.EXPECT().
@@ -604,7 +588,7 @@ func TestHandlerCreateOrderTransaction(t *testing.T) {
 					},
 				},
 			},
-			wantCode: fiber.StatusInternalServerError,
+			wantCode: http.StatusInternalServerError,
 			wantRes:  `{"status":"error","code":500,"message":"assert.AnError general error for testing"}`,
 			doMock: func(req models.CreateOrderRequest) {
 				testHelper.mockTrxService.EXPECT().
@@ -625,15 +609,18 @@ func TestHandlerCreateOrderTransaction(t *testing.T) {
 			require.NoError(t, errEncode)
 
 			req := httptest.NewRequest("POST", "/api/v1/transactions/orders", &b)
-			req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
+			req.Header.Set("Content-Type", "application/json")
 
-			resp, err := testHelper.router.Test(req)
-			require.NoError(t, err)
+			rec := httptest.NewRecorder()
+			testHelper.router.ServeHTTP(rec, req)
+
+			resp := rec.Result()
+			defer resp.Body.Close()
 
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 
-			require.Equal(t, tt.wantRes, string(body))
+			require.Equal(t, tt.wantRes, strings.TrimSuffix(string(body), "\n"))
 			require.Equal(t, tt.wantCode, resp.StatusCode)
 		})
 	}

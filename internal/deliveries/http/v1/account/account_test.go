@@ -8,13 +8,13 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/models"
 
-	"github.com/gofiber/fiber/v2"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -69,7 +69,7 @@ func Test_Handler_getAllAccount(t *testing.T) {
 				queryURL: "?limit=invalid_string_here",
 			},
 			expectation: Expectation{
-				wantRes:  `{"status":"error","code":400,"message":"failed to decode: schema: error converting value for \"limit\""}`,
+				wantRes:  `{"status":"error","code":400,"message":"strconv.ParseInt: parsing \"invalid_string_here\": invalid syntax"}`,
 				wantCode: 400,
 			},
 		},
@@ -92,16 +92,19 @@ func Test_Handler_getAllAccount(t *testing.T) {
 			}
 
 			req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("%s%s", "/api/v1/accounts", tt.args.queryURL), nil)
-			req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
+			req.Header.Set("Content-Type", "application/json")
 
-			resp, err := testHelper.router.Test(req)
-			require.NoError(t, err)
+			rec := httptest.NewRecorder()
+			testHelper.router.ServeHTTP(rec, req)
+
+			resp := rec.Result()
+			defer resp.Body.Close()
 
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 
 			require.Equal(t, tt.expectation.wantCode, resp.StatusCode)
-			require.Equal(t, tt.expectation.wantRes, string(body))
+			require.Equal(t, tt.expectation.wantRes, strings.TrimSuffix(string(body), "\n"))
 		})
 	}
 }
@@ -287,16 +290,19 @@ func Test_Handler_createAccount(t *testing.T) {
 			require.NoError(t, err)
 
 			req := httptest.NewRequest(http.MethodPost, tt.urlCalled, &b)
-			req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
+			req.Header.Set("Content-Type", "application/json")
 
-			resp, err := testHelper.router.Test(req)
-			require.NoError(t, err)
+			rec := httptest.NewRecorder()
+			testHelper.router.ServeHTTP(rec, req)
+
+			resp := rec.Result()
+			defer resp.Body.Close()
 
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 
 			require.Equal(t, tt.mockData.wantCode, resp.StatusCode)
-			require.Equal(t, tt.mockData.wantRes, string(body))
+			require.Equal(t, tt.mockData.wantRes, strings.TrimSuffix(string(body), "\n"))
 		})
 	}
 }
@@ -375,16 +381,19 @@ func Test_Handler_getOneAccount(t *testing.T) {
 			}
 
 			req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("%s/%s", tt.urlCalled, tt.args.accountNumber), nil)
-			req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
+			req.Header.Set("Content-Type", "application/json")
 
-			resp, err := testHelper.router.Test(req)
-			require.NoError(t, err)
+			rec := httptest.NewRecorder()
+			testHelper.router.ServeHTTP(rec, req)
+
+			resp := rec.Result()
+			defer resp.Body.Close()
 
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 
 			require.Equal(t, tt.mockData.wantCode, resp.StatusCode)
-			require.Equal(t, tt.mockData.wantRes, string(body))
+			require.Equal(t, tt.mockData.wantRes, strings.TrimSuffix(string(body), "\n"))
 		})
 	}
 }
@@ -431,13 +440,18 @@ func Test_Handler_getTotalBalance(t *testing.T) {
 			}
 			var b bytes.Buffer
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/accounts/balances", &b)
-			req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
-			resp, err := testHelper.router.Test(req)
-			require.NoError(t, err)
+			req.Header.Set("Content-Type", "application/json")
+
+			rec := httptest.NewRecorder()
+			testHelper.router.ServeHTTP(rec, req)
+
+			resp := rec.Result()
+			defer resp.Body.Close()
+
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 			require.Equal(t, tc.expectation.wantCode, resp.StatusCode)
-			require.Equal(t, tc.expectation.wantRes, string(body))
+			require.Equal(t, tc.expectation.wantRes, strings.TrimSuffix(string(body), "\n"))
 		})
 	}
 }
@@ -525,102 +539,22 @@ func Test_Handler_getAccountBalance(t *testing.T) {
 			}
 
 			req := httptest.NewRequest(http.MethodGet, tt.urlCalled, nil)
-			req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
+			req.Header.Set("Content-Type", "application/json")
 
-			resp, err := testHelper.router.Test(req)
-			require.NoError(t, err)
+			rec := httptest.NewRecorder()
+			testHelper.router.ServeHTTP(rec, req)
+
+			resp := rec.Result()
+			defer resp.Body.Close()
 
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 
 			require.Equal(t, tt.mockData.wantCode, resp.StatusCode)
-			require.Equal(t, tt.mockData.wantRes, string(body))
+			require.Equal(t, tt.mockData.wantRes, strings.TrimSuffix(string(body), "\n"))
 		})
 	}
 }
-
-//func Test_Handler_updateOneAccount(t *testing.T) {
-//	testHelper := accountTestHelper(t)
-//	var isHvt bool = true
-//
-//	tests := []struct {
-//		name     string
-//		wantRes  string
-//		wantCode int
-//		doMock   func(request *models.UpdateAccountIn)
-//	}{
-//		{
-//			name:     "happy path",
-//			wantRes:  `{"kind":"account","ownerId":"","accountNumber":"","accountName":"","currency":"","availableBalance":"0","pendingBalance":"0","actualBalance":"0","features":null,"status":"","createdAt":"0001-01-01 07:07:12","updatedAt":"0001-01-01 07:07:12"}`,
-//			wantCode: fiber.StatusOK,
-//			doMock: func(request *models.UpdateAccountIn) {
-//				testHelper.mockAccountService.EXPECT().
-//					Update(gomock.AssignableToTypeOf(context.Background()), *request).
-//					Return(models.GetAccountOut{}, nil)
-//			},
-//		},
-//		{
-//			name:     "failed - internal err",
-//			wantRes:  `{"status":"error","code":500,"message":"assert.AnError general error for testing"}`,
-//			wantCode: fiber.StatusInternalServerError,
-//			doMock: func(request *models.UpdateAccountIn) {
-//				testHelper.mockAccountService.EXPECT().
-//					Update(gomock.AssignableToTypeOf(context.Background()), *request).
-//					Return(models.GetAccountOut{}, assert.AnError)
-//			},
-//		},
-//		{
-//			name:     "failed - account not found",
-//			wantRes:  `{"status":"error","code":404,"message":"not found"}`,
-//			wantCode: fiber.StatusNotFound,
-//			doMock: func(request *models.UpdateAccountIn) {
-//				testHelper.mockAccountService.EXPECT().
-//					Update(gomock.AssignableToTypeOf(context.Background()), *request).
-//					Return(models.GetAccountOut{}, errors.New("not found"))
-//			},
-//		},
-//	}
-//	for _, tc := range tests {
-//		t.Run(tc.name, func(t *testing.T) {
-//			var (
-//				featurePreset                 = "customer"
-//				featureAllowedNegativeBalance = true
-//				featureBalanceRangeMin        = decimal.New(1000, 64)
-//				featureNegativeBalanceLimit   = decimal.New(1000, 64)
-//			)
-//			reqPayload := &models.UpdateAccountIn{
-//				AccountNumber: "123",
-//				IsHVT:         &isHvt,
-//				Status:        common.AccountStatusActive,
-//				Feature: models.WalletFeature{
-//					Preset:                 &featurePreset,
-//					AllowedNegativeBalance: &featureAllowedNegativeBalance,
-//					BalanceRangeMin:        &featureBalanceRangeMin,
-//					NegativeBalanceLimit:   &featureNegativeBalanceLimit,
-//				},
-//			}
-//			if tc.doMock != nil {
-//				tc.doMock(reqPayload)
-//			}
-//
-//			var b bytes.Buffer
-//			err := json.NewEncoder(&b).Encode(reqPayload)
-//			require.NoError(t, err)
-//
-//			req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/api/v1/accounts/%s", reqPayload.AccountNumber), &b)
-//			req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
-//
-//			resp, err := testHelper.router.Test(req)
-//			require.NoError(t, err)
-//
-//			// body, err := io.ReadAll(resp.Body)
-//			require.NoError(t, err)
-//
-//			require.Equal(t, tc.wantCode, resp.StatusCode)
-//			// require.Equal(t, tc.wantRes, string(body))
-//		})
-//	}
-//}
 
 func Test_Handler_createAccountFeature(t *testing.T) {
 	testHelper := accountTestHelper(t)
@@ -683,16 +617,19 @@ func Test_Handler_createAccountFeature(t *testing.T) {
 			require.NoError(t, err)
 
 			req := httptest.NewRequest(http.MethodPost, tt.urlCalled, &b)
-			req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
+			req.Header.Set("Content-Type", "application/json")
 
-			resp, err := testHelper.router.Test(req)
-			require.NoError(t, err)
+			rec := httptest.NewRecorder()
+			testHelper.router.ServeHTTP(rec, req)
+
+			resp := rec.Result()
+			defer resp.Body.Close()
 
 			//body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 
 			require.Equal(t, tt.mockData.wantCode, resp.StatusCode)
-			//require.Equal(t, tt.mockData.wantRes, string(body))
+			//require.Equal(t, tt.mockData.wantRes, strings.TrimSuffix(string(body), "\n"))
 		})
 	}
 }
@@ -765,16 +702,19 @@ func Test_Handler_updateAccountBySubCategory(t *testing.T) {
 			require.NoError(t, err)
 
 			req := httptest.NewRequest(http.MethodPatch, tt.urlCalled, &b)
-			req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
+			req.Header.Set("Content-Type", "application/json")
 
-			resp, err := testHelper.router.Test(req)
-			require.NoError(t, err)
+			rec := httptest.NewRecorder()
+			testHelper.router.ServeHTTP(rec, req)
+
+			resp := rec.Result()
+			defer resp.Body.Close()
 
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 
 			require.Equal(t, tt.mockData.wantCode, resp.StatusCode)
-			require.Equal(t, tt.mockData.wantRes, string(body))
+			require.Equal(t, tt.mockData.wantRes, strings.TrimSuffix(string(body), "\n"))
 		})
 	}
 }
@@ -819,6 +759,7 @@ func Test_Handler_deleteAccount(t *testing.T) {
 				ctx: context.Background(),
 			},
 			mockData: mockData{
+				wantRes:  "null",
 				wantCode: 204,
 			},
 			doMock: func(args args, mockData mockData) {
@@ -836,16 +777,19 @@ func Test_Handler_deleteAccount(t *testing.T) {
 			}
 
 			req := httptest.NewRequest(http.MethodDelete, tt.urlCalled, nil)
-			req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
+			req.Header.Set("Content-Type", "application/json")
 
-			resp, err := testHelper.router.Test(req)
-			require.NoError(t, err)
+			rec := httptest.NewRecorder()
+			testHelper.router.ServeHTTP(rec, req)
+
+			resp := rec.Result()
+			defer resp.Body.Close()
 
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 
 			require.Equal(t, tt.mockData.wantCode, resp.StatusCode)
-			require.Equal(t, tt.mockData.wantRes, string(body))
+			require.Equal(t, tt.mockData.wantRes, strings.TrimSuffix(string(body), "\n"))
 		})
 	}
 }

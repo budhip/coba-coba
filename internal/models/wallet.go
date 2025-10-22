@@ -15,7 +15,7 @@ const DefaultPresetWalletFeature = "customer"
 
 // DTO Create Wallet Feature
 type CreateWalletReq struct {
-	AccountNumber string           `json:"-" params:"accountNumber" example:"21100100000001" validate:"required"`
+	AccountNumber string           `json:"-" param:"accountNumber" example:"21100100000001" validate:"required"`
 	Features      WalletFeatureReq `json:"features"`
 }
 

@@ -7,13 +7,15 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
 	"bitbucket.org/Amartha/go-fp-transaction/internal/services/mock"
 
 	xlog "bitbucket.org/Amartha/go-x/log"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/labstack/echo/v4"
+	echomiddleware "github.com/labstack/echo/v4/middleware"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
@@ -93,18 +95,22 @@ func Test_Handler_uploadFile(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPost, "/api/v1/files/upload", &requestBody)
 			req.Header.Set("Content-Type", tc.writer.FormDataContentType())
 
-			resp, err := testHelper.router.Test(req)
-			require.NoError(t, err)
+			rec := httptest.NewRecorder()
+			testHelper.router.ServeHTTP(rec, req)
+
+			resp := rec.Result()
+			defer resp.Body.Close()
+
 			respBody, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
-			require.Equal(t, tc.expectation.wantRes, string(respBody))
+			require.Equal(t, tc.expectation.wantRes, strings.TrimSuffix(string(respBody), "\n"))
 			require.Equal(t, tc.expectation.wantCode, resp.StatusCode)
 		})
 	}
 }
 
 type filesHandlerTestHelper struct {
-	router      *fiber.App
+	router      *echo.Echo
 	mockCtrl    *gomock.Controller
 	mockService *mock.MockFileService
 }
@@ -117,7 +123,8 @@ func filesTestHelper(t *testing.T) filesHandlerTestHelper {
 
 	mockSvc := mock.NewMockFileService(mockCtrl)
 
-	app := fiber.New()
+	app := echo.New()
+	app.Pre(echomiddleware.RemoveTrailingSlash())
 	v1Group := app.Group("/api/v1")
 	New(v1Group, mockSvc)
 

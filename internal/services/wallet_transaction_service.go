@@ -97,6 +97,7 @@ func (ts *walletTrx) CreateTransactionAtomic(ctx context.Context, nwt models.New
 			ts.srv.sqlRepo.GetAccountRepository(),
 			ts.srv.sqlRepo.GetTransactionRepository(),
 			ts.getAccountConfigRepository(),
+			ts.srv.sqlRepo.GetWalletTransactionRepository(),
 			ts.srv.flag,
 		)
 
@@ -305,6 +306,7 @@ func (ts *walletTrx) ProcessReservedTransaction(ctx context.Context, req models.
 			ts.srv.sqlRepo.GetAccountRepository(),
 			ts.srv.sqlRepo.GetTransactionRepository(),
 			ts.getAccountConfigRepository(),
+			ts.srv.sqlRepo.GetWalletTransactionRepository(),
 			ts.srv.flag,
 		)
 

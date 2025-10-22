@@ -1,12 +1,14 @@
 package money_flow_summaries
 
 import (
+	nethttp "net/http"
+
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common/http"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common/validation"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/models"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/services"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/labstack/echo/v4"
 )
 
 type moneyFlowSummariesHandler struct {
@@ -14,14 +16,14 @@ type moneyFlowSummariesHandler struct {
 }
 
 // New money flow summary handler will initialize the money-flow-summaries/ resources endpoint
-func New(app fiber.Router, moneyFlowSvc services.MoneyFlowService) {
+func New(app *echo.Group, moneyFlowSvc services.MoneyFlowService) {
 	handler := moneyFlowSummariesHandler{
 		moneyFlowService: moneyFlowSvc,
 	}
 	api := app.Group("/money-flow-summaries")
-	api.Get("/", handler.getSummariesList())
-	api.Get("/:summaryID", handler.getSummaryDetailBySummaryID())
-	api.Get("/:summaryID/transactions", handler.getDetailedTransactionsBySummaryID())
+	api.GET("", handler.getSummariesList)
+	api.GET("/:summaryID", handler.getSummaryDetailBySummaryID)
+	api.GET("/:summaryID/transactions", handler.getDetailedTransactionsBySummaryID)
 }
 
 // getList API to get money flow summary with filters
@@ -41,30 +43,28 @@ func New(app fiber.Router, moneyFlowSvc services.MoneyFlowService) {
 // @Failure 400 {object} http.RestErrorResponseModel "Bad request error"
 // @Failure 500 {object} http.RestErrorResponseModel "Internal server error"
 // @Router /v1/money-flow-summaries [get]
-func (h *moneyFlowSummariesHandler) getSummariesList() fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		var queryFilter models.GetMoneyFlowSummaryRequest
+func (h *moneyFlowSummariesHandler) getSummariesList(c echo.Context) error {
+	var queryFilter models.GetMoneyFlowSummaryRequest
 
-		if err := c.QueryParser(&queryFilter); err != nil {
-			return http.RestErrorResponse(c, fiber.StatusBadRequest, err)
-		}
-
-		if err := validation.ValidateStruct(queryFilter); err != nil {
-			return http.RestErrorValidationResponse(c, err)
-		}
-
-		opts, err := queryFilter.ToFilterOpts()
-		if err != nil {
-			return http.RestErrorResponse(c, fiber.StatusBadRequest, err)
-		}
-
-		summaries, total, err := h.moneyFlowService.GetSummariesList(c.UserContext(), *opts)
-		if err != nil {
-			return http.RestErrorResponse(c, fiber.StatusInternalServerError, err)
-		}
-
-		return http.RestSuccessResponseCursorPagination[models.MoneyFlowSummaryResponse](c, summaries, opts.Limit, total)
+	if err := c.Bind(&queryFilter); err != nil {
+		return http.RestErrorResponse(c, nethttp.StatusBadRequest, err)
 	}
+
+	if err := validation.ValidateStruct(queryFilter); err != nil {
+		return http.RestErrorValidationResponse(c, err)
+	}
+
+	opts, err := queryFilter.ToFilterOpts()
+	if err != nil {
+		return http.RestErrorResponse(c, nethttp.StatusBadRequest, err)
+	}
+
+	summaries, total, err := h.moneyFlowService.GetSummariesList(c.Request().Context(), *opts)
+	if err != nil {
+		return http.RestErrorResponse(c, nethttp.StatusInternalServerError, err)
+	}
+
+	return http.RestSuccessResponseCursorPagination[models.MoneyFlowSummaryResponse](c, summaries, opts.Limit, total)
 }
 
 // @Summary 	Get summary detail by summary id
@@ -80,21 +80,19 @@ func (h *moneyFlowSummariesHandler) getSummariesList() fiber.Handler {
 // @Failure 404 {object} http.RestErrorResponseModel "Data not found. This can happen if data not found while get summary detail by summary id"
 // @Failure 500 {object} http.RestErrorResponseModel "Internal server error. This can happen if there is an error while get summary detail by summary id"
 // @Router /v1/money-flow-summaries/{summaryID} [get]
-func (h *moneyFlowSummariesHandler) getSummaryDetailBySummaryID() fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		req := new(models.DoGetSummaryIDBySummaryIDRequest)
+func (h *moneyFlowSummariesHandler) getSummaryDetailBySummaryID(c echo.Context) error {
+	req := new(models.DoGetSummaryIDBySummaryIDRequest)
 
-		if err := c.ParamsParser(req); err != nil {
-			return http.RestErrorResponse(c, fiber.StatusBadRequest, err)
-		}
-
-		result, err := h.moneyFlowService.GetSummaryDetailBySummaryID(c.UserContext(), req.SummaryID)
-		if err != nil {
-			return http.HandleRepositoryError(c, err)
-		}
-
-		return http.RestSuccessResponse(c, fiber.StatusOK, result.ToModelResponse())
+	if err := c.Bind(req); err != nil {
+		return http.RestErrorResponse(c, nethttp.StatusBadRequest, err)
 	}
+
+	result, err := h.moneyFlowService.GetSummaryDetailBySummaryID(c.Request().Context(), req.SummaryID)
+	if err != nil {
+		return http.HandleRepositoryError(c, err)
+	}
+
+	return http.RestSuccessResponse(c, nethttp.StatusOK, result.ToModelResponse())
 }
 
 // @Summary 	Get detailed transactions by summary id
@@ -110,28 +108,22 @@ func (h *moneyFlowSummariesHandler) getSummaryDetailBySummaryID() fiber.Handler 
 // @Failure 404 {object} http.RestErrorResponseModel "Data not found. This can happen if data not found while get detailed transactions by summary id"
 // @Failure 500 {object} http.RestErrorResponseModel "Internal server error. This can happen if there is an error while get detailed transactions by summary id"
 // @Router /v1/money-flow-summaries/{summaryID}/transactions [get]
-func (h *moneyFlowSummariesHandler) getDetailedTransactionsBySummaryID() fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		req := new(models.DoGetDetailedTransactionsBySummaryIDRequest)
+func (h *moneyFlowSummariesHandler) getDetailedTransactionsBySummaryID(c echo.Context) error {
+	req := new(models.DoGetDetailedTransactionsBySummaryIDRequest)
 
-		if err := c.ParamsParser(req); err != nil {
-			return http.RestErrorResponse(c, fiber.StatusBadRequest, err)
-		}
-
-		if err := c.QueryParser(req); err != nil {
-			return http.RestErrorResponse(c, fiber.StatusBadRequest, err)
-		}
-
-		opts, err := req.ToFilterOpts()
-		if err != nil {
-			return http.RestErrorResponse(c, fiber.StatusBadRequest, err)
-		}
-
-		transactions, total, err := h.moneyFlowService.GetDetailedTransactionsBySummaryID(c.UserContext(), req.SummaryID, *opts)
-		if err != nil {
-			return http.HandleRepositoryError(c, err)
-		}
-
-		return http.RestSuccessResponseCursorPagination[models.DetailedTransactionResponse](c, transactions, opts.Limit, total)
+	if err := c.Bind(req); err != nil {
+		return http.RestErrorResponse(c, nethttp.StatusBadRequest, err)
 	}
+
+	opts, err := req.ToFilterOpts()
+	if err != nil {
+		return http.RestErrorResponse(c, nethttp.StatusBadRequest, err)
+	}
+
+	transactions, total, err := h.moneyFlowService.GetDetailedTransactionsBySummaryID(c.Request().Context(), req.SummaryID, *opts)
+	if err != nil {
+		return http.HandleRepositoryError(c, err)
+	}
+
+	return http.RestSuccessResponseCursorPagination[models.DetailedTransactionResponse](c, transactions, opts.Limit, total)
 }

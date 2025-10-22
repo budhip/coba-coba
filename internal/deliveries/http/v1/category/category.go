@@ -2,6 +2,7 @@ package category
 
 import (
 	"errors"
+	nethttp "net/http"
 
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common/http"
@@ -9,7 +10,7 @@ import (
 	"bitbucket.org/Amartha/go-fp-transaction/internal/models"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/services"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/labstack/echo/v4"
 )
 
 type categoryHandler struct {
@@ -17,13 +18,13 @@ type categoryHandler struct {
 }
 
 // New transaction handler will initialize the categories/ resources endpoint
-func New(app fiber.Router, categorySvc services.CategoryService) {
+func New(app *echo.Group, categorySvc services.CategoryService) {
 	handler := categoryHandler{
 		categorySvc: categorySvc,
 	}
 	api := app.Group("/categories")
-	api.Post("/", handler.createCategory())
-	api.Get("/", handler.getAllCategory())
+	api.POST("", handler.createCategory)
+	api.GET("", handler.getAllCategory)
 }
 
 // createCategory API create category
@@ -39,28 +40,26 @@ func New(app fiber.Router, categorySvc services.CategoryService) {
 // @Failure 409 {object} http.RestErrorResponseModel
 // @Failure 500 {object} http.RestErrorResponseModel
 // @Router /v1/categories [post]
-func (h *categoryHandler) createCategory() fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		req := new(models.CreateCategoryRequest)
+func (h *categoryHandler) createCategory(c echo.Context) error {
+	req := new(models.CreateCategoryRequest)
 
-		if err := c.BodyParser(req); err != nil {
-			return http.RestErrorResponse(c, fiber.StatusBadRequest, err)
-		}
-
-		if err := validation.ValidateStruct(req); err != nil {
-			return http.RestErrorValidationResponse(c, err)
-		}
-
-		res, err := h.categorySvc.Create(c.UserContext(), models.CreateCategoryIn(*req))
-		if err != nil {
-			if errors.Is(err, common.ErrDataExist) {
-				return http.RestErrorResponse(c, fiber.StatusConflict, err)
-			}
-			return http.RestErrorResponse(c, fiber.StatusInternalServerError, err)
-		}
-
-		return http.RestSuccessResponse(c, fiber.StatusCreated, res.ConvertToCategoryOut())
+	if err := c.Bind(req); err != nil {
+		return http.RestErrorResponse(c, nethttp.StatusBadRequest, err)
 	}
+
+	if err := validation.ValidateStruct(req); err != nil {
+		return http.RestErrorValidationResponse(c, err)
+	}
+
+	res, err := h.categorySvc.Create(c.Request().Context(), models.CreateCategoryIn(*req))
+	if err != nil {
+		if errors.Is(err, common.ErrDataExist) {
+			return http.RestErrorResponse(c, nethttp.StatusConflict, err)
+		}
+		return http.RestErrorResponse(c, nethttp.StatusInternalServerError, err)
+	}
+
+	return http.RestSuccessResponse(c, nethttp.StatusCreated, res.ConvertToCategoryOut())
 }
 
 // getAllCategory API get all category
@@ -72,18 +71,16 @@ func (h *categoryHandler) createCategory() fiber.Handler {
 // @Success 200 {object} http.RestTotalRowResponseModel
 // @Failure 500 {object} http.RestErrorResponseModel
 // @Router /v1/categories [get]
-func (h *categoryHandler) getAllCategory() fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		res, err := h.categorySvc.GetAll(c.UserContext())
-		if err != nil {
-			return http.RestErrorResponse(c, fiber.StatusInternalServerError, err)
-		}
-
-		data := []models.CategoryOut{}
-		for _, v := range *res {
-			data = append(data, *v.ConvertToCategoryOut())
-		}
-
-		return http.RestSuccessResponseListWithTotalRows(c, data, len(data))
+func (h *categoryHandler) getAllCategory(c echo.Context) error {
+	res, err := h.categorySvc.GetAll(c.Request().Context())
+	if err != nil {
+		return http.RestErrorResponse(c, nethttp.StatusInternalServerError, err)
 	}
+
+	var data []models.CategoryOut
+	for _, v := range *res {
+		data = append(data, *v.ConvertToCategoryOut())
+	}
+
+	return http.RestSuccessResponseListWithTotalRows(c, data, len(data))
 }

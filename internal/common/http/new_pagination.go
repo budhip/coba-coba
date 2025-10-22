@@ -1,7 +1,7 @@
 package http
 
 import (
-	"github.com/gofiber/fiber/v2"
+	"github.com/labstack/echo/v4"
 )
 
 type CursorPagination struct {
@@ -15,15 +15,15 @@ type PaginateableContent[ModelOut any] interface {
 	ToModelResponse() ModelOut
 }
 
-func isForward(c *fiber.Ctx) bool {
-	return c.Query("nextCursor") != ""
+func isForward(c echo.Context) bool {
+	return c.QueryParam("nextCursor") != ""
 }
 
-func isBackward(c *fiber.Ctx) bool {
-	return !isForward(c) && c.Query("prevCursor") != ""
+func isBackward(c echo.Context) bool {
+	return !isForward(c) && c.QueryParam("prevCursor") != ""
 }
 
-func NewCursorPagination[ModelOut any, S ~[]E, E PaginateableContent[ModelOut]](c *fiber.Ctx, collections S, hasMorePages bool, totalEntries int) CursorPagination {
+func NewCursorPagination[ModelOut any, S ~[]E, E PaginateableContent[ModelOut]](c echo.Context, collections S, hasMorePages bool, totalEntries int) CursorPagination {
 	var prevCursor, nextCursor string
 	if len(collections) > 0 {
 		if isBackward(c) || hasMorePages {

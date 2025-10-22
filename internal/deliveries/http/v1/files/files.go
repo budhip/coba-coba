@@ -1,13 +1,14 @@
 package files
 
 import (
+	nethttp "net/http"
 	"strings"
 
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common/http"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/models"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/services"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/labstack/echo/v4"
 )
 
 type filesHandler struct {
@@ -15,12 +16,12 @@ type filesHandler struct {
 }
 
 // New will initialize the files/ resources endpoint
-func New(app fiber.Router, fileSvc services.FileService) {
+func New(app *echo.Group, fileSvc services.FileService) {
 	handler := filesHandler{
 		fileSvc: fileSvc,
 	}
 	files := app.Group("/files")
-	files.Post("/upload", handler.uploadFile())
+	files.POST("/upload", handler.uploadFile)
 }
 
 // uploadFile API to upload transaction file
@@ -33,22 +34,20 @@ func New(app fiber.Router, fileSvc services.FileService) {
 // @Failure 400 {object} http.RestErrorResponseModel "Bad request error. This can happen if there is an error while create account"
 // @Failure 500 {object} http.RestErrorResponseModel "Internal server error. This can happen if there is an error while create account"
 // @Router /v1/files/upload [post]
-func (h *filesHandler) uploadFile() fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		file, err := c.FormFile("files")
-		if err != nil {
-			err = models.GetErrMap(models.ErrKeyFilesRequired, "files can not empty")
-			return http.RestErrorResponse(c, fiber.StatusBadRequest, err)
-		}
-
-		// Check if the uploaded file is a CSV
-		if !strings.HasSuffix(strings.ToLower(file.Filename), ".csv") {
-			err = models.GetErrMap(models.ErrKeyFilesMustCsv, "files must be .csv")
-			return http.RestErrorResponse(c, fiber.StatusBadRequest, err)
-		}
-
-		go h.fileSvc.Upload(c.UserContext(), file)
-
-		return http.RestSuccessResponse(c, fiber.StatusOK, models.NewFileOut(file.Filename, "processing"))
+func (h *filesHandler) uploadFile(c echo.Context) error {
+	file, err := c.FormFile("files")
+	if err != nil {
+		err = models.GetErrMap(models.ErrKeyFilesRequired, "files can not empty")
+		return http.RestErrorResponse(c, nethttp.StatusBadRequest, err)
 	}
+
+	// Check if the uploaded file is a CSV
+	if !strings.HasSuffix(strings.ToLower(file.Filename), ".csv") {
+		err = models.GetErrMap(models.ErrKeyFilesMustCsv, "files must be .csv")
+		return http.RestErrorResponse(c, nethttp.StatusBadRequest, err)
+	}
+
+	go h.fileSvc.Upload(c.Request().Context(), file)
+
+	return http.RestSuccessResponse(c, nethttp.StatusOK, models.NewFileOut(file.Filename, "processing"))
 }

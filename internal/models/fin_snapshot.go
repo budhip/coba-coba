@@ -48,7 +48,6 @@ type FinSnapshotResponse struct {
 func (r CollectRepayment) MapToFinSnapshot() DoGetFinSnapshotResponse {
 	namespace := "GO_FP_TRANSACTION_API"
 	processName := "collect_repayment_report"
-	timestamp := time.Now().Format(time.RFC3339)
 
 	metrics := []struct {
 		label string
@@ -65,7 +64,7 @@ func (r CollectRepayment) MapToFinSnapshot() DoGetFinSnapshotResponse {
 	var responses []FinSnapshotResponse
 	for _, m := range metrics {
 		responses = append(responses, FinSnapshotResponse{
-			Timestamp:   timestamp,
+			Timestamp:   r.TransactionDate.Format(time.RFC3339),
 			Value:       m.value.Decimal.InexactFloat64(),
 			ProcessName: processName,
 			Namespace:   namespace,

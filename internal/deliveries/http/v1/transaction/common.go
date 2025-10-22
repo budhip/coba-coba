@@ -2,8 +2,7 @@ package transaction
 
 import (
 	"errors"
-
-	"github.com/gofiber/fiber/v2"
+	nethttp "net/http"
 
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common"
 )
@@ -11,23 +10,23 @@ import (
 // getHTTPStatusCode will return http status code based on error
 func getHTTPStatusCode(err error) int {
 	if err == nil {
-		return fiber.StatusOK
+		return nethttp.StatusOK
 	}
 
 	if errors.Is(err, common.ErrDataTrxDuplicate) {
-		return fiber.StatusConflict
+		return nethttp.StatusConflict
 	}
 
 	if errors.Is(err, common.ErrInvalidAmount) ||
 		errors.Is(err, common.ErrInsufficientAvailableBalance) ||
 		errors.Is(err, common.ErrInsufficientPendingBalance) {
-		return fiber.StatusBadRequest
+		return nethttp.StatusBadRequest
 	}
 
 	if errors.Is(err, common.ErrInvalidOrderType) ||
 		errors.Is(err, common.ErrInvalidTransactionType) {
-		return fiber.StatusUnprocessableEntity
+		return nethttp.StatusUnprocessableEntity
 	}
 
-	return fiber.StatusInternalServerError
+	return nethttp.StatusInternalServerError
 }

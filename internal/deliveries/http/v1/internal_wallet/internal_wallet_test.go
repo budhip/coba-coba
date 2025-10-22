@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -15,7 +16,8 @@ import (
 
 	xlog "bitbucket.org/Amartha/go-x/log"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/labstack/echo/v4"
+	echomiddleware "github.com/labstack/echo/v4/middleware"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -85,16 +87,19 @@ func Test_Handler_listTransactionByAccountNumber(t *testing.T) {
 			}
 
 			req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/internal-wallets/accounts/%s/transactions", "accountNumber"), nil)
-			req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
+			req.Header.Set("Content-Type", "application/json")
 
-			resp, err := testHelper.router.Test(req)
-			require.NoError(t, err)
+			rec := httptest.NewRecorder()
+			testHelper.router.ServeHTTP(rec, req)
+
+			resp := rec.Result()
+			defer resp.Body.Close()
 
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 
 			require.Equal(t, tt.expectation.wantCode, resp.StatusCode)
-			require.Equal(t, tt.expectation.wantRes, string(body))
+			require.Equal(t, tt.expectation.wantRes, strings.TrimSuffix(string(body), "\n"))
 		})
 	}
 }
@@ -162,22 +167,25 @@ func Test_Handler_listTransactionByAccountNumbers(t *testing.T) {
 			}
 
 			req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/internal-wallets/accounts/transactions%s", "?accountNumberList=1122,2233,4455"), nil)
-			req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
+			req.Header.Set("Content-Type", "application/json")
 
-			resp, err := testHelper.router.Test(req)
-			require.NoError(t, err)
+			rec := httptest.NewRecorder()
+			testHelper.router.ServeHTTP(rec, req)
+
+			resp := rec.Result()
+			defer resp.Body.Close()
 
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 
 			require.Equal(t, tt.expectation.wantCode, resp.StatusCode)
-			require.Equal(t, tt.expectation.wantRes, string(body))
+			require.Equal(t, tt.expectation.wantRes, strings.TrimSuffix(string(body), "\n"))
 		})
 	}
 }
 
 type testInternalWalletHelper struct {
-	router      *fiber.App
+	router      *echo.Echo
 	mockCtrl    *gomock.Controller
 	mockService *mock.MockWalletTrxService
 }
@@ -190,7 +198,8 @@ func internalWalletTestHelper(t *testing.T) testInternalWalletHelper {
 
 	mockSvc := mock.NewMockWalletTrxService(mockCtrl)
 
-	app := fiber.New()
+	app := echo.New()
+	app.Pre(echomiddleware.RemoveTrailingSlash())
 	v1Group := app.Group("/api/v1")
 	New(v1Group, mockSvc)
 

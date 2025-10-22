@@ -1,11 +1,14 @@
 package http
 
 import (
+	"errors"
+	"net/http"
+
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/models"
 
-	"github.com/gofiber/fiber/v2"
 	"github.com/hashicorp/go-multierror"
+	"github.com/labstack/echo/v4"
 )
 
 type (
@@ -34,19 +37,19 @@ type (
 	}
 )
 
-func RestSuccessResponse(c *fiber.Ctx, code int, in interface{}) error {
-	return c.Status(code).JSON(in)
+func RestSuccessResponse(c echo.Context, code int, in interface{}) error {
+	return c.JSON(code, in)
 }
 
-func RestSuccessResponseListWithTotalRows(c *fiber.Ctx, data interface{}, totalRows int) error {
-	return c.Status(fiber.StatusOK).JSON(RestTotalRowResponseModel{
+func RestSuccessResponseListWithTotalRows(c echo.Context, data interface{}, totalRows int) error {
+	return c.JSON(http.StatusOK, RestTotalRowResponseModel{
 		Kind:      "collection",
 		Contents:  data,
 		TotalRows: totalRows,
 	})
 }
 
-func RestSuccessResponseCursorPagination[ModelResponse any, S ~[]E, E PaginateableContent[ModelResponse]](c *fiber.Ctx, data S, requestLimit, totalRows int) error {
+func RestSuccessResponseCursorPagination[ModelResponse any, S ~[]E, E PaginateableContent[ModelResponse]](c echo.Context, data S, requestLimit, totalRows int) error {
 	// we use over-fetch to make sure nextPage exists or not
 	hasMorePages := len(data) > (requestLimit - 1)
 
@@ -73,27 +76,35 @@ func RestSuccessResponseCursorPagination[ModelResponse any, S ~[]E, E Paginateab
 
 	pagination := NewCursorPagination[ModelResponse](c, data, hasMorePages, totalRows)
 
-	return c.Status(fiber.StatusOK).JSON(RestPaginationResponseModel[[]ModelResponse]{
+	return c.JSON(http.StatusOK, RestPaginationResponseModel[[]ModelResponse]{
 		Kind:       "collection",
 		Contents:   contents,
 		Pagination: pagination,
 	})
 }
 
-func RestErrorResponse(c *fiber.Ctx, statusCode int, err error) error {
+func RestErrorResponse(c echo.Context, statusCode int, err error) error {
 	res := RestErrorResponseModel{
 		Status:  "error",
 		Code:    statusCode,
 		Message: err.Error(),
 	}
-	if data, ok := err.(models.ErrorDetail); ok {
+
+	var echoErr *echo.HTTPError
+	if errors.As(err, &echoErr) {
+		res.Code = echoErr.Code
+		res.Message = echoErr.Message.(string)
+	}
+
+	var data models.ErrorDetail
+	if errors.As(err, &data) {
 		res.Code = data.Code
 		res.Message = data.ErrorMessage.Error()
 	}
-	return c.Status(statusCode).JSON(res)
+	return c.JSON(statusCode, res)
 }
 
-func RestErrorValidationResponse(c *fiber.Ctx, errors interface{}) error {
+func RestErrorValidationResponse(c echo.Context, errors interface{}) error {
 	res := RestErrorValidationResponseModel{
 		Status:  "error",
 		Message: common.ErrValidation.Error(),
@@ -101,5 +112,6 @@ func RestErrorValidationResponse(c *fiber.Ctx, errors interface{}) error {
 	if data, ok := errors.(*multierror.Error); ok {
 		res.Errors = data.Errors
 	}
-	return c.Status(fiber.StatusUnprocessableEntity).JSON(res)
+
+	return c.JSON(http.StatusUnprocessableEntity, res)
 }

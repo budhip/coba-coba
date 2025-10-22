@@ -1,17 +1,20 @@
 package health
 
 import (
+	nethttp "net/http"
+
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common/http"
-	"github.com/gofiber/fiber/v2"
+
+	"github.com/labstack/echo/v4"
 )
 
 type healthHandler struct{}
 
 // New health handler will initialize the health/ resources endpoint
-func New(app fiber.Router) {
+func New(app *echo.Group) {
 	hh := healthHandler{}
 	health := app.Group("/health")
-	health.Get("/", hh.healthCheck())
+	health.GET("", hh.healthCheck)
 }
 
 type (
@@ -28,11 +31,9 @@ type (
 // @Produce		json
 // @Success 200 {object} DoHealthCheckLivenessResponse "Response indicates that the request succeeded and the resources has been fetched and transmitted in the message body"
 // @Router /health [get]
-func (th healthHandler) healthCheck() fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		return http.RestSuccessResponse(c, fiber.StatusOK, DoHealthCheckLivenessResponse{
-			Kind:   "health",
-			Status: "server is up and running",
-		})
-	}
+func (th healthHandler) healthCheck(c echo.Context) error {
+	return http.RestSuccessResponse(c, nethttp.StatusOK, DoHealthCheckLivenessResponse{
+		Kind:   "health",
+		Status: "server is up and running",
+	})
 }

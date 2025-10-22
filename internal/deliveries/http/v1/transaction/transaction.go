@@ -1,6 +1,8 @@
 package transaction
 
 import (
+	nethttp "net/http"
+
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common/http"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common/http/middleware"
@@ -8,7 +10,7 @@ import (
 	"bitbucket.org/Amartha/go-fp-transaction/internal/models"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/services"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/labstack/echo/v4"
 )
 
 type transactionHandler struct {
@@ -16,29 +18,29 @@ type transactionHandler struct {
 }
 
 // New transaction handler will initialize the transaction/ resources endpoint
-func New(app fiber.Router, transactionSrv services.TransactionService, m middleware.AppMiddleware) {
+func New(app *echo.Group, transactionSrv services.TransactionService, m middleware.AppMiddleware) {
 	handler := transactionHandler{transactionSrv}
 	transaction := app.Group("/transaction")
-	transaction.Get("/", handler.getAllTransaction())
-	transaction.Get("/status-count", handler.getTransactionStatusCount())
-	transaction.Get("/download", handler.downloadTransaction())
-	transaction.Post("/publish", handler.publishTransaction())
-	transaction.Post("/report", handler.generateTransactionReport())
-	transaction.Get("/:transactionType/:refNumber", handler.getByTypeAndRefNumber())
-	transaction.Patch("/:transactionId", handler.updateStatusReservedTransaction())
+	transaction.GET("", handler.getAllTransaction)
+	transaction.GET("/status-count", handler.getTransactionStatusCount)
+	transaction.GET("/download", handler.downloadTransaction)
+	transaction.POST("/publish", handler.publishTransaction)
+	transaction.POST("/report", handler.generateTransactionReport)
+	transaction.GET("/:transactionType/:refNumber", handler.getByTypeAndRefNumber)
+	transaction.PATCH("/:transactionId", handler.updateStatusReservedTransaction)
 
-	transaction.Post("/", m.CheckIdempotentRequest(), handler.createTransaction())
-	transaction.Post("/bulk", handler.createBulkTransaction())
+	transaction.POST("", handler.createTransaction)
+	transaction.POST("/bulk", handler.createBulkTransaction)
 
 	report := app.Group("/report")
-	report.Get("/repayment", handler.getReportRepaymentSummary())
+	report.GET("/repayment", handler.getReportRepaymentSummary)
 
 	transactions := app.Group("/transactions")
-	transactions.Post("/", m.CheckIdempotentRequest(), handler.createTransaction())
-	transactions.Patch("/:transactionId", handler.updateStatusReservedTransaction())
+	transactions.POST("", handler.createTransaction)
+	transactions.PATCH("/:transactionId", handler.updateStatusReservedTransaction)
 
 	orders := transactions.Group("/orders")
-	orders.Post("/", handler.createOrderTransaction)
+	orders.POST("", handler.createOrderTransaction)
 }
 
 // createTransaction API create transaction
@@ -55,34 +57,32 @@ func New(app fiber.Router, transactionSrv services.TransactionService, m middlew
 // @Failure 422 {object} http.RestErrorValidationResponseModel{errors=[]validation.ErrorValidateResponse} "Validation error. This can happen if there is an error validation while create transaction"
 // @Failure 500 {object} http.RestErrorResponseModel "Internal server error. This can happen if there is an error while create transaction"
 // @Router /transaction [post]
-func (th *transactionHandler) createTransaction() fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		var err error
+func (th *transactionHandler) createTransaction(c echo.Context) error {
+	var err error
 
-		req := new(models.DoCreateTransactionRequest)
-		if err = c.BodyParser(req); err != nil {
-			return http.RestErrorResponse(c, fiber.StatusBadRequest, err)
-		}
-
-		if err = validation.ValidateStruct(req); err != nil {
-			return http.RestErrorValidationResponse(c, err)
-		}
-
-		storeType := models.TransactionStoreProcessNormal
-		if req.IsReserved {
-			storeType = models.TransactionStoreProcessReserved
-		}
-
-		clientID := c.Get(models.ClientIdHeader)
-
-		res, err := th.transactionSrv.StoreTransaction(c.UserContext(), req.ToTransactionReq(), storeType, clientID)
-		if err != nil {
-			httpStatusCode := getHTTPStatusCode(err)
-			return http.RestErrorResponse(c, httpStatusCode, err)
-		}
-
-		return http.RestSuccessResponse(c, fiber.StatusCreated, res.ToModelResponse())
+	req := new(models.DoCreateTransactionRequest)
+	if err = c.Bind(req); err != nil {
+		return http.RestErrorResponse(c, nethttp.StatusBadRequest, err)
 	}
+
+	if err = validation.ValidateStruct(req); err != nil {
+		return http.RestErrorValidationResponse(c, err)
+	}
+
+	storeType := models.TransactionStoreProcessNormal
+	if req.IsReserved {
+		storeType = models.TransactionStoreProcessReserved
+	}
+
+	clientID := c.Request().Header.Get(models.ClientIdHeader)
+
+	res, err := th.transactionSrv.StoreTransaction(c.Request().Context(), req.ToTransactionReq(), storeType, clientID)
+	if err != nil {
+		httpStatusCode := getHTTPStatusCode(err)
+		return http.RestErrorResponse(c, httpStatusCode, err)
+	}
+
+	return http.RestSuccessResponse(c, nethttp.StatusCreated, res.ToModelResponse())
 }
 
 // createTransaction API create bulk transaction
@@ -96,20 +96,18 @@ func (th *transactionHandler) createTransaction() fiber.Handler {
 // @Failure 422 {object} common.ApiErrorResponseModel
 // @Failure 500 {object} common.ApiErrorResponseModel
 // @Router /transaction/bulk [post]
-func (th *transactionHandler) createBulkTransaction() fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		req := []models.TransactionReq{}
-		errParse := c.BodyParser(&req)
-		if errParse != nil {
-			return common.ErrorResponseRest(c, fiber.StatusBadRequest, errParse.Error())
-		}
-
-		err := th.transactionSrv.StoreBulkTransaction(c.UserContext(), req)
-		if err != nil {
-			return common.ErrorResponseRest(c, fiber.StatusBadRequest, err.Error())
-		}
-		return common.SuccessResponse(c, fiber.StatusCreated, "", nil)
+func (th *transactionHandler) createBulkTransaction(c echo.Context) error {
+	var req []models.TransactionReq
+	errParse := c.Bind(&req)
+	if errParse != nil {
+		return common.ErrorResponseRest(c, nethttp.StatusBadRequest, errParse.Error())
 	}
+
+	err := th.transactionSrv.StoreBulkTransaction(c.Request().Context(), req)
+	if err != nil {
+		return common.ErrorResponseRest(c, nethttp.StatusBadRequest, err.Error())
+	}
+	return common.SuccessResponse(c, nethttp.StatusCreated, "", nil)
 }
 
 // generateTransactionReport API will generate transaction report
@@ -122,15 +120,13 @@ func (th *transactionHandler) createBulkTransaction() fiber.Handler {
 // @Failure 400 {object} common.ApiErrorResponseModel
 // @Failure 500 {object} common.ApiErrorResponseModel
 // @Router /transaction/report [post]
-func (th *transactionHandler) generateTransactionReport() fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		url, err := th.transactionSrv.GenerateTransactionReport(c.UserContext())
-		if err != nil {
-			return common.ErrorResponseRest(c, fiber.StatusBadRequest, err.Error())
-		}
-
-		return common.SuccessResponseList(c, fiber.StatusOK, "Successfully generate transaction report", url, nil)
+func (th *transactionHandler) generateTransactionReport(c echo.Context) error {
+	url, err := th.transactionSrv.GenerateTransactionReport(c.Request().Context())
+	if err != nil {
+		return common.ErrorResponseRest(c, nethttp.StatusBadRequest, err.Error())
 	}
+
+	return common.SuccessResponseList(c, nethttp.StatusOK, "Successfully generate transaction report", url, nil)
 }
 
 // createOrderTransaction API create order transaction
@@ -147,21 +143,21 @@ func (th *transactionHandler) generateTransactionReport() fiber.Handler {
 // @Failure 422 {object} http.RestErrorValidationResponseModel{errors=[]validation.ErrorValidateResponse} "Validation error. This can happen if there is an error validation while create transaction"
 // @Failure 500 {object} http.RestErrorResponseModel "Internal server error. This can happen if there is an error while create transaction"
 // @Router /transactions/orders [post]
-func (th *transactionHandler) createOrderTransaction(c *fiber.Ctx) (err error) {
+func (th *transactionHandler) createOrderTransaction(c echo.Context) error {
 	req := new(models.CreateOrderRequest)
-	if err = c.BodyParser(req); err != nil {
-		return http.RestErrorResponse(c, fiber.StatusBadRequest, err)
+	if err := c.Bind(req); err != nil {
+		return http.RestErrorResponse(c, nethttp.StatusBadRequest, err)
 	}
 
-	if err = validation.ValidateStruct(req); err != nil {
+	if err := validation.ValidateStruct(req); err != nil {
 		return http.RestErrorValidationResponse(c, err)
 	}
 
-	err = th.transactionSrv.NewStoreBulkTransaction(c.UserContext(), req.ToTransactionReqs())
+	err := th.transactionSrv.NewStoreBulkTransaction(c.Request().Context(), req.ToTransactionReqs())
 	if err != nil {
 		httpStatusCode := getHTTPStatusCode(err)
 		return http.RestErrorResponse(c, httpStatusCode, err)
 	}
 
-	return http.RestSuccessResponse(c, fiber.StatusCreated, req.ToCreateOrderResponse())
+	return http.RestSuccessResponse(c, nethttp.StatusCreated, req.ToCreateOrderResponse())
 }

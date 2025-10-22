@@ -1,12 +1,14 @@
 package internalwallet
 
 import (
+	nethttp "net/http"
+
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common/http"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common/validation"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/models"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/services"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/labstack/echo/v4"
 )
 
 type internalWalletHandler struct {
@@ -14,12 +16,12 @@ type internalWalletHandler struct {
 }
 
 // New internal wallet handler will initialize the /internal-wallets resources endpoint
-func New(app fiber.Router, walletTrxService services.WalletTrxService) {
+func New(app *echo.Group, walletTrxService services.WalletTrxService) {
 	handler := internalWalletHandler{walletTrxService}
 
 	transaction := app.Group("/internal-wallets")
-	transaction.Get("/accounts/:accountNumber/transactions", handler.listTransactionByAccountNumber)
-	transaction.Get("/accounts/transactions", handler.listTransaction)
+	transaction.GET("/accounts/:accountNumber/transactions", handler.listTransactionByAccountNumber)
+	transaction.GET("/accounts/transactions", handler.listTransaction)
 }
 
 // getAllTransaction will get all wallet transaction by accountNumber
@@ -34,13 +36,12 @@ func New(app fiber.Router, walletTrxService services.WalletTrxService) {
 // @Failure 400 {object} http.RestErrorResponseModel "Bad request error. This can happen if there is an error while get all transaction"
 // @Failure 500 {object} http.RestErrorResponseModel "Internal server error. This can happen if there is an error while get all transaction"
 // @Router /v1/internal-wallets/accounts/{accountNumber}/transactions [get]
-func (h *internalWalletHandler) listTransactionByAccountNumber(c *fiber.Ctx) (err error) {
+func (h *internalWalletHandler) listTransactionByAccountNumber(c echo.Context) error {
 	req := new(models.ListWalletTrxByAccountNumberRequest)
-	req.AccountNumber = c.Params("accountNumber")
 
-	err = c.QueryParser(req)
+	err := c.Bind(req)
 	if err != nil {
-		return http.RestErrorResponse(c, fiber.StatusBadRequest, err)
+		return http.RestErrorResponse(c, nethttp.StatusBadRequest, err)
 	}
 
 	if err = validation.ValidateStruct(req); err != nil {
@@ -49,12 +50,12 @@ func (h *internalWalletHandler) listTransactionByAccountNumber(c *fiber.Ctx) (er
 
 	opts, err := req.ToFilterOpts()
 	if err != nil {
-		return http.RestErrorResponse(c, fiber.StatusBadRequest, err)
+		return http.RestErrorResponse(c, nethttp.StatusBadRequest, err)
 	}
 
-	transactions, total, err := h.walletTrxService.List(c.UserContext(), *opts)
+	transactions, total, err := h.walletTrxService.List(c.Request().Context(), *opts)
 	if err != nil {
-		return http.RestErrorResponse(c, fiber.StatusInternalServerError, err)
+		return http.RestErrorResponse(c, nethttp.StatusInternalServerError, err)
 	}
 
 	return http.RestSuccessResponseCursorPagination[models.ListWalletTrxByAccountNumberResponse](c, transactions, opts.Limit, total)
@@ -72,12 +73,12 @@ func (h *internalWalletHandler) listTransactionByAccountNumber(c *fiber.Ctx) (er
 // @Failure 400 {object} http.RestErrorResponseModel "Bad request error. This can happen if there is an error while get all transaction"
 // @Failure 500 {object} http.RestErrorResponseModel "Internal server error. This can happen if there is an error while get all transaction"
 // @Router /v1/internal-wallets/accounts/transactions [get]
-func (h *internalWalletHandler) listTransaction(c *fiber.Ctx) (err error) {
+func (h *internalWalletHandler) listTransaction(c echo.Context) error {
 	req := new(models.ListWalletTrxRequest)
 
-	err = c.QueryParser(req)
+	err := c.Bind(req)
 	if err != nil {
-		return http.RestErrorResponse(c, fiber.StatusBadRequest, err)
+		return http.RestErrorResponse(c, nethttp.StatusBadRequest, err)
 	}
 
 	if err = validation.ValidateStruct(req); err != nil {
@@ -86,12 +87,12 @@ func (h *internalWalletHandler) listTransaction(c *fiber.Ctx) (err error) {
 
 	opts, err := req.ToFilterOpts()
 	if err != nil {
-		return http.RestErrorResponse(c, fiber.StatusBadRequest, err)
+		return http.RestErrorResponse(c, nethttp.StatusBadRequest, err)
 	}
 
-	transactions, total, err := h.walletTrxService.List(c.UserContext(), *opts)
+	transactions, total, err := h.walletTrxService.List(c.Request().Context(), *opts)
 	if err != nil {
-		return http.RestErrorResponse(c, fiber.StatusInternalServerError, err)
+		return http.RestErrorResponse(c, nethttp.StatusInternalServerError, err)
 	}
 
 	return http.RestSuccessResponseCursorPagination[models.ListWalletTrxByAccountNumberResponse](c, transactions, opts.Limit, total)

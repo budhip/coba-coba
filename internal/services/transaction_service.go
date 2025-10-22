@@ -705,7 +705,7 @@ func (ts *transaction) CollectRepayment(ctx context.Context) (out *models.Collec
 	defer monitor.Finish(monitoring.WithFinishCheckError(err))
 
 	trxRepo := ts.srv.sqlRepo.GetTransactionRepository()
-	out, err = trxRepo.ColectRepayment(ctx, common.Now())
+	out, err = trxRepo.ColectRepayment(ctx, common.Now().AddDate(0, 0, -1).Truncate(24*time.Hour))
 	if err != nil {
 		return out, err
 	}

@@ -75,6 +75,7 @@ var (
 	ErrrefNumberNotFound                              = errors.New("RefNumber not found")
 	ErrUnsupportedTransactionFlow                     = errors.New("transaction flow is not refund")
 	ErrInvalidRefundData                              = errors.New("invalid refund transaction data")
+	ErrRefundAmountHigherThanOriginalAmount           = errors.New("refund amount is greater than original wallet amount")
 )
 
 type WrapError struct {

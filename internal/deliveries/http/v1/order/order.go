@@ -1,13 +1,15 @@
 package order
 
 import (
+	nethttp "net/http"
+
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common/http"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common/http/middleware"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common/validation"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/models"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/services"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/labstack/echo/v4"
 )
 
 type orderHandler struct {
@@ -15,10 +17,10 @@ type orderHandler struct {
 }
 
 // New order handler will initialize the order/ resources endpoint
-func New(app fiber.Router, trxService services.TransactionService, m middleware.AppMiddleware) {
+func New(app *echo.Group, trxService services.TransactionService, m middleware.AppMiddleware) {
 	handler := orderHandler{trxService}
 	orders := app.Group("/orders")
-	orders.Post("", m.CheckRetryDLQ(), handler.createOrder)
+	orders.POST("", handler.createOrder, m.CheckRetryDLQ())
 }
 
 // createOrder API create order that have multiple transactions
@@ -35,20 +37,20 @@ func New(app fiber.Router, trxService services.TransactionService, m middleware.
 // @Failure 422 {object} http.RestErrorValidationResponseModel{errors=[]validation.ErrorValidateResponse} "Validation error. This can happen if there is an error validation while create transaction"
 // @Failure 500 {object} http.RestErrorResponseModel "Internal server error. This can happen if there is an error while create transaction"
 // @Router /orders [post]
-func (h *orderHandler) createOrder(c *fiber.Ctx) (err error) {
+func (h *orderHandler) createOrder(c echo.Context) error {
 	req := new(models.CreateOrderRequest)
-	if err = c.BodyParser(req); err != nil {
-		return http.RestErrorResponse(c, fiber.StatusBadRequest, err)
+	if err := c.Bind(req); err != nil {
+		return http.RestErrorResponse(c, nethttp.StatusBadRequest, err)
 	}
 
-	if err = validation.ValidateStruct(req); err != nil {
+	if err := validation.ValidateStruct(req); err != nil {
 		return http.RestErrorValidationResponse(c, err)
 	}
 
-	err = h.trxService.NewStoreBulkTransaction(c.UserContext(), req.ToTransactionReqs())
+	err := h.trxService.NewStoreBulkTransaction(c.Request().Context(), req.ToTransactionReqs())
 	if err != nil {
-		return http.RestErrorResponse(c, fiber.StatusInternalServerError, err)
+		return http.RestErrorResponse(c, nethttp.StatusInternalServerError, err)
 	}
 
-	return http.RestSuccessResponse(c, fiber.StatusCreated, req.ToCreateOrderResponse())
+	return http.RestSuccessResponse(c, nethttp.StatusCreated, req.ToCreateOrderResponse())
 }

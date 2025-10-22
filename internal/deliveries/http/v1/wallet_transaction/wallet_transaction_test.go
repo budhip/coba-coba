@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common"
@@ -18,7 +19,8 @@ import (
 	"bitbucket.org/Amartha/go-fp-transaction/internal/services/mock"
 
 	xlog "bitbucket.org/Amartha/go-x/log"
-	"github.com/gofiber/fiber/v2"
+	"github.com/labstack/echo/v4"
+	echomiddleware "github.com/labstack/echo/v4/middleware"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -97,17 +99,20 @@ func Test_Handler_createWalletTransaction(t *testing.T) {
 			require.NoError(t, errEncode)
 
 			req := httptest.NewRequest("POST", "/api/v1/wallet-transactions", &b)
-			req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
+			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("X-Idempotency-Key", "0f472815-8b37-4057-a594-a5617c91589d")
 
-			resp, err := testHelper.router.Test(req)
-			require.NoError(t, err)
+			rec := httptest.NewRecorder()
+			testHelper.router.ServeHTTP(rec, req)
+
+			resp := rec.Result()
+			defer resp.Body.Close()
 
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 
 			require.Equal(t, tt.wantCode, resp.StatusCode)
-			require.Equal(t, tt.wantRes, string(body))
+			require.Equal(t, tt.wantRes, strings.TrimSuffix(string(body), "\n"))
 		})
 	}
 }
@@ -196,22 +201,25 @@ func Test_Handler_updateStatusWalletTransaction(t *testing.T) {
 			require.NoError(t, errEncode)
 
 			req := httptest.NewRequest("PATCH", fmt.Sprintf("/api/v1/wallet-transactions/%s", tt.request.TransactionId), &b)
-			req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
+			req.Header.Set("Content-Type", "application/json")
 
-			resp, err := testHelper.router.Test(req)
-			require.NoError(t, err)
+			rec := httptest.NewRecorder()
+			testHelper.router.ServeHTTP(rec, req)
+
+			resp := rec.Result()
+			defer resp.Body.Close()
 
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 
 			require.Equal(t, tt.wantCode, resp.StatusCode)
-			require.Equal(t, tt.wantRes, string(body))
+			require.Equal(t, tt.wantRes, strings.TrimSuffix(string(body), "\n"))
 		})
 	}
 }
 
 type testWalletTrxHelper struct {
-	router              *fiber.App
+	router              *echo.Echo
 	mockCtrl            *gomock.Controller
 	mockWalletService   *mock.MockWalletTrxService
 	mockAccountService  *mock.MockAccountService
@@ -233,8 +241,10 @@ func walletTrxTestHelper(t *testing.T) testWalletTrxHelper {
 
 	m := middleware.NewMiddleware(cfg, mockCacheRepo, mockDlqProcessorService)
 
-	app := fiber.New()
+	app := echo.New()
+
 	v1Group := app.Group("/api/v1")
+	app.Pre(echomiddleware.RemoveTrailingSlash())
 	New(cfg, v1Group, mockWalletSvc, mockAccountSvc, m)
 
 	return testWalletTrxHelper{

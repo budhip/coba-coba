@@ -368,6 +368,6 @@ type DownloadTransactionRequest struct {
 }
 
 type TransactionGetByTypeAndRefNumberRequest struct {
-	TransactionType string `params:"transactionType" example:"INVESTMENT" validate:"required"`
-	RefNumber       string `params:"refNumber" example:"123456" validate:"required"`
+	TransactionType string `param:"transactionType" example:"INVESTMENT" validate:"required"`
+	RefNumber       string `param:"refNumber" example:"123456" validate:"required"`
 }

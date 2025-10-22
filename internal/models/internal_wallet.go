@@ -10,7 +10,7 @@ import (
 )
 
 type ListWalletTrxByAccountNumberRequest struct {
-	AccountNumber   string `params:"accountNumber" validate:"required" example:"21100100000001"`
+	AccountNumber   string `param:"accountNumber" validate:"required" example:"21100100000001"`
 	Limit           int    `query:"limit" example:"10"`
 	Status          string `query:"status" validate:"omitempty,oneof=CANCEL PENDING SUCCESS" example:"PENDING"`
 	StartDate       string `query:"startDate" example:"2023-01-01"`
@@ -23,8 +23,8 @@ type ListWalletTrxByAccountNumberRequest struct {
 }
 
 type ListWalletTrxRequest struct {
-	AccountNumbers   string `params:"accountNumbers" example:"21100100000001,21100100000002,21100100000003"`
-	TransactionTypes string `params:"transactionTypes" example:"VOLTR,TUPVA"`
+	AccountNumbers   string `query:"accountNumbers" example:"21100100000001,21100100000002,21100100000003"`
+	TransactionTypes string `query:"transactionTypes" example:"VOLTR,TUPVA"`
 	Limit            int    `query:"limit" example:"10"`
 	Status           string `query:"status" validate:"omitempty,oneof=CANCEL PENDING SUCCESS" example:"PENDING"`
 	StartDate        string `query:"startDate" example:"2023-01-01"`
@@ -245,6 +245,7 @@ type WalletTrxFilterOptions struct {
 	EndDate          *time.Time
 	AccountNumbers   []string
 	TransactionTypes []string
+	RefNumber        string
 
 	Cursor *WalletTrxCursor
 }

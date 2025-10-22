@@ -114,7 +114,9 @@ func buildListWalletTrxQuery(opts models.WalletTrxFilterOptions) (sql string, ar
 		query = query.OrderBy(getStatementOrder(sortDirection))
 	}
 
-	query = query.Limit(uint64(opts.Limit))
+	if opts.Limit >= 0 {
+		query = query.Limit(uint64(opts.Limit))
+	}
 
 	return query.ToSql()
 }
@@ -168,6 +170,10 @@ func buildFilteredWalletTrxQuery(cols []string, opts models.WalletTrxFilterOptio
 
 	if len(opts.TransactionTypes) > 0 {
 		query = query.Where(sq.Eq{`"transactionType"`: opts.TransactionTypes})
+	}
+
+	if opts.RefNumber != "" {
+		query = query.Where(sq.Eq{`"refNumber"`: opts.RefNumber})
 	}
 
 	if len(opts.AccountNumbers) > 0 {

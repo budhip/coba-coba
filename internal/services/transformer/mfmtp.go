@@ -20,15 +20,11 @@ func (t mfmtpTransformer) Transform(_ context.Context, amount models.Amount, par
 		return nil, err
 	}
 
-	if parentWalletTransaction.DestinationAccountNumber == "" {
-		return nil, common.ErrMissingDestinationAccountNumber
-	}
-
 	return []models.TransactionReq{
 		{
 			TransactionID:   uuid.New().String(),
 			FromAccount:     parentWalletTransaction.AccountNumber,
-			ToAccount:       parentWalletTransaction.DestinationAccountNumber,
+			ToAccount:       t.config.AccountConfig.BRIEscrowAFAAccountNumber,
 			TransactionDate: common.FormatDatetimeToStringInLocalTime(parentWalletTransaction.TransactionTime, common.DateFormatYYYYMMDD),
 			Amount:          decimal.NewNullDecimal(amount.ValueDecimal.Decimal),
 			Status:          string(status),

@@ -69,6 +69,7 @@ func TestMapTransformer_Transform(t *testing.T) {
 	mockAccountRepo := mock.NewMockAccountRepository(mockCtrl)
 	mockTransactionRepo := mock.NewMockTransactionRepository(mockCtrl)
 	mockAccountConfigRepo := mock.NewMockAccountConfigRepository(mockCtrl)
+	mockWalletTransactionRepo := mock.NewMockWalletTransactionRepository(mockCtrl)
 	mockFlag := mock3.NewMockClient(mockCtrl)
 
 	cfg := config.Config{
@@ -88,6 +89,7 @@ func TestMapTransformer_Transform(t *testing.T) {
 		mockAccountRepo,
 		mockTransactionRepo,
 		mockAccountConfigRepo,
+		mockWalletTransactionRepo,
 		mockFlag,
 	)
 

@@ -3,10 +3,11 @@ package http
 import (
 	"context"
 	"fmt"
-	"net/http"
+	nethttp "net/http"
 	"time"
 
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common/graceful"
+	commonhttp "bitbucket.org/Amartha/go-fp-transaction/internal/common/http"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common/http/middleware"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common/metrics"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/config"
@@ -14,7 +15,6 @@ import (
 	"bitbucket.org/Amartha/go-fp-transaction/internal/repositories"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/services"
 
-	commonhttp "bitbucket.org/Amartha/go-fp-transaction/internal/common/http"
 	v1account "bitbucket.org/Amartha/go-fp-transaction/internal/deliveries/http/v1/account"
 	v1accountBalance "bitbucket.org/Amartha/go-fp-transaction/internal/deliveries/http/v1/account_balances"
 	v1category "bitbucket.org/Amartha/go-fp-transaction/internal/deliveries/http/v1/category"
@@ -25,27 +25,26 @@ import (
 	v1masterData "bitbucket.org/Amartha/go-fp-transaction/internal/deliveries/http/v1/masterdata"
 	v1moneyflow "bitbucket.org/Amartha/go-fp-transaction/internal/deliveries/http/v1/money_flow_summaries"
 	v1order "bitbucket.org/Amartha/go-fp-transaction/internal/deliveries/http/v1/order"
-	v1reconTools "bitbucket.org/Amartha/go-fp-transaction/internal/deliveries/http/v1/recon_tools"
 	v1subcategory "bitbucket.org/Amartha/go-fp-transaction/internal/deliveries/http/v1/sub_category"
 	v1transaction "bitbucket.org/Amartha/go-fp-transaction/internal/deliveries/http/v1/transaction"
 	v1walletTrx "bitbucket.org/Amartha/go-fp-transaction/internal/deliveries/http/v1/wallet_transaction"
 	v2Files "bitbucket.org/Amartha/go-fp-transaction/internal/deliveries/http/v2/files"
 
 	"bitbucket.org/Amartha/go-x/log/ctxdata"
-	"github.com/gofiber/contrib/fibernewrelic"
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/pprof"
-	"github.com/gofiber/fiber/v2/middleware/recover"
-	"github.com/gofiber/fiber/v2/middleware/requestid"
+	"github.com/labstack/echo-contrib/echoprometheus"
+	"github.com/labstack/echo-contrib/pprof"
+	"github.com/labstack/echo/v4"
+	echomiddleware "github.com/labstack/echo/v4/middleware"
+	"github.com/newrelic/go-agent/v3/integrations/nrecho-v4"
 	"github.com/newrelic/go-agent/v3/newrelic"
-	fiberSwagger "github.com/swaggo/fiber-swagger"
+	echoSwagger "github.com/swaggo/echo-swagger"
 
 	// for swagger docs
 	_ "bitbucket.org/Amartha/go-fp-transaction/docs"
 )
 
 type svc struct {
-	e               *fiber.App
+	e               *echo.Echo
 	addr            string
 	gracefulTimeout time.Duration
 }
@@ -54,17 +53,13 @@ var _ graceful.ProcessStartStopper = (*svc)(nil)
 
 func (s *svc) Start() graceful.ProcessStarter {
 	return func() error {
-		err := s.e.Listen(s.addr)
-		if err != http.ErrServerClosed {
-			return err
-		}
-		return nil
+		return s.e.Start(s.addr)
 	}
 }
 
 func (s *svc) Stop() graceful.ProcessStopper {
 	return func(ctx context.Context) error {
-		return s.e.ShutdownWithTimeout(s.gracefulTimeout)
+		return s.e.Shutdown(ctx)
 	}
 }
 
@@ -103,33 +98,34 @@ func NewHTTPServer(
 	metrics metrics.Metrics,
 	moneyFlowService services.MoneyFlowService,
 ) *svc {
-	app := fiber.New(fiber.Config{
-		AppName:        conf.App.Name,
-		ServerHeader:   "Go FP Transaction",
-		Immutable:      true,
-		ReadBufferSize: 8192,
-	})
-	svc := &svc{e: app, addr: fmt.Sprintf(":%d", conf.App.HTTPPort), gracefulTimeout: conf.App.GracefulTimeout}
+	app := echo.New()
+
+	svc := &svc{
+		e:               app,
+		addr:            fmt.Sprintf(":%d", conf.App.HTTPPort),
+		gracefulTimeout: conf.App.GracefulTimeout,
+	}
 
 	m := middleware.NewMiddleware(conf, cacheRepo, dlqProcessorService)
 	// options middleware
-	app.Use(recover.New())
-	app.Use(requestid.New())
-	app.Use(m.Context(conf.GcloudProjectID))
+	app.Pre(echomiddleware.RemoveTrailingSlash())
+	app.Use(echomiddleware.Recover())
+	app.Use(echomiddleware.RequestID())
+	app.Use(m.Context())
 	app.Use(m.Logger())
 
 	if nr != nil {
-		app.Use(fibernewrelic.New(fibernewrelic.Config{
-			Application: nr,
-		}))
+		app.Use(nrecho.Middleware(nr))
 
-		app.Use(func(c *fiber.Ctx) error {
-			txn := newrelic.FromContext(c.Context())
-			if txn != nil {
-				txn.AddAttribute("x-correlation-id", ctxdata.GetCorrelationId(c.Context()))
+		app.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+			return func(c echo.Context) error {
+				txn := newrelic.FromContext(c.Request().Context())
+				if txn != nil {
+					txn.AddAttribute("x-correlation-id", ctxdata.GetCorrelationId(c.Request().Context()))
+				}
+
+				return next(c)
 			}
-
-			return c.Next()
 		})
 	}
 
@@ -137,14 +133,15 @@ func NewHTTPServer(
 	// Endpoint debug/pprof/
 	env := config.StringToEnvironment(conf.App.Env)
 	if env != config.PROD_ENV {
-		app.Use(pprof.New())
+		pprof.Register(app)
 	}
 
 	// prometheus metrics
-	app.Use(metrics.RegisterFiberMiddleware(app, "/metrics", conf.App.Name, "api"))
+	app.Use(echoprometheus.NewMiddleware(conf.App.Name))
+	app.GET("/metrics", echoprometheus.NewHandler())
 
 	// swagger
-	app.Get("/swagger/*", fiberSwagger.WrapHandler)
+	app.GET("/swagger/*", echoSwagger.WrapHandler)
 
 	// apiGroup
 	apiGroup := app.Group("/api")
@@ -157,7 +154,7 @@ func NewHTTPServer(
 	v1finSnapshot.New(v1Group, transactionService)
 
 	// v1Group middleware
-	v1Group.Use(m.InternalAuth())
+	v1Group.Use(m.InternalAuth)
 	// v1Group register api
 	v1transaction.New(v1Group, transactionService, m)
 	v1account.New(v1Group, accountService, walletAccountService, balanceService, m)
@@ -167,7 +164,6 @@ func NewHTTPServer(
 	v1subcategory.New(v1Group, subCategoryService)
 	v1Files.New(v1Group, fileService)
 	v1masterData.New(v1Group, masterDataService)
-	v1reconTools.New(v1Group, reconService)
 	v1order.New(v1Group, transactionService, m)
 	v1walletTrx.New(conf, v1Group, walletTrxService, accountService, m)
 	v1internalWallet.New(v1Group, walletTrxService)
@@ -176,14 +172,14 @@ func NewHTTPServer(
 	// v2Group
 	v2Group := apiGroup.Group("/v2")
 	// v2Group middleware
-	v2Group.Use(m.InternalAuth())
+	v2Group.Use(m.InternalAuth)
 	// v2Group register api
 	v2Files.New(v2Group, fileService)
 
 	// prepare an endpoint for 'Not Found'.
-	app.All("*", func(c *fiber.Ctx) error {
-		errorMessage := fmt.Errorf("route '%s' does not exist in this API", c.OriginalURL())
-		return commonhttp.RestErrorResponse(c, fiber.StatusNotFound, errorMessage)
+	app.Any("*", func(c echo.Context) error {
+		errorMessage := fmt.Errorf("route '%s' does not exist in this API", c.Request().URL)
+		return commonhttp.RestErrorResponse(c, nethttp.StatusNotFound, errorMessage)
 	})
 
 	return svc

@@ -7,18 +7,19 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
-
-	"github.com/shopspring/decimal"
-	"github.com/stretchr/testify/assert"
 
 	"bitbucket.org/Amartha/go-fp-transaction/internal/models"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/services/mock"
 
 	xlog "bitbucket.org/Amartha/go-x/log"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/labstack/echo/v4"
+	echomiddleware "github.com/labstack/echo/v4/middleware"
+	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
@@ -78,27 +79,30 @@ func Test_Handler_getAccountBalance(t *testing.T) {
 			var b bytes.Buffer
 
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/account-balances/1234567", &b)
-			req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
+			req.Header.Set("Content-Type", "application/json")
 
-			resp, err := testHelper.router.Test(req)
-			require.NoError(t, err)
+			rec := httptest.NewRecorder()
+			testHelper.router.ServeHTTP(rec, req)
+
+			resp := rec.Result()
+			defer resp.Body.Close()
 
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 
 			require.Equal(t, tc.expectation.wantCode, resp.StatusCode)
-			require.Equal(t, tc.expectation.wantRes, string(body))
+			require.Equal(t, tc.expectation.wantRes, strings.TrimSuffix(string(body), "\n"))
 		})
 	}
 }
 
-type testBaanceHelper struct {
-	router      *fiber.App
+type testBalanceHelper struct {
+	router      *echo.Echo
 	mockCtrl    *gomock.Controller
 	mockService *mock.MockBalanceService
 }
 
-func balanceTestHelper(t *testing.T) testBaanceHelper {
+func balanceTestHelper(t *testing.T) testBalanceHelper {
 	t.Helper()
 
 	mockCtrl := gomock.NewController(t)
@@ -106,11 +110,12 @@ func balanceTestHelper(t *testing.T) testBaanceHelper {
 
 	mockSvc := mock.NewMockBalanceService(mockCtrl)
 
-	app := fiber.New()
+	app := echo.New()
+	app.Pre(echomiddleware.RemoveTrailingSlash())
 	v1Group := app.Group("/api/v1")
 	New(v1Group, mockSvc)
 
-	return testBaanceHelper{
+	return testBalanceHelper{
 		router:      app,
 		mockCtrl:    mockCtrl,
 		mockService: mockSvc,

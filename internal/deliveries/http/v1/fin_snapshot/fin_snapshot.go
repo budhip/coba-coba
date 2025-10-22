@@ -1,10 +1,12 @@
 package finsnapshot
 
 import (
+	nethttp "net/http"
+
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common/http"
-	"bitbucket.org/Amartha/go-fp-transaction/internal/models"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/services"
-	"github.com/gofiber/fiber/v2"
+
+	"github.com/labstack/echo/v4"
 )
 
 type finSnapshotHandler struct {
@@ -12,10 +14,10 @@ type finSnapshotHandler struct {
 }
 
 // New finSnapshot handler will initialize the transaction/ resources endpoint
-func New(app fiber.Router, transactionSrv services.TransactionService) {
+func New(app *echo.Group, transactionSrv services.TransactionService) {
 	handler := finSnapshotHandler{transactionSrv}
 	finSnapshot := app.Group("/fin-snapshot")
-	finSnapshot.Get("/collect", handler.finSnapshotCollectRepayment())
+	finSnapshot.GET("/collect", handler.finSnapshotCollectRepayment)
 }
 
 // @Summary 	Get repayment report (last 7 days)
@@ -27,13 +29,11 @@ func New(app fiber.Router, transactionSrv services.TransactionService) {
 // @Success 200 {object} models.DoGetReportRepaymentResponse "Response indicates that the request succeeded and the resources have been fetched and transmitted in the message body"
 // @Failure 500 {object} http.RestErrorResponseModel "Internal server error. This can happen if there is an error while getting repayment report"
 // @Router /v1/fin-snapshot/collect [get]
-func (fs *finSnapshotHandler) finSnapshotCollectRepayment() fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		summary, err := fs.transactionSrv.CollectRepayment(c.UserContext())
-		if err != nil {
-			return http.RestErrorResponse(c, fiber.StatusInternalServerError, err)
-		}
-
-		return http.RestSuccessResponse(c, fiber.StatusOK, models.CollectRepayment(*summary).MapToFinSnapshot())
+func (fs *finSnapshotHandler) finSnapshotCollectRepayment(c echo.Context) error {
+	summary, err := fs.transactionSrv.CollectRepayment(c.Request().Context())
+	if err != nil {
+		return http.RestErrorResponse(c, nethttp.StatusInternalServerError, err)
 	}
+
+	return http.RestSuccessResponse(c, nethttp.StatusOK, summary.MapToFinSnapshot())
 }

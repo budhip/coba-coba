@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/exp/slices"
+
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/models"
 
@@ -230,4 +232,61 @@ func (b baseWalletTransactionTransformer) GenerateAccountNumberBankForMetadataAD
 func (b baseWalletTransactionTransformer) MutateMetadataByAccountEntity(entityCode string, meta models.WalletMetadata) models.WalletMetadata {
 	meta["entity"] = b.config.AccountConfig.MapAccountEntity[entityCode]
 	return meta
+}
+
+func getTotalAmount(wallet models.WalletTransaction, transactionType string) decimal.Decimal {
+	var totalAmount decimal.Decimal
+
+	// get from parent
+	if wallet.TransactionType == transactionType {
+		totalAmount = totalAmount.Add(wallet.NetAmount.ValueDecimal.Decimal)
+	}
+
+	// get all child
+	for _, amount := range wallet.Amounts {
+		if amount.Type == transactionType {
+			totalAmount = totalAmount.Add(amount.Amount.ValueDecimal.Decimal)
+		}
+	}
+
+	return totalAmount
+}
+
+func getTotalAmountTransactions(transactions []models.Transaction, transactionType string) decimal.Decimal {
+	var totalAmount decimal.Decimal
+	for _, transaction := range transactions {
+		if transaction.TypeTransaction == transactionType {
+			totalAmount = totalAmount.Add(transaction.Amount.Decimal)
+		}
+	}
+
+	return totalAmount
+}
+
+func isTransactionContains(transactions []models.Transaction, transactionType string) bool {
+	var transactionTypes []string
+	var reversedAmount decimal.Decimal
+
+	for _, transaction := range transactions {
+		reversedAmount = reversedAmount.Add(transaction.Amount.Decimal)
+		transactionTypes = append(transactionTypes, transaction.TypeTransaction)
+	}
+
+	return slices.Contains(transactionTypes, transactionType)
+}
+
+type optsCalculateTotalAmount struct {
+	transactionType string
+	status          []models.WalletTransactionStatus
+}
+
+func getTotalAmountFromWallets(wallets []models.WalletTransaction, opts optsCalculateTotalAmount) decimal.Decimal {
+	totalAmount := decimal.Zero
+	for _, wt := range wallets {
+		if wt.TransactionType == opts.transactionType && slices.Contains(opts.status, wt.Status) {
+			totalAmount = totalAmount.Add(getTotalAmount(wt, opts.transactionType))
+		}
+	}
+
+	return totalAmount
 }

@@ -2,9 +2,8 @@ package wallettrx
 
 import (
 	"errors"
+	nethttp "net/http"
 	"strings"
-
-	"github.com/gofiber/fiber/v2"
 
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common"
 )
@@ -33,7 +32,7 @@ func getHttpErrorStatusCode(err error) int {
 		errors.Is(err, common.ErrUnsupportedDescription) ||
 		errors.Is(err, common.ErrAccountNotExists) ||
 		errors.Is(err, common.ErrMissingWalletTransactionIdFromMetadata) {
-		return fiber.StatusBadRequest
+		return nethttp.StatusBadRequest
 	}
 
 	if errors.Is(err, common.ErrUnsupportedReservedTransactionFlow) ||
@@ -47,9 +46,10 @@ func getHttpErrorStatusCode(err error) int {
 		errors.Is(err, common.ErrReceivableAccountNumberNotFound) ||
 		errors.Is(err, common.ErrrefNumberNotFound) ||
 		errors.Is(err, common.ErrUnsupportedTransactionFlow) ||
-		errors.Is(err, common.ErrInvalidRefundData) {
-		return fiber.StatusUnprocessableEntity
+		errors.Is(err, common.ErrInvalidRefundData) ||
+		errors.Is(err, common.ErrRefundAmountHigherThanOriginalAmount) {
+		return nethttp.StatusUnprocessableEntity
 	}
 
-	return fiber.StatusInternalServerError
+	return nethttp.StatusInternalServerError
 }

@@ -2,6 +2,7 @@ package wallettrx
 
 import (
 	"errors"
+	nethttp "net/http"
 	"time"
 
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common"
@@ -12,8 +13,8 @@ import (
 	"bitbucket.org/Amartha/go-fp-transaction/internal/models"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/services"
 
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/timeout"
+	"github.com/labstack/echo/v4"
+	echomiddleware "github.com/labstack/echo/v4/middleware"
 )
 
 type walletTrxHandler struct {
@@ -29,7 +30,7 @@ const (
 // New wallet transaction handler will initialize the /wallet-transactions resources endpoint
 func New(
 	cfg config.Config,
-	app fiber.Router,
+	app *echo.Group,
 	walletTrxService services.WalletTrxService,
 	accountService services.AccountService,
 	m middleware.AppMiddleware) {
@@ -40,16 +41,16 @@ func New(
 		accountService:   accountService,
 	}
 
-	timeoutHandler := defaultTimeoutHandler
+	durationTimeout := defaultTimeoutHandler
 	if cfg.TransactionConfig.HandlerTimeoutWalletTransaction > 0 {
-		timeoutHandler = cfg.TransactionConfig.HandlerTimeoutWalletTransaction
+		durationTimeout = cfg.TransactionConfig.HandlerTimeoutWalletTransaction
 	}
 
-	transaction := app.Group("/wallet-transactions")
-	transaction.Post("",
-		timeout.NewWithContext(handler.createWalletTransaction, timeoutHandler))
-	transaction.Patch("/:transactionId",
-		timeout.NewWithContext(handler.updateStatusWalletTransaction, timeoutHandler))
+	transaction := app.Group("/wallet-transactions", echomiddleware.TimeoutWithConfig(echomiddleware.TimeoutConfig{
+		Timeout: durationTimeout,
+	}))
+	transaction.POST("", handler.createWalletTransaction)
+	transaction.PATCH("/:transactionId", handler.updateStatusWalletTransaction)
 }
 
 // createWalletTransaction API create wallet transaction
@@ -66,26 +67,26 @@ func New(
 // @Failure 422 {object} http.RestErrorValidationResponseModel{errors=[]validation.ErrorValidateResponse} "Validation error. This can happen if there is an error validation while create transaction"
 // @Failure 500 {object} http.RestErrorResponseModel "Internal server error. This can happen if there is an error while create transaction"
 // @Router /wallet-transactions [post]
-func (h *walletTrxHandler) createWalletTransaction(c *fiber.Ctx) (err error) {
+func (h *walletTrxHandler) createWalletTransaction(c echo.Context) error {
 	req := new(models.CreateWalletTransactionRequest)
-	if err = c.BodyParser(req); err != nil {
-		return http.RestErrorResponse(c, fiber.StatusBadRequest, err)
+	if err := c.Bind(req); err != nil {
+		return http.RestErrorResponse(c, nethttp.StatusBadRequest, err)
 	}
 
-	if err = validation.ValidateStruct(req); err != nil {
+	if err := validation.ValidateStruct(req); err != nil {
 		return http.RestErrorValidationResponse(c, err)
 	}
 
-	headers := c.GetReqHeaders()
+	headers := c.Request().Header
 	req.ClientId = getClientId(headers)
 	req.IdempotencyKey = getIdempotencyKey(headers)
 
-	created, err := h.walletTrxService.CreateTransaction(c.UserContext(), *req)
+	created, err := h.walletTrxService.CreateTransaction(c.Request().Context(), *req)
 	if err != nil {
 		return http.RestErrorResponse(c, getHttpErrorStatusCode(err), err)
 	}
 
-	return http.RestSuccessResponse(c, fiber.StatusCreated, req.ToResponse(*created))
+	return http.RestSuccessResponse(c, nethttp.StatusCreated, req.ToResponse(*created))
 }
 
 func getClientId(headers map[string][]string) string {
@@ -119,34 +120,34 @@ func getIdempotencyKey(headers map[string][]string) string {
 // @Failure 422 {object} http.RestErrorValidationResponseModel{errors=[]validation.ErrorValidateResponse} "Validation error. This can happen if there is an error validation while update status transaction"
 // @Failure 500 {object} http.RestErrorResponseModel "Internal server error. This can happen if there is an error while update status transaction"
 // @Router /wallet-transactions/{id} [patch]
-func (h *walletTrxHandler) updateStatusWalletTransaction(c *fiber.Ctx) (err error) {
+func (h *walletTrxHandler) updateStatusWalletTransaction(c echo.Context) error {
 	req := models.UpdateStatusWalletTransactionRequest{
-		TransactionId: c.Params("transactionId"),
+		TransactionId: c.Param("transactionId"),
 	}
 
-	if err = c.BodyParser(&req); err != nil {
-		return http.RestErrorResponse(c, fiber.StatusBadRequest, err)
+	if err := c.Bind(&req); err != nil {
+		return http.RestErrorResponse(c, nethttp.StatusBadRequest, err)
 	}
 
-	if err = validation.ValidateStruct(req); err != nil {
+	if err := validation.ValidateStruct(req); err != nil {
 		return http.RestErrorValidationResponse(c, err)
 	}
 
-	if err = req.TransformTransactionTime(); err != nil {
-		return http.RestErrorResponse(c, fiber.StatusBadRequest, err)
+	if err := req.TransformTransactionTime(); err != nil {
+		return http.RestErrorResponse(c, nethttp.StatusBadRequest, err)
 	}
 
-	headers := c.GetReqHeaders()
+	headers := c.Request().Header
 	req.ClientId = getClientId(headers)
 
-	walletTransaction, err := h.walletTrxService.ProcessReservedTransaction(c.UserContext(), req)
+	walletTransaction, err := h.walletTrxService.ProcessReservedTransaction(c.Request().Context(), req)
 	if err != nil {
-		var code = fiber.StatusInternalServerError
+		var code = nethttp.StatusInternalServerError
 		if errors.Is(err, common.ErrTransactionNotReserved) {
-			code = fiber.StatusConflict
+			code = nethttp.StatusConflict
 		}
 		return http.RestErrorResponse(c, code, err)
 	}
 
-	return http.RestSuccessResponse(c, fiber.StatusOK, req.ToResponse(*walletTransaction))
+	return http.RestSuccessResponse(c, nethttp.StatusOK, req.ToResponse(*walletTransaction))
 }

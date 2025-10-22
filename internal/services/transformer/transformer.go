@@ -38,6 +38,7 @@ type baseWalletTransactionTransformer struct {
 	masterDataRepository    repositories.MasterDataRepository
 	accountRepository       repositories.AccountRepository
 	transaction             repositories.TransactionRepository
+	walletTransaction       repositories.WalletTransactionRepository
 	accountConfigRepository repositories.AccountConfigRepository
 }
 
@@ -51,6 +52,7 @@ func NewMapTransformer(
 	accountRepository repositories.AccountRepository,
 	transaction repositories.TransactionRepository,
 	accountConfigRepository repositories.AccountConfigRepository,
+	walletTransaction repositories.WalletTransactionRepository,
 	featureFlag flag.Client,
 ) MapTransformer {
 	baseTransformer := baseWalletTransactionTransformer{
@@ -60,6 +62,7 @@ func NewMapTransformer(
 		accountRepository:       accountRepository,
 		transaction:             transaction,
 		accountConfigRepository: accountConfigRepository,
+		walletTransaction:       walletTransaction,
 		flag:                    featureFlag,
 	}
 
@@ -232,6 +235,7 @@ func NewMapTransformer(
 		"RPYRO": &rpyroTransformer{baseTransformer},
 		"RPYTD": &rpytdTransformer{baseTransformer},
 		"RPYCO": &rpycoTransformer{baseTransformer},
+		"RPYEN": &rpyenTransformer{baseTransformer},
 		"RPYIO": &rpyioTransformer{baseTransformer},
 		"RVRSL": &rvrslTransformer{baseTransformer},
 		"SIVEA": &siveaTransformer{baseTransformer},

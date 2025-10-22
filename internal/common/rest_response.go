@@ -1,18 +1,20 @@
 package common
 
 import (
-	"github.com/gofiber/fiber/v2"
+	nethttp "net/http"
+
+	"github.com/labstack/echo/v4"
 )
 
 var statusMessage = map[int]string{
-	fiber.StatusOK:                  "success",
-	fiber.StatusBadRequest:          "badRequest",
-	fiber.StatusUnauthorized:        "unAuthorized",
-	fiber.StatusForbidden:           "forbidden",
-	fiber.StatusNotFound:            "notFound",
-	fiber.StatusInternalServerError: "internalServerError",
-	fiber.StatusCreated:             "created",
-	fiber.StatusConflict:            "duplicateTrx",
+	nethttp.StatusOK:                  "success",
+	nethttp.StatusBadRequest:          "badRequest",
+	nethttp.StatusUnauthorized:        "unAuthorized",
+	nethttp.StatusForbidden:           "forbidden",
+	nethttp.StatusNotFound:            "notFound",
+	nethttp.StatusInternalServerError: "internalServerError",
+	nethttp.StatusCreated:             "created",
+	nethttp.StatusConflict:            "duplicateTrx",
 }
 
 type ApiSuccessResponseModel struct {
@@ -52,8 +54,8 @@ func StatusTxt(code int) string {
 	return statusMessage[code]
 }
 
-func SuccessResponse(c *fiber.Ctx, code int, message string, data interface{}) error {
-	return c.Status(code).JSON(ApiSuccessResponseModel{
+func SuccessResponse(c echo.Context, code int, message string, data interface{}) error {
+	return c.JSON(code, ApiSuccessResponseModel{
 		Code:    code,
 		Status:  StatusTxt(code),
 		Message: message,
@@ -61,8 +63,8 @@ func SuccessResponse(c *fiber.Ctx, code int, message string, data interface{}) e
 	})
 }
 
-func SuccessResponseList(c *fiber.Ctx, code int, message string, data interface{}, meta interface{}) error {
-	return c.Status(fiber.StatusOK).JSON(ApiResponseModel{
+func SuccessResponseList(c echo.Context, code int, message string, data interface{}, meta interface{}) error {
+	return c.JSON(nethttp.StatusOK, ApiResponseModel{
 		Code:    code,
 		Status:  StatusTxt(code),
 		Message: message,
@@ -72,8 +74,8 @@ func SuccessResponseList(c *fiber.Ctx, code int, message string, data interface{
 }
 
 // ErrorResponse function for custom error code and message
-func ErrorResponseRest(c *fiber.Ctx, code int, errStr string) error {
-	return c.Status(code).JSON(ApiErrorResponseModel{
+func ErrorResponseRest(c echo.Context, code int, errStr string) error {
+	return c.JSON(code, ApiErrorResponseModel{
 		Status: StatusTxt(code),
 		Error: ErrorResponseModel{
 			Code:    code,
@@ -82,8 +84,8 @@ func ErrorResponseRest(c *fiber.Ctx, code int, errStr string) error {
 	})
 }
 
-func ErrorValidationResponse(c *fiber.Ctx, code int, errStr string, err interface{}) error {
-	return c.Status(code).JSON(ErrorValidationResponseModel{
+func ErrorValidationResponse(c echo.Context, code int, errStr string, err interface{}) error {
+	return c.JSON(code, ErrorValidationResponseModel{
 		Code:    code,
 		Message: errStr,
 		Errors:  err,

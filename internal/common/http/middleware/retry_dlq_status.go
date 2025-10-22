@@ -3,66 +3,70 @@ package middleware
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
+
+	httpUtil "bitbucket.org/Amartha/go-fp-transaction/internal/common/http"
 
 	xlog "bitbucket.org/Amartha/go-x/log"
-	"github.com/gofiber/fiber/v2"
-	"golang.org/x/exp/slices"
 
-	"bitbucket.org/Amartha/go-fp-transaction/internal/common/http"
+	"github.com/labstack/echo/v4"
+	"golang.org/x/exp/slices"
 )
 
-func (m *AppMiddleware) CheckRetryDLQ() fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		dlqProcessId := c.Get("X-DLQ-Process-Id")
-		if dlqProcessId == "" {
-			return c.Next()
-		}
-
-		status, err := m.dlqProcessor.GetStatusRetry(c.Context(), dlqProcessId)
-		if err != nil {
-			return http.RestErrorResponse(c, fiber.StatusInternalServerError, err)
-		}
-
-		// process request first
-		err = c.Next()
-		if err != nil {
-			return err
-		}
-
-		if c.Response().StatusCode() >= 200 && c.Response().StatusCode() < 300 {
-			// if process success do nothing
-			return nil
-		}
-
-		status.CurrentRetry += 1
-
-		maxRetryReached := status.CurrentRetry > status.MaxRetry
-		willRetryAgain := slices.Contains([]int{408, 504, 503, 500}, c.Response().StatusCode())
-
-		if maxRetryReached || !willRetryAgain {
-			message := fmt.Sprintf("max retry reached or status code not retryable: %d", c.Response().StatusCode())
-
-			errMsg := getErrorMessageFromResponse(c.Response().Body())
-			if errMsg != "" {
-				message = errMsg
+func (m *AppMiddleware) CheckRetryDLQ() echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			dlqProcessId := c.Request().Header.Get("X-DLQ-Process-Id")
+			if dlqProcessId == "" {
+				return next(c)
 			}
 
-			message += "\n\n Process Id: " + dlqProcessId
-
-			err = m.dlqProcessor.SendNotificationRetryFailure(c.Context(), status.ProcessName, message)
+			status, err := m.dlqProcessor.GetStatusRetry(c.Request().Context(), dlqProcessId)
 			if err != nil {
-				xlog.Warn(c.Context(), "failed to send notification retry failure", xlog.Err(err))
+				return httpUtil.RestErrorResponse(c, http.StatusInternalServerError, err)
+			}
+
+			// process request first
+			err = next(c)
+			if err != nil {
+				return err
+			}
+
+			if c.Response().Status >= 200 && c.Response().Status < 300 {
+				// if process success do nothing
+				return nil
+			}
+
+			status.CurrentRetry += 1
+
+			maxRetryReached := status.CurrentRetry > status.MaxRetry
+			willRetryAgain := slices.Contains([]int{408, 504, 503, 500}, c.Response().Status)
+
+			if maxRetryReached || !willRetryAgain {
+				message := fmt.Sprintf("max retry reached or status code not retryable: %d", c.Response().Status)
+
+				errMsg := getErrorMessageFromResponse(m.getResponseBodyBuffer(c).Bytes())
+				if errMsg != "" {
+					message = errMsg
+				}
+
+				message += "\n\n Process Id: " + dlqProcessId
+
+				err = m.dlqProcessor.SendNotificationRetryFailure(c.Request().Context(), status.ProcessName, message)
+				if err != nil {
+					xlog.Warn(c.Request().Context(), "failed to send notification retry failure", xlog.Err(err))
+				}
+
+				return nil
+			}
+
+			err = m.dlqProcessor.UpsertStatusRetry(c.Request().Context(), dlqProcessId, status)
+			if err != nil {
+				xlog.Warn(c.Request().Context(), "failed to update status retry dlq", xlog.Err(err))
 			}
 
 			return nil
 		}
-
-		err = m.dlqProcessor.UpsertStatusRetry(c.Context(), dlqProcessId, status)
-		if err != nil {
-			xlog.Warn(c.Context(), "failed to update status retry dlq", xlog.Err(err))
-		}
-
-		return nil
 	}
 }
 

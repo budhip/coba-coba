@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common"
@@ -16,7 +17,8 @@ import (
 
 	xlog "bitbucket.org/Amartha/go-x/log"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/labstack/echo/v4"
+	echomiddleware "github.com/labstack/echo/v4/middleware"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -152,22 +154,25 @@ func Test_Handler_createSubCategory(t *testing.T) {
 			require.NoError(t, err)
 
 			req := httptest.NewRequest(http.MethodPost, "/api/v1/sub-categories", &b)
-			req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
+			req.Header.Set("Content-Type", "application/json")
 
-			resp, err := testHelper.router.Test(req)
-			require.NoError(t, err)
+			rec := httptest.NewRecorder()
+			testHelper.router.ServeHTTP(rec, req)
+
+			resp := rec.Result()
+			defer resp.Body.Close()
 
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 
 			require.Equal(t, tt.mockData.wantCode, resp.StatusCode)
-			require.Equal(t, tt.mockData.wantRes, string(body))
+			require.Equal(t, tt.mockData.wantRes, strings.TrimSuffix(string(body), "\n"))
 		})
 	}
 }
 
 type testSubCategoryHelper struct {
-	router      *fiber.App
+	router      *echo.Echo
 	mockCtrl    *gomock.Controller
 	mockService *mock.MockSubCategoryService
 }
@@ -180,8 +185,10 @@ func subCategoryTestHelper(t *testing.T) testSubCategoryHelper {
 
 	mockSvc := mock.NewMockSubCategoryService(mockCtrl)
 
-	app := fiber.New()
+	app := echo.New()
+
 	v1Group := app.Group("/api/v1")
+	app.Pre(echomiddleware.RemoveTrailingSlash())
 	New(v1Group, mockSvc)
 
 	return testSubCategoryHelper{
@@ -238,13 +245,18 @@ func Test_Handler_getAllSubCategory(t *testing.T) {
 			}
 			var b bytes.Buffer
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/sub-categories", &b)
-			req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
-			resp, err := testHelper.router.Test(req)
-			require.NoError(t, err)
+			req.Header.Set("Content-Type", "application/json")
+
+			rec := httptest.NewRecorder()
+			testHelper.router.ServeHTTP(rec, req)
+
+			resp := rec.Result()
+			defer resp.Body.Close()
+
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 			require.Equal(t, tc.expectation.wantCode, resp.StatusCode)
-			require.Equal(t, tc.expectation.wantRes, string(body))
+			require.Equal(t, tc.expectation.wantRes, strings.TrimSuffix(string(body), "\n"))
 		})
 	}
 }

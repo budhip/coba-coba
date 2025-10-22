@@ -164,7 +164,7 @@ func (a GetAccountOut) ToModelResponseGetBalance() DoGetAccountBalanceResponse {
 }
 
 type DoGetAccountRequest struct {
-	AccountNumber string `params:"accountNumber" example:"21100100000001"`
+	AccountNumber string `param:"accountNumber" example:"21100100000001"`
 }
 
 type DoGetAccountBalanceResponse struct {
@@ -286,7 +286,7 @@ func decodeAccountCursor(cursor string) (ac *AccountCursor, err error) {
 }
 
 type UpdateAccountRequest struct {
-	AccountNumber string            `json:"-" params:"accountNumber" example:"21100100000001" validate:"required"`
+	AccountNumber string            `json:"-" param:"accountNumber" example:"21100100000001" validate:"required"`
 	IsHVT         *bool             `json:"isHvt" example:"true" validate:"required"`
 	Status        string            `json:"status" example:"active"`
 	Feature       *WalletFeatureReq `json:"features"`
@@ -319,14 +319,14 @@ func (in *UpdateAccountRequest) TransformAndValidate() (out UpdateAccountIn, err
 }
 
 type UpdateAccountIn struct {
-	AccountNumber string        `json:"-" params:"accountNumber" example:"21100100000001" validate:"required"`
+	AccountNumber string        `json:"-" param:"accountNumber" example:"21100100000001" validate:"required"`
 	IsHVT         *bool         `json:"isHvt" example:"true" validate:"required"`
 	Status        string        `json:"status" example:"active"`
 	Feature       WalletFeature `json:"features"`
 }
 
 type UpdateAccountBySubCategoryRequest struct {
-	Code            string  `json:"-" params:"subCategoryCode" validate:"required" example:"10000"`
+	Code            string  `json:"-" param:"subCategoryCode" validate:"required" example:"10000"`
 	ProductTypeName *string `json:"productTypeName" validate:"omitempty" example:"CIH Lender"`
 	Currency        *string `json:"currency" validate:"omitempty" example:"IDR"`
 }

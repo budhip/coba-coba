@@ -5,18 +5,18 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
 	xlog "bitbucket.org/Amartha/go-x/log"
-
-	"github.com/gofiber/fiber/v2"
+	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
 type testHealthCheckHelper struct {
 	mockCtrl *gomock.Controller
-	router   *fiber.App
+	router   *echo.Echo
 }
 
 func toolTestHealthCheckHelper(t *testing.T) testHealthCheckHelper {
@@ -26,7 +26,7 @@ func toolTestHealthCheckHelper(t *testing.T) testHealthCheckHelper {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 
-	app := fiber.New()
+	app := echo.New()
 	apiGroup := app.Group("/api")
 	New(apiGroup)
 
@@ -74,16 +74,19 @@ func Test_Handler_healthCheck(t *testing.T) {
 				tt.doMock(tt.args, tt.mockData)
 			}
 			req := httptest.NewRequest(http.MethodGet, tt.urlCalled, nil)
-			req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
+			req.Header.Set("Content-Type", "application/json")
 
-			resp, err := testHelper.router.Test(req)
-			require.NoError(t, err)
+			rec := httptest.NewRecorder()
+			testHelper.router.ServeHTTP(rec, req)
+
+			resp := rec.Result()
+			defer resp.Body.Close()
 
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 
 			require.Equal(t, tt.mockData.wantCode, resp.StatusCode)
-			require.Equal(t, tt.mockData.wantRes, string(body))
+			require.Equal(t, tt.mockData.wantRes, strings.TrimSuffix(string(body), "\n"))
 		})
 	}
 }

@@ -250,7 +250,7 @@ func (m MoneyFlowSummaryDetailBySummaryIDOut) ToModelResponse() MoneyFlowSummary
 
 // DoGetDetailedTransactionsBySummaryIDRequest represents request to get detailed transactions
 type DoGetDetailedTransactionsBySummaryIDRequest struct {
-	SummaryID  string `params:"summaryID" example:"bbc15647-0e2e-4f3a-9b2b-a4a918d3f34b"`
+	SummaryID  string `param:"summaryID" example:"bbc15647-0e2e-4f3a-9b2b-a4a918d3f34b"`
 	Limit      int    `query:"limit" example:"10"`
 	NextCursor string `query:"nextCursor" example:"2"`
 	PrevCursor string `query:"prevCursor" example:"1"`
