@@ -3,6 +3,7 @@ package models
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common/constants"
@@ -125,12 +126,13 @@ type BankInfo struct {
 
 // GetMoneyFlowSummaryRequest represents filter query parameters
 type GetMoneyFlowSummaryRequest struct {
-	PaymentType                   string `query:"paymentType" example:"MF_EARN_DIVEST"`
-	TransactionSourceCreationDate string `query:"transactionSourceCreationDate" example:"2025-10-17"`
-	Status                        string `query:"status" example:"PENDING"`
-	Limit                         int    `query:"limit" example:"10"`
-	NextCursor                    string `query:"nextCursor" example:"2"`
-	PrevCursor                    string `query:"prevCursor" example:"1"`
+	PaymentType                        string `query:"paymentType" example:"MF_EARN_DIVEST"`
+	TransactionSourceCreationDateStart string `query:"transactionSourceCreationDateStart" example:"2025-10-17"`
+	TransactionSourceCreationDateEnd   string `query:"transactionSourceCreationDateEnd" example:"2025-10-20"`
+	Status                             string `query:"status" example:"PENDING"`
+	Limit                              int    `query:"limit" example:"10"`
+	NextCursor                         string `query:"nextCursor" example:"2"`
+	PrevCursor                         string `query:"prevCursor" example:"1"`
 }
 
 // MoneyFlowSummaryResponse represents the response for money flow summary detail
@@ -183,11 +185,12 @@ func (m MoneyFlowSummaryOut) ToModelResponse() MoneyFlowSummaryResponse {
 
 // MoneyFlowSummaryFilterOptions represents filter options for database query
 type MoneyFlowSummaryFilterOptions struct {
-	PaymentType                   string
-	TransactionSourceCreationDate *time.Time
-	Status                        string
-	Limit                         int
-	Cursor                        *MoneyFlowSummaryCursor
+	PaymentType                        string
+	TransactionSourceCreationDateStart *time.Time
+	TransactionSourceCreationDateEnd   *time.Time
+	Status                             string
+	Limit                              int
+	Cursor                             *MoneyFlowSummaryCursor
 }
 
 // MoneFlowSummaryCursor represents cursor for pagination
@@ -215,7 +218,11 @@ type MoneyFlowSummaryBySummaryIDOut struct {
 	TotalAmount                  decimal.Decimal
 	Status                       string
 	SourceBankAccountNumber      string
+	SourceBankAccountName        string
+	SourceBankName               string
 	DestinationBankAccountNumber string
+	DestinationBankAccountName   string
+	DestinationBankName          string
 }
 
 type MoneyFlowSummaryDetailBySummaryIDOut struct {
@@ -228,7 +235,11 @@ type MoneyFlowSummaryDetailBySummaryIDOut struct {
 	TotalAmount                  decimal.Decimal
 	Status                       string
 	SourceBankAccountNumber      string
+	SourceBankAccountName        string
+	SourceBankName               string
 	DestinationBankAccountNumber string
+	DestinationBankAccountName   string
+	DestinationBankName          string
 }
 
 func (m MoneyFlowSummaryDetailBySummaryIDOut) ToModelResponse() MoneyFlowSummaryBySummaryIDOut {
@@ -244,13 +255,18 @@ func (m MoneyFlowSummaryDetailBySummaryIDOut) ToModelResponse() MoneyFlowSummary
 		TotalAmount:                  m.TotalAmount,
 		Status:                       m.Status,
 		SourceBankAccountNumber:      m.SourceBankAccountNumber,
+		SourceBankAccountName:        m.SourceBankAccountName,
+		SourceBankName:               m.SourceBankName,
 		DestinationBankAccountNumber: m.DestinationBankAccountNumber,
+		DestinationBankAccountName:   m.DestinationBankAccountName,
+		DestinationBankName:          m.DestinationBankName,
 	}
 }
 
 // DoGetDetailedTransactionsBySummaryIDRequest represents request to get detailed transactions
 type DoGetDetailedTransactionsBySummaryIDRequest struct {
 	SummaryID  string `param:"summaryID" example:"bbc15647-0e2e-4f3a-9b2b-a4a918d3f34b"`
+	RefNumber  string `query:"refNumber" example:"423423423523523"`
 	Limit      int    `query:"limit" example:"10"`
 	NextCursor string `query:"nextCursor" example:"2"`
 	PrevCursor string `query:"prevCursor" example:"1"`
@@ -259,6 +275,7 @@ type DoGetDetailedTransactionsBySummaryIDRequest struct {
 // DetailedTransactionFilterOptions represents filter options for detailed transactions query
 type DetailedTransactionFilterOptions struct {
 	SummaryID string
+	RefNumber string
 	Limit     int
 	Cursor    *DetailedTransactionCursor
 }
@@ -327,4 +344,99 @@ func (d DetailedTransactionOut) ToModelResponse() DetailedTransactionResponse {
 		Description:        d.Description,
 		Metadata:           metadata,
 	}
+}
+
+// UpdateMoneyFlowSummaryRequest represents the request body for updating summary
+type UpdateMoneyFlowSummaryRequest struct {
+	PaymentType       *string `json:"paymentType,omitempty" example:"MF_EARN_DIVEST"`
+	TotalTransfer     *string `json:"totalTransfer,omitempty" example:"24000"`
+	PapaTransactionID *string `json:"papaTransactionId,omitempty" example:"PAPA-123456"`
+	MoneyFlowStatus   *string `json:"moneyFlowStatus,omitempty" example:"COMPLETED"`
+	RequestedDate     *string `json:"requestedDate,omitempty" example:"2025-10-21T10:00:00Z"`
+	ActualDate        *string `json:"actualDate,omitempty" example:"2025-10-21T15:00:00Z"`
+}
+
+// DoUpdateSummaryRequest represents the path parameter for update
+type DoUpdateSummaryRequest struct {
+	SummaryID string `params:"summaryID" example:"bbc15647-0e2e-4f3a-9b2b-a4a918d3f34b"`
+}
+
+// UpdateMoneyFlowSummaryResponse represents the response after updating
+type UpdateMoneyFlowSummaryResponse struct {
+	Kind      string `json:"kind" example:"moneyFlowCalc"`
+	SummaryID string `json:"summaryId" example:"bbc15647-0e2e-4f3a-9b2b-a4a918d3f34b"`
+	Message   string `json:"message" example:"Money flow summary updated successfully"`
+}
+
+// ToUpdateModel converts request to MoneyFlowSummaryUpdate
+func (req UpdateMoneyFlowSummaryRequest) ToUpdateModel() (*MoneyFlowSummaryUpdate, error) {
+	update := &MoneyFlowSummaryUpdate{}
+
+	// Payment Type
+	if req.PaymentType != nil {
+		update.PaymentType = req.PaymentType
+	}
+
+	// Total Transfer
+	if req.TotalTransfer != nil {
+		amount, err := decimal.NewFromString(*req.TotalTransfer)
+		if err != nil {
+			return nil, fmt.Errorf("invalid totalTransfer format: %w", err)
+		}
+		update.TotalTransfer = &amount
+	}
+
+	// PAPA Transaction ID
+	if req.PapaTransactionID != nil {
+		update.PapaTransactionID = req.PapaTransactionID
+	}
+
+	// Money Flow Status
+	if req.MoneyFlowStatus != nil {
+		// Validate status
+		validStatuses := map[string]bool{
+			constants.MoneyFlowStatusPending:    true,
+			constants.MoneyFlowStatusSuccess:    true,
+			constants.MoneyFlowStatusFailed:     true,
+			constants.MoneyFlowStatusInProgress: true,
+			constants.MoneyFlowStatusRejected:   true,
+		}
+		if !validStatuses[*req.MoneyFlowStatus] {
+			return nil, fmt.Errorf("invalid moneyFlowStatus: must be PENDING, SUCCESS, IN_PROGRESS, REJECTED or FAILED")
+		}
+		update.MoneyFlowStatus = req.MoneyFlowStatus
+	}
+
+	// Requested Date
+	if req.RequestedDate != nil {
+		parsedDate, err := time.Parse(time.RFC3339, *req.RequestedDate)
+		if err != nil {
+			return nil, fmt.Errorf("invalid requestedDate format: must be RFC3339 (ISO8601): %w", err)
+		}
+		update.RequestedDate = &parsedDate
+	}
+
+	// Actual Date
+	if req.ActualDate != nil {
+		parsedDate, err := time.Parse(time.RFC3339, *req.ActualDate)
+		if err != nil {
+			return nil, fmt.Errorf("invalid actualDate format: must be RFC3339 (ISO8601): %w", err)
+		}
+		update.ActualDate = &parsedDate
+	}
+
+	return update, nil
+}
+
+// Validate checks if at least one field is provided for update
+func (req UpdateMoneyFlowSummaryRequest) Validate() error {
+	if req.PaymentType == nil &&
+		req.TotalTransfer == nil &&
+		req.PapaTransactionID == nil &&
+		req.MoneyFlowStatus == nil &&
+		req.RequestedDate == nil &&
+		req.ActualDate == nil {
+		return fmt.Errorf("at least one field must be provided for update")
+	}
+	return nil
 }

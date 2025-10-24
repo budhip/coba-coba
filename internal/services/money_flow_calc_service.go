@@ -25,6 +25,7 @@ type MoneyFlowService interface {
 	GetSummariesList(ctx context.Context, opts models.MoneyFlowSummaryFilterOptions) ([]models.MoneyFlowSummaryOut, int, error)
 	GetSummaryDetailBySummaryID(ctx context.Context, summaryID string) (result models.MoneyFlowSummaryDetailBySummaryIDOut, err error)
 	GetDetailedTransactionsBySummaryID(ctx context.Context, summaryID string, opts models.DetailedTransactionFilterOptions) ([]models.DetailedTransactionOut, int, error)
+	UpdateSummary(ctx context.Context, summaryID string, req models.UpdateMoneyFlowSummaryRequest) error
 }
 
 type moneyFlowCalc service
@@ -286,4 +287,43 @@ func (mf *moneyFlowCalc) GetDetailedTransactionsBySummaryID(ctx context.Context,
 	}
 
 	return transactions, total, nil
+}
+
+func (mf *moneyFlowCalc) UpdateSummary(ctx context.Context, summaryID string, req models.UpdateMoneyFlowSummaryRequest) error {
+	var err error
+
+	monitor := monitoring.New(ctx)
+	defer monitor.Finish(monitoring.WithFinishCheckError(err))
+
+	// Validate request
+	if err = req.Validate(); err != nil {
+		return err
+	}
+
+	// Convert request to update model
+	updateModel, err := req.ToUpdateModel()
+	if err != nil {
+		return err
+	}
+
+	// Check if summary exists
+	_, err = mf.srv.sqlRepo.GetMoneyFlowCalcRepository().GetSummaryDetailBySummaryID(ctx, summaryID)
+	if err != nil {
+		err = checkDatabaseError(err, models.ErrKeySummaryIdnotFound)
+		return err
+	}
+
+	// Update summary
+	err = mf.srv.sqlRepo.GetMoneyFlowCalcRepository().UpdateSummary(ctx, summaryID, *updateModel)
+	if err != nil {
+		xlog.Error(ctx, "[MONEY-FLOW-UPDATE] Failed to update summary",
+			xlog.String("summary_id", summaryID),
+			xlog.Err(err))
+		return fmt.Errorf("failed to update money flow summary: %w", err)
+	}
+
+	xlog.Info(ctx, "[MONEY-FLOW-UPDATE] Successfully updated money flow summary",
+		xlog.String("summary_id", summaryID))
+
+	return nil
 }

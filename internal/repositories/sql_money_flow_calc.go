@@ -73,7 +73,8 @@ const (
 		SELECT
 		    id, payment_type, created_at, requested_date, actual_date,
 			total_transfer, money_flow_status, 
-			source_bank_account_number, destination_bank_account_number
+			source_bank_account_number, source_bank_account_name, source_bank_name,
+			destination_bank_account_number, destination_bank_account_name, destination_bank_name
 		FROM money_flow_summaries
 		WHERE id = $1
 	`
@@ -359,7 +360,11 @@ func (mfr *moneyFlowRepository) GetSummaryDetailBySummaryID(ctx context.Context,
 		&result.TotalAmount,
 		&result.Status,
 		&result.SourceBankAccountNumber,
+		&result.SourceBankAccountName,
+		&result.SourceBankName,
 		&result.DestinationBankAccountNumber,
+		&result.DestinationBankAccountName,
+		&result.DestinationBankName,
 	)
 	if err != nil {
 		return

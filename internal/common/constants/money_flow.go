@@ -1,11 +1,13 @@
 package constants
 
 const (
-	MoneyFlowStatusPending   = "PENDING"
-	MoneyFlowStatusCompleted = "COMPLETED"
-	MoneyFlowStatusFailed    = "FAILED"
-	MoneyFlowKind            = "moneyFlowCalc"
-	MoneyFlowReferencePrefix = "MFC-"
+	MoneyFlowStatusPending    = "PENDING"
+	MoneyFlowStatusFailed     = "FAILED"
+	MoneyFlowStatusSuccess    = "SUCCESS"
+	MoneyFlowStatusInProgress = "IN_PROGRESS"
+	MoneyFlowStatusRejected   = "REJECTED"
+	MoneyFlowKind             = "moneyFlowCalc"
+	MoneyFlowReferencePrefix  = "MFC-"
 )
 
 const (

@@ -133,3 +133,17 @@ func (mr *MockMoneyFlowServiceMockRecorder) ProcessTransactionStream(ctx, arg1 a
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProcessTransactionStream", reflect.TypeOf((*MockMoneyFlowService)(nil).ProcessTransactionStream), ctx, arg1)
 }
+
+// UpdateSummary mocks base method.
+func (m *MockMoneyFlowService) UpdateSummary(ctx context.Context, summaryID string, req models.UpdateMoneyFlowSummaryRequest) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateSummary", ctx, summaryID, req)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateSummary indicates an expected call of UpdateSummary.
+func (mr *MockMoneyFlowServiceMockRecorder) UpdateSummary(ctx, summaryID, req any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSummary", reflect.TypeOf((*MockMoneyFlowService)(nil).UpdateSummary), ctx, summaryID, req)
+}

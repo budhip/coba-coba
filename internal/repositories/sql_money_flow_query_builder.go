@@ -28,8 +28,19 @@ func (qb *MoneyFlowQueryBuilder) applyCommonFilters(query sq.SelectBuilder, opts
 		query = query.Where(sq.Eq{`mfs."payment_type"`: opts.PaymentType})
 	}
 
-	if opts.TransactionSourceCreationDate != nil {
-		query = query.Where(sq.Eq{`mfs."transaction_source_creation_date"`: opts.TransactionSourceCreationDate})
+	// Handle date range filtering
+	if opts.TransactionSourceCreationDateStart != nil && opts.TransactionSourceCreationDateEnd != nil {
+		// Both start and end dates provided - use BETWEEN
+		query = query.Where(sq.And{
+			sq.GtOrEq{`mfs."transaction_source_creation_date"`: opts.TransactionSourceCreationDateStart},
+			sq.LtOrEq{`mfs."transaction_source_creation_date"`: opts.TransactionSourceCreationDateEnd},
+		})
+	} else if opts.TransactionSourceCreationDateStart != nil {
+		// Only start date provided
+		query = query.Where(sq.GtOrEq{`mfs."transaction_source_creation_date"`: opts.TransactionSourceCreationDateStart})
+	} else if opts.TransactionSourceCreationDateEnd != nil {
+		// Only end date provided
+		query = query.Where(sq.LtOrEq{`mfs."transaction_source_creation_date"`: opts.TransactionSourceCreationDateEnd})
 	}
 
 	if opts.Status != "" {
@@ -107,6 +118,11 @@ func (qb *MoneyFlowQueryBuilder) BuildDetailedTransactionsQuery(opts models.Deta
 		From("detailed_money_flow_summaries as dmfs").
 		InnerJoin(`transaction t ON t."transactionId" = dmfs.acuan_transaction_id`).
 		Where(sq.Eq{`dmfs."summary_id"`: opts.SummaryID})
+
+	// Add refNumber filter if provided
+	if opts.RefNumber != "" {
+		query = query.Where(sq.Eq{`t."refNumber"`: opts.RefNumber})
+	}
 
 	// Apply cursor pagination for detailed transactions
 	if opts.Cursor != nil {

@@ -15,12 +15,22 @@ func (req GetMoneyFlowSummaryRequest) ToFilterOpts() (*MoneyFlowSummaryFilterOpt
 		Status:      req.Status,
 	}
 
-	if req.TransactionSourceCreationDate != "" {
-		date, err := common.ParseStringToDatetime(constants.DateFormatYYYYMMDD, req.TransactionSourceCreationDate)
+	// Parse start date
+	if req.TransactionSourceCreationDateStart != "" {
+		date, err := common.ParseStringToDatetime(constants.DateFormatYYYYMMDD, req.TransactionSourceCreationDateStart)
 		if err != nil {
-			return nil, GetErrMap(ErrKeyInvalidFormatDate, fmt.Sprintf("date %s format must be YYYY-MM-DD", req.TransactionSourceCreationDate))
+			return nil, GetErrMap(ErrKeyInvalidFormatDate, fmt.Sprintf("transactionSourceCreationDateStart %s format must be YYYY-MM-DD", req.TransactionSourceCreationDateStart))
 		}
-		opts.TransactionSourceCreationDate = &date
+		opts.TransactionSourceCreationDateStart = &date
+	}
+
+	// Parse end date
+	if req.TransactionSourceCreationDateEnd != "" {
+		date, err := common.ParseStringToDatetime(constants.DateFormatYYYYMMDD, req.TransactionSourceCreationDateEnd)
+		if err != nil {
+			return nil, GetErrMap(ErrKeyInvalidFormatDate, fmt.Sprintf("transactionSourceCreationDateEnd %s format must be YYYY-MM-DD", req.TransactionSourceCreationDateEnd))
+		}
+		opts.TransactionSourceCreationDateEnd = &date
 	}
 
 	paginationOpts := pagination.Options{
@@ -55,6 +65,7 @@ func (m MoneyFlowSummaryOut) GetCursor() string {
 func (req DoGetDetailedTransactionsBySummaryIDRequest) ToFilterOpts() (*DetailedTransactionFilterOptions, error) {
 	opts := &DetailedTransactionFilterOptions{
 		SummaryID: req.SummaryID,
+		RefNumber: req.RefNumber,
 	}
 
 	paginationOpts := pagination.Options{
