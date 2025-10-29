@@ -704,11 +704,17 @@ func (ts *transaction) CollectRepayment(ctx context.Context) (out *models.Collec
 	monitor := monitoring.New(ctx)
 	defer monitor.Finish(monitoring.WithFinishCheckError(err))
 
+	yesterday := common.Now().AddDate(0, 0, -1)
+
+	xlog.Infof(ctx, "start collect repayment with date : %s", yesterday)
+
 	trxRepo := ts.srv.sqlRepo.GetTransactionRepository()
-	out, err = trxRepo.ColectRepayment(ctx, common.Now().AddDate(0, 0, -1).Truncate(24*time.Hour))
+	out, err = trxRepo.ColectRepayment(ctx, yesterday)
 	if err != nil {
 		return out, err
 	}
+
+	xlog.Infof(ctx, "finish collect repayment with date : %s", yesterday)
 
 	return out, nil
 }

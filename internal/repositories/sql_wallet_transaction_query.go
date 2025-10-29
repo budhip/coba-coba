@@ -203,6 +203,10 @@ func buildUpdateWalletTrx(id string, data models.WalletTransactionUpdate) (sql s
 		query = query.Set(`"status"`, data.Status)
 	}
 
+	if data.Metadata != nil {
+		query = query.Set(`"metadata"`, data.Metadata)
+	}
+
 	query = query.Suffix(`RETURNING
 			"id", "status", "accountNumber", "destinationAccountNumber", "refNumber", 
 			"transactionType", "transactionTime", "transactionFlow",

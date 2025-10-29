@@ -209,6 +209,7 @@ func NewMapTransformer(
 		"RFDPC": &rfdpcTransformer{baseTransformer},
 		"RFDPP": &rfdppTransformer{baseTransformer},
 		"RFDPV": &rfdpvTransformer{baseTransformer},
+		"RFDQR": &rfdqrTransformer{baseTransformer},
 		"RFDMT": &rfdmtTransformer{baseTransformer},
 		"RFDPR": &rfdprTransformer{baseTransformer},
 		"RFDPY": &rfdpyTransformer{baseTransformer},

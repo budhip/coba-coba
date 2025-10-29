@@ -226,7 +226,7 @@ func (suite *walletTransactionTestSuite) TestRepository_Update() {
 	ct := time.Now()
 	statusSuccess := models.WalletTransactionStatusSuccess
 	amount := decimal.NewFromFloat(100)
-	query := `UPDATE wallet_transaction SET "transactionTime" = $1, "status" = $2 WHERE id = $3 RETURNING
+	query := `UPDATE wallet_transaction SET "transactionTime" = $1, "status" = $2, "metadata" = $3 WHERE id = $4 RETURNING
 			"id", "status", "accountNumber", "destinationAccountNumber", "refNumber", 
 			"transactionType", "transactionTime", "transactionFlow",
 			"netAmount", "breakdownAmounts",
@@ -251,6 +251,7 @@ func (suite *walletTransactionTestSuite) TestRepository_Update() {
 				data: models.WalletTransactionUpdate{
 					Status:          &statusSuccess,
 					TransactionTime: &ct,
+					Metadata:        &models.WalletMetadata{"king": "kong"},
 				},
 			},
 			setupMocks: func(args args) {
@@ -297,6 +298,7 @@ func (suite *walletTransactionTestSuite) TestRepository_Update() {
 				data: models.WalletTransactionUpdate{
 					Status:          &statusSuccess,
 					TransactionTime: &ct,
+					Metadata:        &models.WalletMetadata{"king": "kong"},
 				},
 			},
 			setupMocks: func(args args) {

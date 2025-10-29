@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -26,6 +27,7 @@ type MoneyFlowService interface {
 	GetSummaryDetailBySummaryID(ctx context.Context, summaryID string) (result models.MoneyFlowSummaryDetailBySummaryIDOut, err error)
 	GetDetailedTransactionsBySummaryID(ctx context.Context, summaryID string, opts models.DetailedTransactionFilterOptions) ([]models.DetailedTransactionOut, int, error)
 	UpdateSummary(ctx context.Context, summaryID string, req models.UpdateMoneyFlowSummaryRequest) error
+	DownloadDetailedTransactionsBySummaryID(ctx context.Context, req models.DownloadDetailedTransactionsRequest) error
 }
 
 type moneyFlowCalc service
@@ -207,8 +209,20 @@ func (mf *moneyFlowCalc) ProcessTransactionStream(ctx context.Context, event gop
 	}
 
 	status := event.Status.ConvertSingleAPI().ToString()
-	updateReq := models.MoneyFlowSummaryUpdate{
-		MoneyFlowStatus: &status,
+
+	var updateReq models.MoneyFlowSummaryUpdate
+
+	if status == "SUCCESSFUL" {
+		currentTime := time.Now()
+
+		updateReq = models.MoneyFlowSummaryUpdate{
+			MoneyFlowStatus: &status,
+			ActualDate:      &currentTime,
+		}
+	} else {
+		updateReq = models.MoneyFlowSummaryUpdate{
+			MoneyFlowStatus: &status,
+		}
 	}
 
 	err = mf.srv.sqlRepo.GetMoneyFlowCalcRepository().UpdateSummary(ctx, summaryID, updateReq)
@@ -324,6 +338,69 @@ func (mf *moneyFlowCalc) UpdateSummary(ctx context.Context, summaryID string, re
 
 	xlog.Info(ctx, "[MONEY-FLOW-UPDATE] Successfully updated money flow summary",
 		xlog.String("summary_id", summaryID))
+
+	return nil
+}
+
+// DownloadDetailedTransactionsBySummaryID downloads detailed transactions as CSV
+func (mf *moneyFlowCalc) DownloadDetailedTransactionsBySummaryID(ctx context.Context, req models.DownloadDetailedTransactionsRequest) error {
+	var err error
+
+	monitor := monitoring.New(ctx)
+	defer monitor.Finish(monitoring.WithFinishCheckError(err))
+
+	mfsRepo := mf.srv.sqlRepo.GetMoneyFlowCalcRepository()
+
+	// Check if summary exists
+	_, err = mfsRepo.GetSummaryDetailBySummaryID(ctx, req.SummaryID)
+	if err != nil {
+		err = checkDatabaseError(err, models.ErrKeySummaryIdnotFound)
+		return err
+	}
+
+	// Get all detailed transactions
+	transactions, err := mfsRepo.GetAllDetailedTransactionsBySummaryID(ctx, req.SummaryID, req.RefNumber)
+	if err != nil {
+		return fmt.Errorf("failed to get detailed transactions: %w", err)
+	}
+
+	// Create CSV writer
+	writer := csv.NewWriter(req.Writer)
+	defer writer.Flush()
+
+	// Write header
+	header := []string{
+		"transactionDate",
+		"transactionId",
+		"reffNumb",
+		"typeTransaction",
+		"fromAccount",
+		"toAccount",
+		"amount",
+		"description",
+		"metadata",
+	}
+	if err := writer.Write(header); err != nil {
+		return fmt.Errorf("failed to write CSV header: %w", err)
+	}
+
+	// Write data rows
+	for _, trx := range transactions {
+		record := []string{
+			trx.TransactionDate.Format(constants.DateFormatYYYYMMDD),
+			trx.TransactionID,
+			trx.RefNumber,
+			trx.TypeTransaction,
+			trx.SourceAccount,
+			trx.DestinationAccount,
+			trx.Amount.String(),
+			trx.Description,
+			trx.Metadata,
+		}
+		if err := writer.Write(record); err != nil {
+			return fmt.Errorf("failed to write CSV row: %w", err)
+		}
+	}
 
 	return nil
 }

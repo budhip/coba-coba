@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	sq "github.com/Masterminds/squirrel"
 	"strings"
 	"time"
 
@@ -26,6 +27,7 @@ type MoneyFlowRepository interface {
 	GetSummaryDetailBySummaryID(ctx context.Context, summaryID string) (result models.MoneyFlowSummaryDetailBySummaryIDOut, err error)
 	GetDetailedTransactionsBySummaryID(ctx context.Context, opts models.DetailedTransactionFilterOptions) ([]models.DetailedTransactionOut, error)
 	CountDetailedTransactions(ctx context.Context, summaryID string) (total int, err error)
+	GetAllDetailedTransactionsBySummaryID(ctx context.Context, summaryID string, refNumber string) ([]models.DetailedTransactionOut, error)
 }
 
 type moneyFlowRepository sqlRepo
@@ -433,4 +435,77 @@ func (mfr *moneyFlowRepository) CountDetailedTransactions(ctx context.Context, s
 	}
 
 	return total, nil
+}
+
+// GetAllDetailedTransactionsBySummaryID gets all detailed transactions without pagination
+func (mfr *moneyFlowRepository) GetAllDetailedTransactionsBySummaryID(ctx context.Context, summaryID string, refNumber string) ([]models.DetailedTransactionOut, error) {
+	var err error
+
+	monitor := monitoring.New(ctx)
+	defer monitor.Finish(monitoring.WithFinishCheckError(err))
+
+	db := mfr.r.extractTxRead(ctx)
+
+	columns := []string{
+		`dmfs."id"`,
+		`t."transactionId"`,
+		`t."transactionDate"`,
+		`t."refNumber"`,
+		`t."typeTransaction"`,
+		`t."fromAccount"`,
+		`t."toAccount"`,
+		`t."amount"`,
+		`t."description"`,
+		`COALESCE(t."metadata", '{}'::jsonb) as "metadata"`,
+	}
+
+	query := sq.StatementBuilder.PlaceholderFormat(sq.Dollar).
+		Select(columns...).
+		From("detailed_money_flow_summaries as dmfs").
+		InnerJoin(`transaction t ON t."transactionId" = dmfs.acuan_transaction_id`).
+		Where(sq.Eq{`dmfs."summary_id"`: summaryID}).
+		OrderBy(`t."transactionDate" ASC, dmfs."id" ASC`)
+
+	// Add refNumber filter if provided
+	if refNumber != "" {
+		query = query.Where(sq.Eq{`t."refNumber"`: refNumber})
+	}
+
+	sql, args, err := query.ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build query: %w", err)
+	}
+
+	rows, err := db.QueryContext(ctx, sql, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []models.DetailedTransactionOut
+	for rows.Next() {
+		var dt models.DetailedTransactionOut
+		err = rows.Scan(
+			&dt.ID,
+			&dt.TransactionID,
+			&dt.TransactionDate,
+			&dt.RefNumber,
+			&dt.TypeTransaction,
+			&dt.SourceAccount,
+			&dt.DestinationAccount,
+			&dt.Amount,
+			&dt.Description,
+			&dt.Metadata,
+		)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, dt)
+	}
+
+	if rows.Err() != nil {
+		return nil, rows.Err()
+	}
+
+	return result, nil
 }

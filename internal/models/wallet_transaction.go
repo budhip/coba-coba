@@ -244,9 +244,10 @@ func (nw NewWalletTransaction) ToWalletTransaction() WalletTransaction {
 
 // UpdateStatusWalletTransactionRequest is DTO object from handler
 type UpdateStatusWalletTransactionRequest struct {
-	TransactionId      string `json:"-" validate:"required"`
-	Action             string `json:"action" example:"commit" validate:"required,oneof=commit cancel"`
-	RawTransactionTime string `json:"transactionTime" validate:"iso8601datetime"`
+	TransactionId      string         `json:"-" validate:"required"`
+	Action             string         `json:"action" example:"commit" validate:"required,oneof=commit cancel"`
+	RawTransactionTime string         `json:"transactionTime" validate:"iso8601datetime"`
+	Metadata           WalletMetadata `json:"metadata"`
 
 	TransactionTime time.Time `json:"-"`
 
@@ -285,4 +286,5 @@ type UpdateStatusWalletTransactionResponse struct {
 type WalletTransactionUpdate struct {
 	Status          *WalletTransactionStatus
 	TransactionTime *time.Time
+	Metadata        *WalletMetadata
 }

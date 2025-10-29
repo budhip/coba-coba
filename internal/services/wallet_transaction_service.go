@@ -289,10 +289,14 @@ func (ts *walletTrx) ProcessReservedTransaction(ctx context.Context, req models.
 		walletTrxRepo := r.GetWalletTransactionRepository()
 		acuanTrxRepo := r.GetTransactionRepository()
 
+		// merge metadata
+		maps.Copy(walletTrx.Metadata, req.Metadata)
+
 		// Update parent transaction to wallet_transaction table
 		walletTrx, errAtomic = walletTrxRepo.Update(atomicCtx, req.TransactionId, models.WalletTransactionUpdate{
 			Status:          &nextWalletTrxStatus,
 			TransactionTime: &req.TransactionTime,
+			Metadata:        &walletTrx.Metadata,
 		})
 		if errAtomic != nil {
 			return fmt.Errorf("unable to update status: %w", errAtomic)

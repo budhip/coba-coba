@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"time"
 
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common/constants"
@@ -439,4 +440,17 @@ func (req UpdateMoneyFlowSummaryRequest) Validate() error {
 		return fmt.Errorf("at least one field must be provided for update")
 	}
 	return nil
+}
+
+// DoDownloadDetailedTransactionsBySummaryIDRequest represents request to download detailed transactions
+type DoDownloadDetailedTransactionsBySummaryIDRequest struct {
+	SummaryID string `param:"summaryID" example:"bbc15647-0e2e-4f3a-9b2b-a4a918d3f34b"`
+	RefNumber string `query:"refNumber" example:"423423423523523"`
+}
+
+// DownloadDetailedTransactionsRequest represents download request with writer
+type DownloadDetailedTransactionsRequest struct {
+	SummaryID string
+	RefNumber string
+	Writer    io.Writer
 }

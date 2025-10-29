@@ -1,0 +1,63 @@
+replicaCount: 5
+
+env: prod
+
+image:
+  repository: asia-southeast2-docker.pkg.dev/amartha-ewallet-dev-370304/docker/go-fp-transaction
+  pullPolicy: IfNotPresent
+  tag: ""
+
+args:
+  - ./go-fp-transaction-consumer
+  - run
+  - "-n=transaction_stream"
+
+serviceAccount:
+  create: true
+  annotations:
+    iam.gke.io/gcp-service-account: go-fp-transaction-consumer@amartha-ewallet-prod.iam.gserviceaccount.com
+  name: ""
+
+
+readinessProbe:
+  failureThreshold: 10
+  httpGet:
+    path: /api/health
+    port: 80
+    scheme: HTTP
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  successThreshold: 1
+  timeoutSeconds: 10
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 256Mi
+  requests:
+    cpu: 500m
+    memory: 256Mi
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "80"
+  prometheus.io/path: "/metrics"
+
+vault:
+  enabled: true
+  secrets:
+    app:
+      secretPath: apps/payments/GO_FP_TRANSACTION
+    db:
+      secretPath: database/payments/GO_FP_TRANSACTION
+volumes:
+  - name: config
+    secret:
+      secretName: go-fp-transaction-consumer-transactionstream-vault-app
+      items:
+        - key: config.yaml
+          path: config.yaml
+volumeMounts:
+  - name: config
+    readOnly: true
+    mountPath: /config

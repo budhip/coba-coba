@@ -1,6 +1,10 @@
 package money_flow_summaries
 
 import (
+	"fmt"
+	"os"
+	"time"
+
 	nethttp "net/http"
 
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common/constants"
@@ -26,6 +30,7 @@ func New(app *echo.Group, moneyFlowSvc services.MoneyFlowService) {
 	api.GET("/:summaryID", handler.getSummaryDetailBySummaryID)
 	api.GET("/:summaryID/transactions", handler.getDetailedTransactionsBySummaryID)
 	api.PATCH("/:summaryID", handler.updateSummary)
+	api.GET("/:summaryID/transactions/download", handler.downloadDetailedTransactionsBySummaryID)
 }
 
 // getList API to get money flow summary with filters
@@ -172,4 +177,67 @@ func (h *moneyFlowSummariesHandler) updateSummary(c echo.Context) error {
 
 	return http.RestSuccessResponse(c, nethttp.StatusOK, response)
 
+}
+
+// @Summary 	Download detailed transactions by summary id as CSV
+// @Description Download detailed list of transactions by summary id in CSV format
+// @Tags 		MoneyFlowSummary
+// @Accept		json
+// @Produce		text/csv
+// @Param 		summaryID path string true "summary identifier"
+// @Param		X-Secret-Key header string true "X-Secret-Key"
+// @Param   	refNumber query string false "Reference number filter"
+// @Success 	200 {file} file "CSV file"
+// @Failure 	400 {object} http.RestErrorResponseModel "Bad request error"
+// @Failure 	404 {object} http.RestErrorResponseModel "Data not found"
+// @Failure 	500 {object} http.RestErrorResponseModel "Internal server error"
+// @Router /v1/money-flow-summaries/{summaryID}/transactions/download [get]
+func (h *moneyFlowSummariesHandler) downloadDetailedTransactionsBySummaryID(c echo.Context) error {
+	req := new(models.DoDownloadDetailedTransactionsBySummaryIDRequest)
+
+	summaryID := c.Param("summaryID")
+	req.SummaryID = summaryID
+
+	if err := c.Bind(req); err != nil {
+		return http.RestErrorResponse(c, nethttp.StatusBadRequest, err)
+	}
+
+	// Create temporary file
+	file, err := os.CreateTemp("", "detailed_transactions_*.csv")
+	if err != nil {
+		return http.RestErrorResponse(c, nethttp.StatusInternalServerError, err)
+	}
+	defer os.Remove(file.Name()) // Clean up temporary file
+
+	// Download to temporary file
+	err = h.moneyFlowService.DownloadDetailedTransactionsBySummaryID(
+		c.Request().Context(),
+		models.DownloadDetailedTransactionsRequest{
+			SummaryID: summaryID,
+			RefNumber: req.RefNumber,
+			Writer:    file,
+		},
+	)
+	if err != nil {
+		file.Close()
+		return http.HandleRepositoryError(c, err)
+	}
+
+	// Close file before serving
+	err = file.Close()
+	if err != nil {
+		return http.RestErrorResponse(c, nethttp.StatusInternalServerError, err)
+	}
+
+	// Serve file
+	err = c.File(file.Name())
+	if err != nil {
+		return http.RestErrorResponse(c, nethttp.StatusInternalServerError, err)
+	}
+
+	// Generate filename
+	timestamp := time.Now().Format("20060102")
+	filename := fmt.Sprintf("detailed_transactions_%s_%s.csv", summaryID, timestamp)
+
+	return http.CSVSuccessResponse(c, filename)
 }
