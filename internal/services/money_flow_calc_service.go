@@ -40,15 +40,12 @@ func (mf *moneyFlowCalc) CheckEligibleTransaction(ctx context.Context, paymentTy
 	monitor := monitoring.New(ctx)
 	defer monitor.Finish(monitoring.WithFinishCheckError(err))
 
-	variant := mf.srv.flag.GetVariant(mf.srv.conf.FeatureFlagKeyLookup.MoneyFlowCalcBusinessRulesConfig)
-
-	var businessRulesData models.BusinessRulesConfigs
-	err = json.Unmarshal([]byte(variant.Payload.Value), &businessRulesData)
+	businessRulesData, err := mf.loadBusinessRules(ctx)
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to unmarshal business rules: %w", err)
+		return nil, "", err
 	}
 
-	helper := NewBusinessRulesHelper(&businessRulesData)
+	helper := NewBusinessRulesHelper(businessRulesData)
 
 	if paymentType == "" {
 		return helper.GetByTransactionType(breakdownTransactionType)
@@ -403,4 +400,35 @@ func (mf *moneyFlowCalc) DownloadDetailedTransactionsBySummaryID(ctx context.Con
 	}
 
 	return nil
+}
+
+// loadBusinessRules loads and validates business rules from feature flag
+func (mf *moneyFlowCalc) loadBusinessRules(ctx context.Context) (*models.BusinessRulesConfigs, error) {
+	variant := mf.srv.flag.GetVariant(mf.srv.conf.FeatureFlagKeyLookup.MoneyFlowCalcBusinessRulesConfig)
+
+	if variant == nil {
+		return nil, fmt.Errorf("feature flag variant not found")
+	}
+
+	if !variant.Enabled {
+		return nil, fmt.Errorf("feature flag variant is disabled")
+	}
+
+	if variant.Payload.Value == "" {
+		return nil, fmt.Errorf("feature flag variant has empty payload")
+	}
+
+	var businessRulesData models.BusinessRulesConfigs
+	if err := json.Unmarshal([]byte(variant.Payload.Value), &businessRulesData); err != nil {
+		xlog.Error(ctx, "[MONEY-FLOW-CALC] Failed to unmarshal business rules",
+			xlog.String("payload", variant.Payload.Value),
+			xlog.Err(err))
+		return nil, fmt.Errorf("failed to unmarshal business rules: %w", err)
+	}
+
+	if len(businessRulesData.PaymentConfigs) == 0 {
+		return nil, fmt.Errorf("business rules config is empty")
+	}
+
+	return &businessRulesData, nil
 }

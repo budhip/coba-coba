@@ -101,6 +101,21 @@ func (mr *MockMoneyFlowRepositoryMockRecorder) CreateSummary(ctx, in any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateSummary", reflect.TypeOf((*MockMoneyFlowRepository)(nil).CreateSummary), ctx, in)
 }
 
+// GetAllDetailedTransactionsBySummaryID mocks base method.
+func (m *MockMoneyFlowRepository) GetAllDetailedTransactionsBySummaryID(ctx context.Context, summaryID, refNumber string) ([]models.DetailedTransactionOut, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAllDetailedTransactionsBySummaryID", ctx, summaryID, refNumber)
+	ret0, _ := ret[0].([]models.DetailedTransactionOut)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAllDetailedTransactionsBySummaryID indicates an expected call of GetAllDetailedTransactionsBySummaryID.
+func (mr *MockMoneyFlowRepositoryMockRecorder) GetAllDetailedTransactionsBySummaryID(ctx, summaryID, refNumber any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllDetailedTransactionsBySummaryID", reflect.TypeOf((*MockMoneyFlowRepository)(nil).GetAllDetailedTransactionsBySummaryID), ctx, summaryID, refNumber)
+}
+
 // GetDetailedTransactionsBySummaryID mocks base method.
 func (m *MockMoneyFlowRepository) GetDetailedTransactionsBySummaryID(ctx context.Context, opts models.DetailedTransactionFilterOptions) ([]models.DetailedTransactionOut, error) {
 	m.ctrl.T.Helper()

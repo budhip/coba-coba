@@ -18,7 +18,7 @@ func NewBusinessRulesHelper(configs *models.BusinessRulesConfigs) *BusinessRules
 
 // GetByPaymentType retrieves business rule config by payment type
 func (h *BusinessRulesHelper) GetByPaymentType(paymentType string) (*models.BusinessRuleConfig, error) {
-	config, exists := h.configs.BusinessRulesConfigs[paymentType]
+	config, exists := h.configs.PaymentConfigs[paymentType]
 	if !exists {
 		return nil, fmt.Errorf("payment type not found: %s", paymentType)
 	}

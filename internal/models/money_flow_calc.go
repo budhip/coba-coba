@@ -102,7 +102,7 @@ type MoneyFlowSummaryUpdate struct {
 }
 
 type BusinessRulesConfigs struct {
-	BusinessRulesConfigs    map[string]BusinessRuleConfig `json:"payment_configs"`
+	PaymentConfigs          map[string]BusinessRuleConfig `json:"payment_configs"`
 	TransactionToPaymentMap map[string]string             `json:"transaction_to_payment_map"`
 }
 

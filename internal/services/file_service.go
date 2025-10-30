@@ -189,6 +189,11 @@ func (s *file) sendErrorToEmail(ctx context.Context, fileBuffer bytes.Buffer, re
 		Subject:  "ERROR UPLOAD MANUAL TRANSACTION",
 		To:       reportTo,
 		Template: "2024-mis-internal",
+		CC: []ddd_notification.Cc{
+			{
+				Email: "finance.platform@amartha.com",
+			},
+		},
 		Attachments: []ddd_notification.Attachment{
 			{
 				Type:    "text/csv",
