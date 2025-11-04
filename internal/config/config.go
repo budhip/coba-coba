@@ -98,6 +98,7 @@ type (
 
 	TransactionConfig struct {
 		BatchSize                          int           `json:"batch_size"`
+		DownloadSize                       int           `json:"download_size"`
 		BalanceTTL                         time.Duration `json:"balance_ttl"`
 		HandlerTimeoutWalletTransaction    time.Duration `json:"handler_timeout_wallet_transaction"`
 		TransactionTimeUploadMaxWindowDays int           `json:"transaction_time_upload_max_window_days"`

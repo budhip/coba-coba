@@ -3,6 +3,7 @@ package money_flow_summaries
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	nethttp "net/http"
@@ -135,7 +136,7 @@ func (h *moneyFlowSummariesHandler) getDetailedTransactionsBySummaryID(c echo.Co
 }
 
 // @Summary 	Update money flow summary
-// @Description Update money flow summary by summary ID. At least one field must be provided for update.
+// @Description Update money flow summary by summary ID. At least one field must be provided for update. Status transitions are validated: PENDING→IN_PROGRESS, IN_PROGRESS→SUCCESS/FAILED/REJECTED. When status changes to IN_PROGRESS, requestedDate is auto-filled and papaTransactionId is required.
 // @Tags 		MoneyFlowSummary
 // @Accept		json
 // @Produce		json
@@ -143,7 +144,7 @@ func (h *moneyFlowSummariesHandler) getDetailedTransactionsBySummaryID(c echo.Co
 // @Param		X-Secret-Key header string true "X-Secret-Key"
 // @Param   	body body models.UpdateMoneyFlowSummaryRequest true "Update summary request body"
 // @Success 	200 {object} models.UpdateMoneyFlowSummaryResponse "Response indicates that the summary has been updated successfully"
-// @Failure 	400 {object} http.RestErrorResponseModel "Bad request error. This can happen if validation fails or no fields provided"
+// @Failure 	400 {object} http.RestErrorResponseModel "Bad request error. This can happen if validation fails, no fields provided, or invalid status transition"
 // @Failure 	404 {object} http.RestErrorResponseModel "Data not found. This can happen if summary ID not found"
 // @Failure 	422 {object} http.RestErrorResponseModel "Unprocessable entity. This can happen if data format is invalid"
 // @Failure 	500 {object} http.RestErrorResponseModel "Internal server error. This can happen if there is an error while updating summary"
@@ -162,9 +163,16 @@ func (h *moneyFlowSummariesHandler) updateSummary(c echo.Context) error {
 		return http.RestErrorResponse(c, nethttp.StatusBadRequest, err)
 	}
 
-	// Call service to update summary
+	// Call service to update summary (validation logic is in service layer)
 	err := h.moneyFlowService.UpdateSummary(c.Request().Context(), summaryID, *req)
 	if err != nil {
+		// Check if it's a validation error (status transition, IN_PROGRESS requirements, etc.)
+		errMsg := err.Error()
+		if strings.Contains(errMsg, "transition") ||
+			strings.Contains(errMsg, "required") ||
+			strings.Contains(errMsg, "not allowed") {
+			return http.RestErrorResponse(c, nethttp.StatusBadRequest, err)
+		}
 		return http.HandleRepositoryError(c, err)
 	}
 
@@ -176,7 +184,6 @@ func (h *moneyFlowSummariesHandler) updateSummary(c echo.Context) error {
 	}
 
 	return http.RestSuccessResponse(c, nethttp.StatusOK, response)
-
 }
 
 // @Summary 	Download detailed transactions by summary id as CSV

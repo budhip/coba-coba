@@ -349,12 +349,12 @@ func (d DetailedTransactionOut) ToModelResponse() DetailedTransactionResponse {
 
 // UpdateMoneyFlowSummaryRequest represents the request body for updating summary
 type UpdateMoneyFlowSummaryRequest struct {
-	PaymentType       *string `json:"paymentType,omitempty" example:"MF_EARN_DIVEST"`
-	TotalTransfer     *string `json:"totalTransfer,omitempty" example:"24000"`
+	//PaymentType       *string `json:"paymentType,omitempty" example:"MF_EARN_DIVEST"`
+	//TotalTransfer     *string `json:"totalTransfer,omitempty" example:"24000"`
 	PapaTransactionID *string `json:"papaTransactionId,omitempty" example:"PAPA-123456"`
 	MoneyFlowStatus   *string `json:"moneyFlowStatus,omitempty" example:"COMPLETED"`
-	RequestedDate     *string `json:"requestedDate,omitempty" example:"2025-10-21T10:00:00Z"`
-	ActualDate        *string `json:"actualDate,omitempty" example:"2025-10-21T15:00:00Z"`
+	//RequestedDate     *string `json:"requestedDate,omitempty" example:"2025-10-21T10:00:00Z"`
+	ActualDate *string `json:"actualDate,omitempty" example:"2025-10-21T15:00:00Z"`
 }
 
 // DoUpdateSummaryRequest represents the path parameter for update
@@ -369,73 +369,10 @@ type UpdateMoneyFlowSummaryResponse struct {
 	Message   string `json:"message" example:"Money flow summary updated successfully"`
 }
 
-// ToUpdateModel converts request to MoneyFlowSummaryUpdate
-func (req UpdateMoneyFlowSummaryRequest) ToUpdateModel() (*MoneyFlowSummaryUpdate, error) {
-	update := &MoneyFlowSummaryUpdate{}
-
-	// Payment Type
-	if req.PaymentType != nil {
-		update.PaymentType = req.PaymentType
-	}
-
-	// Total Transfer
-	if req.TotalTransfer != nil {
-		amount, err := decimal.NewFromString(*req.TotalTransfer)
-		if err != nil {
-			return nil, fmt.Errorf("invalid totalTransfer format: %w", err)
-		}
-		update.TotalTransfer = &amount
-	}
-
-	// PAPA Transaction ID
-	if req.PapaTransactionID != nil {
-		update.PapaTransactionID = req.PapaTransactionID
-	}
-
-	// Money Flow Status
-	if req.MoneyFlowStatus != nil {
-		// Validate status
-		validStatuses := map[string]bool{
-			constants.MoneyFlowStatusPending:    true,
-			constants.MoneyFlowStatusSuccess:    true,
-			constants.MoneyFlowStatusFailed:     true,
-			constants.MoneyFlowStatusInProgress: true,
-			constants.MoneyFlowStatusRejected:   true,
-		}
-		if !validStatuses[*req.MoneyFlowStatus] {
-			return nil, fmt.Errorf("invalid moneyFlowStatus: must be PENDING, SUCCESS, IN_PROGRESS, REJECTED or FAILED")
-		}
-		update.MoneyFlowStatus = req.MoneyFlowStatus
-	}
-
-	// Requested Date
-	if req.RequestedDate != nil {
-		parsedDate, err := time.Parse(time.RFC3339, *req.RequestedDate)
-		if err != nil {
-			return nil, fmt.Errorf("invalid requestedDate format: must be RFC3339 (ISO8601): %w", err)
-		}
-		update.RequestedDate = &parsedDate
-	}
-
-	// Actual Date
-	if req.ActualDate != nil {
-		parsedDate, err := time.Parse(time.RFC3339, *req.ActualDate)
-		if err != nil {
-			return nil, fmt.Errorf("invalid actualDate format: must be RFC3339 (ISO8601): %w", err)
-		}
-		update.ActualDate = &parsedDate
-	}
-
-	return update, nil
-}
-
 // Validate checks if at least one field is provided for update
 func (req UpdateMoneyFlowSummaryRequest) Validate() error {
-	if req.PaymentType == nil &&
-		req.TotalTransfer == nil &&
-		req.PapaTransactionID == nil &&
+	if req.PapaTransactionID == nil &&
 		req.MoneyFlowStatus == nil &&
-		req.RequestedDate == nil &&
 		req.ActualDate == nil {
 		return fmt.Errorf("at least one field must be provided for update")
 	}
@@ -453,4 +390,111 @@ type DownloadDetailedTransactionsRequest struct {
 	SummaryID string
 	RefNumber string
 	Writer    io.Writer
+}
+
+// ValidateStatusTransition validates if status transition is allowed
+func (req UpdateMoneyFlowSummaryRequest) ValidateStatusTransition(currentStatus string) error {
+	if req.MoneyFlowStatus == nil {
+		return nil
+	}
+
+	newStatus := *req.MoneyFlowStatus
+
+	// Define allowed transitions
+	allowedTransitions := map[string][]string{
+		constants.MoneyFlowStatusPending: {
+			constants.MoneyFlowStatusInProgress,
+		},
+		constants.MoneyFlowStatusInProgress: {
+			constants.MoneyFlowStatusSuccess,
+			constants.MoneyFlowStatusFailed,
+			constants.MoneyFlowStatusRejected,
+		},
+		constants.MoneyFlowStatusSuccess:  {}, // Cannot transition from SUCCESS
+		constants.MoneyFlowStatusFailed:   {}, // Cannot transition from FAILED
+		constants.MoneyFlowStatusRejected: {}, // Cannot transition from REJECTED
+	}
+
+	allowedStatuses, exists := allowedTransitions[currentStatus]
+	if !exists {
+		return fmt.Errorf("invalid current status: %s", currentStatus)
+	}
+
+	// Check if trying to change status
+	if currentStatus == newStatus {
+		return nil // Same status is allowed
+	}
+
+	// Check if transition is allowed
+	for _, allowed := range allowedStatuses {
+		if newStatus == allowed {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("status transition from %s to %s is not allowed", currentStatus, newStatus)
+}
+
+// ValidateInProgressRequirements validates requirements when status is IN_PROGRESS
+func (req UpdateMoneyFlowSummaryRequest) ValidateInProgressRequirements() error {
+	if req.MoneyFlowStatus == nil {
+		return nil
+	}
+
+	if *req.MoneyFlowStatus == constants.MoneyFlowStatusInProgress {
+		if req.PapaTransactionID == nil || *req.PapaTransactionID == "" {
+			return fmt.Errorf("papaTransactionId is required when status is IN_PROGRESS")
+		}
+	}
+
+	return nil
+}
+
+// ToUpdateModel converts request to MoneyFlowSummaryUpdate with auto-fill logic
+func (req UpdateMoneyFlowSummaryRequest) ToUpdateModelWithAutoFill(currentRequestedDate *time.Time) (*MoneyFlowSummaryUpdate, error) {
+	update := &MoneyFlowSummaryUpdate{}
+
+	// PAPA Transaction ID
+	if req.PapaTransactionID != nil {
+		update.PapaTransactionID = req.PapaTransactionID
+	}
+
+	// Money Flow Status with auto-fill requestedDate
+	if req.MoneyFlowStatus != nil {
+		// Validate status
+		validStatuses := map[string]bool{
+			constants.MoneyFlowStatusPending:    true,
+			constants.MoneyFlowStatusSuccess:    true,
+			constants.MoneyFlowStatusFailed:     true,
+			constants.MoneyFlowStatusInProgress: true,
+			constants.MoneyFlowStatusRejected:   true,
+		}
+		if !validStatuses[*req.MoneyFlowStatus] {
+			return nil, fmt.Errorf("invalid moneyFlowStatus: must be PENDING, SUCCESS, IN_PROGRESS, REJECTED or FAILED")
+		}
+		update.MoneyFlowStatus = req.MoneyFlowStatus
+
+		// Auto-fill requestedDate when status changes to IN_PROGRESS
+		if *req.MoneyFlowStatus == constants.MoneyFlowStatusInProgress {
+			// Only set if not already set
+			if currentRequestedDate == nil {
+				now := time.Now()
+				update.RequestedDate = &now
+			} else {
+				// Keep existing requestedDate
+				update.RequestedDate = currentRequestedDate
+			}
+		}
+	}
+
+	// Actual Date
+	if req.ActualDate != nil {
+		parsedDate, err := time.Parse(time.RFC3339, *req.ActualDate)
+		if err != nil {
+			return nil, fmt.Errorf("invalid actualDate format: must be RFC3339 (ISO8601): %w", err)
+		}
+		update.ActualDate = &parsedDate
+	}
+
+	return update, nil
 }

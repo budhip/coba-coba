@@ -100,6 +100,20 @@ func (mr *MockTransactionServiceMockRecorder) DownloadTransactionFileCSV(ctx, re
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DownloadTransactionFileCSV", reflect.TypeOf((*MockTransactionService)(nil).DownloadTransactionFileCSV), ctx, req)
 }
 
+// DownloadV2TransactionFileCSV mocks base method.
+func (m *MockTransactionService) DownloadV2TransactionFileCSV(ctx context.Context, req models.DownloadTransactionRequest) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DownloadV2TransactionFileCSV", ctx, req)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DownloadV2TransactionFileCSV indicates an expected call of DownloadV2TransactionFileCSV.
+func (mr *MockTransactionServiceMockRecorder) DownloadV2TransactionFileCSV(ctx, req any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DownloadV2TransactionFileCSV", reflect.TypeOf((*MockTransactionService)(nil).DownloadV2TransactionFileCSV), ctx, req)
+}
+
 // GenerateTransactionReport mocks base method.
 func (m *MockTransactionService) GenerateTransactionReport(ctx context.Context) ([]string, error) {
 	m.ctrl.T.Helper()

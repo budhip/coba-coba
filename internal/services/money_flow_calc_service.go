@@ -306,21 +306,44 @@ func (mf *moneyFlowCalc) UpdateSummary(ctx context.Context, summaryID string, re
 	monitor := monitoring.New(ctx)
 	defer monitor.Finish(monitoring.WithFinishCheckError(err))
 
-	// Validate request
+	// Validate request - at least one field must be provided
 	if err = req.Validate(); err != nil {
 		return err
 	}
 
-	// Convert request to update model
-	updateModel, err := req.ToUpdateModel()
+	// Get current summary details
+	currentSummary, err := mf.srv.sqlRepo.GetMoneyFlowCalcRepository().GetSummaryDetailBySummaryID(ctx, summaryID)
 	if err != nil {
+		err = checkDatabaseError(err, models.ErrKeySummaryIdnotFound)
 		return err
 	}
 
-	// Check if summary exists
-	_, err = mf.srv.sqlRepo.GetMoneyFlowCalcRepository().GetSummaryDetailBySummaryID(ctx, summaryID)
+	// Validate status transition if status is being changed
+	if err = req.ValidateStatusTransition(currentSummary.Status); err != nil {
+		xlog.Warn(ctx, "[MONEY-FLOW-UPDATE] Invalid status transition",
+			xlog.String("summary_id", summaryID),
+			xlog.String("current_status", currentSummary.Status),
+			xlog.String("new_status", func() string {
+				if req.MoneyFlowStatus != nil {
+					return *req.MoneyFlowStatus
+				}
+				return ""
+			}()),
+			xlog.Err(err))
+		return err
+	}
+
+	// Validate IN_PROGRESS requirements
+	if err = req.ValidateInProgressRequirements(); err != nil {
+		xlog.Warn(ctx, "[MONEY-FLOW-UPDATE] IN_PROGRESS validation failed",
+			xlog.String("summary_id", summaryID),
+			xlog.Err(err))
+		return err
+	}
+
+	// Convert request to update model with auto-fill logic
+	updateModel, err := req.ToUpdateModelWithAutoFill(currentSummary.RequestedDate)
 	if err != nil {
-		err = checkDatabaseError(err, models.ErrKeySummaryIdnotFound)
 		return err
 	}
 
@@ -334,7 +357,13 @@ func (mf *moneyFlowCalc) UpdateSummary(ctx context.Context, summaryID string, re
 	}
 
 	xlog.Info(ctx, "[MONEY-FLOW-UPDATE] Successfully updated money flow summary",
-		xlog.String("summary_id", summaryID))
+		xlog.String("summary_id", summaryID),
+		xlog.String("status", func() string {
+			if req.MoneyFlowStatus != nil {
+				return *req.MoneyFlowStatus
+			}
+			return currentSummary.Status
+		}()))
 
 	return nil
 }

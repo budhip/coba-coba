@@ -26,6 +26,12 @@ readinessProbe:
   timeoutSeconds: 10
 
 service:
+  annotations:
+    reloader.stakater.com/auto: "true"
+    fin-metrics/url: "http://go-fp-transaction-api.payments-uat.svc.cluster.local:9567/api/v1/fin-snapshot/collect"
+    fin-metrics/captureTimebucket: "day"
+    fin-metrics/captureTime: "h16m30"
+    fin-metrics/calculateDiff: "false"
   type: ClusterIP
   port: 9567
 

@@ -191,7 +191,7 @@ func (s *file) sendErrorToEmail(ctx context.Context, fileBuffer bytes.Buffer, re
 		Template: "2024-mis-internal",
 		CC: []ddd_notification.Cc{
 			{
-				Email: "finance.platform@amartha.com",
+				Email: "payments.fp@amartha.com",
 			},
 		},
 		Attachments: []ddd_notification.Attachment{

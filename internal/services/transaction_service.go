@@ -1,6 +1,7 @@
 package services
 
 import (
+	"bytes"
 	"context"
 	"encoding/csv"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"bitbucket.org/Amartha/go-fp-transaction/internal/models"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/monitoring"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/repositories"
+	"github.com/go-jose/go-jose/v4/json"
 
 	xlog "bitbucket.org/Amartha/go-x/log"
 
@@ -27,6 +29,7 @@ type TransactionService interface {
 	GetByTransactionTypeAndRefNumber(ctx context.Context, req *models.TransactionGetByTypeAndRefNumberRequest) (*models.GetTransactionOut, error)
 	GenerateTransactionReport(ctx context.Context) (urls []string, err error)
 	DownloadTransactionFileCSV(ctx context.Context, req models.DownloadTransactionRequest) (err error)
+	DownloadV2TransactionFileCSV(ctx context.Context, req models.DownloadTransactionRequest) (err error)
 
 	GetStatusCount(ctx context.Context, threshold uint, opts models.TransactionFilterOptions) (out models.StatusCountTransaction, err error)
 
@@ -42,6 +45,27 @@ type TransactionService interface {
 type transaction service
 
 var _ TransactionService = (*transaction)(nil)
+var header = []string{
+	"Transaction ID",
+	"No Ref",
+	"Order Type Code",
+	"Order Type Name",
+	"Transaction Type Code",
+	"Transaction Type Name",
+	"Transaction Date",
+	"From Account Number",
+	"From Account Name",
+	"From Account Product Name",
+	"To Account Number",
+	"To Account Name",
+	"To Account Product Name",
+	"Amount",
+	"Status",
+	"Description",
+	"Method",
+	"Currency",
+	"Metadata",
+}
 
 func (ts *transaction) DownloadTransactionFileCSV(ctx context.Context, req models.DownloadTransactionRequest) (err error) {
 	monitor := monitoring.New(ctx)
@@ -64,28 +88,6 @@ func (ts *transaction) DownloadTransactionFileCSV(ctx context.Context, req model
 
 	if sc.ExceedThreshold {
 		return common.ErrRowLimitDownloadExceed
-	}
-
-	header := []string{
-		"Transaction ID",
-		"No Ref",
-		"Order Type Code",
-		"Order Type Name",
-		"Transaction Type Code",
-		"Transaction Type Name",
-		"Transaction Date",
-		"From Account Number",
-		"From Account Name",
-		"From Account Product Name",
-		"To Account Number",
-		"To Account Name",
-		"To Account Product Name",
-		"Amount",
-		"Status",
-		"Description",
-		"Method",
-		"Currency",
-		"Metadata",
 	}
 
 	w := csv.NewWriter(req.Writer)
@@ -142,6 +144,261 @@ func (ts *transaction) DownloadTransactionFileCSV(ctx context.Context, req model
 	if err != nil {
 		err = fmt.Errorf("failed to flush writer: %w", err)
 		return err
+	}
+
+	return nil
+}
+
+func (ts *transaction) DownloadV2TransactionFileCSV(ctx context.Context, req models.DownloadTransactionRequest) (err error) {
+	monitor := monitoring.New(ctx)
+	defer monitor.Finish(monitoring.WithFinishCheckError(err))
+
+	trxRepo := ts.srv.sqlRepo.GetTransactionRepository()
+
+	// Init master data
+	orderTypes, err := ts.srv.masterDataRepo.GetListOrderType(ctx, models.FilterMasterData{})
+	if err != nil {
+		err = fmt.Errorf("unable to GetListOrderType: %w", err)
+		return
+	}
+	mapOrderTypes, mapTransactionTypes := models.MakeOrderTypesMap(orderTypes)
+
+	sc, err := trxRepo.GetStatusCount(ctx, models.DefaultThresholdStatusCountTransaction, req.Options)
+	if err != nil {
+		return
+	}
+
+	if sc.ExceedThreshold {
+		return common.ErrRowLimitDownloadExceed
+	}
+
+	threshold := ts.srv.conf.TransactionConfig.DownloadSize //10KB
+	if threshold == 0 {
+		threshold = 10 * 1024 //10KB
+	}
+
+	// buffer mode before deciding partial or full
+	var totalBytes int
+	var partial bool
+
+	var buffer bytes.Buffer          // will hold csv rows (no header)
+	bufCSV := csv.NewWriter(&buffer) // write rows here until we decide
+
+	// partial mode state
+	reportDate := time.Now()
+	fileCounter := 1
+	var currentFile io.WriteCloser
+	var currentFileBytes int
+	var urls []string
+
+	// helper to build csv-encoded row bytes
+	buildRowBytes := func(row []string) ([]byte, error) {
+		var tmp bytes.Buffer
+		tmpW := csv.NewWriter(&tmp)
+		if wErr := tmpW.Write(row); wErr != nil {
+			return nil, fmt.Errorf("failed to build csv row: %w", wErr)
+		}
+		tmpW.Flush()
+		if wErr := tmpW.Error(); wErr != nil {
+			return nil, fmt.Errorf("failed to flush tmp csv writer: %w", wErr)
+		}
+		return tmp.Bytes(), nil
+	}
+
+	// helper to ensure currentFile exists, create if nil
+	ensureCurrentFile := func() error {
+		if currentFile != nil {
+			return nil
+		}
+		url, rf, cErr := ts.createReportFile(ctx, reportDate, fileCounter)
+		if cErr != nil {
+			return fmt.Errorf("failed to create partial file: %w", cErr)
+		}
+		currentFile = rf
+		urls = append(urls, url)
+		currentFileBytes = 0
+		return nil
+	}
+
+	// helper to write bytes to current file
+	writeBytesToCurrentFile := func(b []byte) error {
+		if err := ensureCurrentFile(); err != nil {
+			return err
+		}
+		n, wErr := currentFile.Write(b)
+		if wErr != nil {
+			return fmt.Errorf("failed to write to cloud file: %w", wErr)
+		}
+		currentFileBytes += n
+		return nil
+	}
+
+	// stream and process rows
+	for trx := range trxRepo.StreamAll(ctx, req.Options) {
+		if trx.Err != nil {
+			// cleanup opened file if any
+			if currentFile != nil {
+				_ = currentFile.Close()
+			}
+			return fmt.Errorf("failed to read stream: %w", trx.Err)
+		}
+
+		t := trx.Data.ToGetTransactionOut(mapOrderTypes, mapTransactionTypes)
+
+		amount := "0"
+		if trx.Data.Amount.Valid {
+			amount = trx.Data.Amount.Decimal.String()
+		}
+
+		row := []string{
+			t.TransactionID,
+			t.RefNumber,
+			t.OrderType,
+			t.OrderTypeName,
+			t.TransactionType,
+			t.TransactionTypeName,
+			t.TransactionTime.In(common.GetLocation()).Format(common.DateFormatYYYYMMDDWithTime),
+			t.FromAccount,
+			t.FromAccountName,
+			t.FromAccountProductTypeName,
+			t.ToAccount,
+			t.ToAccountName,
+			t.ToAccountProductTypeName,
+			amount,
+			t.Status,
+			t.Description,
+			t.Method,
+			t.Currency,
+			t.Metadata,
+		}
+
+		// build csv row bytes
+		rowBytes, buildErr := buildRowBytes(row)
+		if buildErr != nil {
+			if currentFile != nil {
+				_ = currentFile.Close()
+			}
+			return buildErr
+		}
+		rowLen := len(rowBytes)
+
+		if !partial {
+			// check if adding this row will exceed threshold
+			if totalBytes+rowLen > threshold {
+				// switch to partial mode
+				partial = true
+
+				// create first partial file (fileCounter starts at 1)
+				if err := ensureCurrentFile(); err != nil {
+					return err
+				}
+
+				// flush buffered rows (if any) to current file
+				if buffer.Len() > 0 {
+					if _, wErr := currentFile.Write(buffer.Bytes()); wErr != nil {
+						_ = currentFile.Close()
+						return fmt.Errorf("failed to write buffered rows to partial file: %w", wErr)
+					}
+					currentFileBytes += buffer.Len()
+					// buffer no longer needed
+					buffer.Reset()
+				}
+
+				// write this current row to file
+				if wErr := writeBytesToCurrentFile(rowBytes); wErr != nil {
+					_ = currentFile.Close()
+					return wErr
+				}
+				totalBytes += rowLen
+				continue
+			}
+
+			// still within threshold: append row bytes to buffer
+			if _, wErr := buffer.Write(rowBytes); wErr != nil {
+				return fmt.Errorf("failed to buffer row: %w", wErr)
+			}
+			// ensure CSV writer state consistent
+			bufCSV.Flush()
+			if wErr := bufCSV.Error(); wErr != nil {
+				return fmt.Errorf("buffer csv writer error: %w", wErr)
+			}
+			totalBytes += rowLen
+			continue
+		}
+
+		// partial == true: write to current file, rotating if current file would overflow
+		if currentFile == nil {
+			if err := ensureCurrentFile(); err != nil {
+				return err
+			}
+		}
+
+		if currentFileBytes+rowLen > threshold {
+			// rotate file
+			if cerr := currentFile.Close(); cerr != nil {
+				xlog.Errorf(ctx, "failed to close partial file: %v", cerr)
+			}
+			fileCounter++
+			currentFile = nil
+			if err := ensureCurrentFile(); err != nil {
+				return err
+			}
+		}
+
+		if wErr := writeBytesToCurrentFile(rowBytes); wErr != nil {
+			_ = currentFile.Close()
+			return wErr
+		}
+		totalBytes += rowLen
+	}
+
+	// after streaming
+	if partial {
+		// close last partial file
+		if currentFile != nil {
+			if cerr := currentFile.Close(); cerr != nil {
+				xlog.Errorf(ctx, "failed to close last partial file: %v", cerr)
+			}
+		}
+
+		// build envelope response JSON: { "code":200, "status":"success", "data": urls }
+		resp := struct {
+			Code   int      `json:"code"`
+			Status string   `json:"status"`
+			Data   []string `json:"data"`
+		}{
+			Code:   200,
+			Status: "success",
+			Data:   urls,
+		}
+
+		out, jErr := json.Marshal(resp)
+		if jErr != nil {
+			return fmt.Errorf("failed to marshal response: %w", jErr)
+		}
+
+		// write JSON to response writer
+		if _, wErr := req.Writer.Write(out); wErr != nil {
+			return fmt.Errorf("failed to write response: %w", wErr)
+		}
+		return nil
+	}
+
+	// non-partial: write header then buffered rows to req.Writer
+	cw := csv.NewWriter(req.Writer)
+	if wErr := cw.Write(header); wErr != nil {
+		return fmt.Errorf("failed to write header: %w", wErr)
+	}
+	cw.Flush()
+	if wErr := cw.Error(); wErr != nil {
+		return fmt.Errorf("failed to flush header: %w", wErr)
+	}
+
+	// write buffered CSV rows (already csv-encoded) directly
+	if buffer.Len() > 0 {
+		if _, wErr := req.Writer.Write(buffer.Bytes()); wErr != nil {
+			return fmt.Errorf("failed to write buffered rows to response: %w", wErr)
+		}
 	}
 
 	return nil
