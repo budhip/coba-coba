@@ -24,7 +24,6 @@ import (
 	v1internalWallet "bitbucket.org/Amartha/go-fp-transaction/internal/deliveries/http/v1/internal_wallet"
 	v1masterData "bitbucket.org/Amartha/go-fp-transaction/internal/deliveries/http/v1/masterdata"
 	v1moneyflow "bitbucket.org/Amartha/go-fp-transaction/internal/deliveries/http/v1/money_flow_summaries"
-	v1order "bitbucket.org/Amartha/go-fp-transaction/internal/deliveries/http/v1/order"
 	v1subcategory "bitbucket.org/Amartha/go-fp-transaction/internal/deliveries/http/v1/sub_category"
 	v1transaction "bitbucket.org/Amartha/go-fp-transaction/internal/deliveries/http/v1/transaction"
 	v1walletTrx "bitbucket.org/Amartha/go-fp-transaction/internal/deliveries/http/v1/wallet_transaction"
@@ -165,7 +164,6 @@ func NewHTTPServer(
 	v1subcategory.New(v1Group, subCategoryService)
 	v1Files.New(v1Group, fileService)
 	v1masterData.New(v1Group, masterDataService)
-	v1order.New(v1Group, transactionService, m)
 	v1walletTrx.New(conf, v1Group, walletTrxService, accountService, m)
 	v1internalWallet.New(v1Group, walletTrxService)
 	v1moneyflow.New(v1Group, moneyFlowService)

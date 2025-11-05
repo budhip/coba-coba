@@ -151,9 +151,7 @@ func serviceTestHelper(t *testing.T) testServiceHelper {
 			},
 		},
 		FeatureFlagKeyLookup: config.FeatureFlagKeyLookup{
-			ExcludeConsumeTransactionFromSpecificSubCategory: "exclude_consume_transaction_from_specific_sub_category",
-			AutoCreateAccountIfNotExists:                     "auto_create_account_if_not_exists",
-			BalanceLimitToggle:                               "balance_limit_toggle",
+			BalanceLimitToggle: "balance_limit_toggle",
 		},
 	}
 	serv := services.New(

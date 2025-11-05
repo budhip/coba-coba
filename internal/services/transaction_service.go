@@ -24,7 +24,6 @@ import (
 
 type TransactionService interface {
 	PublishTransaction(ctx context.Context, in models.DoPublishTransactionRequest) (out models.DoPublishTransactionResponse, err error)
-	NewStoreBulkTransaction(ctx context.Context, req []models.TransactionReq) (err error)
 	GetAllTransaction(ctx context.Context, opts models.TransactionFilterOptions) (transactions []models.GetTransactionOut, total int, err error)
 	GetByTransactionTypeAndRefNumber(ctx context.Context, req *models.TransactionGetByTypeAndRefNumberRequest) (*models.GetTransactionOut, error)
 	GenerateTransactionReport(ctx context.Context) (urls []string, err error)
@@ -448,24 +447,14 @@ func (ts *transaction) ensureAccountExists(ctx context.Context, accountNumbers .
 
 	var errs *multierror.Error
 
-	autoCreateAccount := ts.srv.flag.IsEnabled(ts.srv.conf.FeatureFlagKeyLookup.AutoCreateAccountIfNotExists)
-
 	for accountNumber, exists := range es {
 		if !exists {
-			isNeedToReject := ts.srv.conf.FeatureFlag.EnableConsumerValidationReject && !autoCreateAccount
+			isNeedToReject := ts.srv.conf.FeatureFlag.EnableConsumerValidationReject
 			if isNeedToReject {
 				errs = multierror.Append(errs, fmt.Errorf("account number %s not exists", accountNumber))
 				continue
 			}
-
-			if autoCreateAccount {
-				err = accRepo.Create(ctx, models.CreateAccount{AccountNumber: accountNumber})
-				if err != nil {
-					errs = multierror.Append(errs, err)
-				}
-			} else {
-				errs = multierror.Append(errs, fmt.Errorf("account number %s not exists", accountNumber))
-			}
+			errs = multierror.Append(errs, fmt.Errorf("account number %s not exists", accountNumber))
 		}
 	}
 

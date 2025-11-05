@@ -270,14 +270,12 @@ type (
 	}
 
 	FeatureFlagKeyLookup struct {
-		IgnoredBalanceCheckAccountNumbers                string `json:"ignored_balance_check_account_numbers"`
-		ExcludeConsumeTransactionFromSpecificSubCategory string `json:"exclude_consume_transaction_from_specific_sub_category"`
-		AutoCreateAccountIfNotExists                     string `json:"auto_create_account_if_not_exists"`
-		ShowOnlyAMFTransactionList                       string `json:"show_only_amf_transaction_list"`
-		UseAccountConfigFromExternal                     string `json:"use_account_config_from_external"`
-		LceRollout                                       string `json:"lce_rollout"`
-		BalanceLimitToggle                               string `json:"balance_limit_toggle"`
-		MoneyFlowCalcBusinessRulesConfig                 string `json:"money_flow_calc_business_rules_config"`
+		IgnoredBalanceCheckAccountNumbers string `json:"ignored_balance_check_account_numbers"`
+		ShowOnlyAMFTransactionList        string `json:"show_only_amf_transaction_list"`
+		UseAccountConfigFromExternal      string `json:"use_account_config_from_external"`
+		LceRollout                        string `json:"lce_rollout"`
+		BalanceLimitToggle                string `json:"balance_limit_toggle"`
+		MoneyFlowCalcBusinessRulesConfig  string `json:"money_flow_calc_business_rules_config"`
 	}
 
 	AcuanLibKafkaConfig struct {

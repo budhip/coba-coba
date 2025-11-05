@@ -170,6 +170,7 @@ func (h *moneyFlowSummariesHandler) updateSummary(c echo.Context) error {
 		errMsg := err.Error()
 		if strings.Contains(errMsg, "transition") ||
 			strings.Contains(errMsg, "required") ||
+			strings.Contains(errMsg, "should not") ||
 			strings.Contains(errMsg, "not allowed") {
 			return http.RestErrorResponse(c, nethttp.StatusBadRequest, err)
 		}

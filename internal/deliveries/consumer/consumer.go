@@ -19,7 +19,6 @@ import (
 
 	dlqpublisher "bitbucket.org/Amartha/go-fp-transaction/internal/common/dlq_publisher"
 	dlqretrier "bitbucket.org/Amartha/go-fp-transaction/internal/deliveries/consumer/dlq_retrier"
-	kafkaconsumer "bitbucket.org/Amartha/go-fp-transaction/internal/deliveries/consumer/kafka"
 	queuerecon "bitbucket.org/Amartha/go-fp-transaction/internal/deliveries/consumer/task_queue_recon"
 )
 
@@ -32,27 +31,6 @@ func NewKafkaConsumer(
 	contract *setup.Setup,
 ) (consumerProcess graceful.ProcessStartStopper, stoppers []graceful.ProcessStopper, err error) {
 	switch consumerName {
-	case "transaction":
-		producer, errProducer := publisher.NewKafkaSyncProducer(conf.MessageBroker.KafkaConsumer.Brokers)
-		if errProducer != nil {
-			err = errProducer
-			return
-		}
-
-		stoppers = append(stoppers, func(ctx context.Context) error { return producer.Close() })
-
-		trxJournal := kafkaconsumer.NewJournalPublisher(conf, producer) // TODO: Unused on injected service
-
-		consumerProcess, err = kafkaconsumer.New(
-			ctx,
-			conf,
-			svc.Transaction,
-			contract.PublisherClient.TransactionDQL,
-			trxJournal,
-			svc.Account,
-			contract.PublisherClient.TransactionNotification,
-			contract.Metrics,
-		)
 	case "dlq_notification":
 		consumerProcess, err = dlq_notification.New(ctx, conf, svc.DLQProcessor, contract.Metrics)
 	case "dlq_retrier":

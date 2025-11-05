@@ -445,6 +445,11 @@ func (req UpdateMoneyFlowSummaryRequest) ValidateInProgressRequirements() error 
 		if req.PapaTransactionID == nil || *req.PapaTransactionID == "" {
 			return fmt.Errorf("papaTransactionId is required when status is IN_PROGRESS")
 		}
+
+		// Validate that actualDate should not be provided when changing to IN_PROGRESS
+		if req.ActualDate != nil {
+			return fmt.Errorf("actualDate should not be provided when status is IN_PROGRESS")
+		}
 	}
 
 	return nil
@@ -494,6 +499,14 @@ func (req UpdateMoneyFlowSummaryRequest) ToUpdateModelWithAutoFill(currentReques
 			return nil, fmt.Errorf("invalid actualDate format: must be RFC3339 (ISO8601): %w", err)
 		}
 		update.ActualDate = &parsedDate
+	}
+
+	// Auto-fill actualDate when status changes to SUCCESS and actualDate not provided
+	if *req.MoneyFlowStatus == constants.MoneyFlowStatusSuccess {
+		if req.ActualDate == nil {
+			now := time.Now()
+			update.ActualDate = &now
+		}
 	}
 
 	return update, nil

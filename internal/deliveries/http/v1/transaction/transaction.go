@@ -38,9 +38,6 @@ func New(app *echo.Group, transactionSrv services.TransactionService, m middlewa
 	transactions := app.Group("/transactions")
 	transactions.POST("", handler.createTransaction)
 	transactions.PATCH("/:transactionId", handler.updateStatusReservedTransaction)
-
-	orders := transactions.Group("/orders")
-	orders.POST("", handler.createOrderTransaction)
 }
 
 // createTransaction API create transaction
@@ -127,37 +124,4 @@ func (th *transactionHandler) generateTransactionReport(c echo.Context) error {
 	}
 
 	return common.SuccessResponseList(c, nethttp.StatusOK, "Successfully generate transaction report", url, nil)
-}
-
-// createOrderTransaction API create order transaction
-// @Summary Create order transaction
-// @Description Create order transaction
-// @Tags Transaction
-// @Accept  json
-// @Produce  json
-// @Param 	payload body models.CreateOrderRequest true "A JSON object containing create transaction payload"
-// @Param	X-Secret-Key header string true "X-Secret-Key"
-// @Success 201 {object} models.DoGetTransactionResponse "Response indicates that the request succeeded and the resources has been fetched and transmitted in the message body"
-// @Failure 400 {object} http.RestErrorResponseModel "Bad request error. This can happen if there is an error while create transaction"
-// @Failure 404 {object} http.RestErrorResponseModel "Data not found. This can happen if there is a data not found while create transaction"
-// @Failure 422 {object} http.RestErrorValidationResponseModel{errors=[]validation.ErrorValidateResponse} "Validation error. This can happen if there is an error validation while create transaction"
-// @Failure 500 {object} http.RestErrorResponseModel "Internal server error. This can happen if there is an error while create transaction"
-// @Router /transactions/orders [post]
-func (th *transactionHandler) createOrderTransaction(c echo.Context) error {
-	req := new(models.CreateOrderRequest)
-	if err := c.Bind(req); err != nil {
-		return http.RestErrorResponse(c, nethttp.StatusBadRequest, err)
-	}
-
-	if err := validation.ValidateStruct(req); err != nil {
-		return http.RestErrorValidationResponse(c, err)
-	}
-
-	err := th.transactionSrv.NewStoreBulkTransaction(c.Request().Context(), req.ToTransactionReqs())
-	if err != nil {
-		httpStatusCode := getHTTPStatusCode(err)
-		return http.RestErrorResponse(c, httpStatusCode, err)
-	}
-
-	return http.RestSuccessResponse(c, nethttp.StatusCreated, req.ToCreateOrderResponse())
 }

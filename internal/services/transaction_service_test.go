@@ -80,10 +80,6 @@ func TestService_StoreBulkTransaction(t *testing.T) {
 					Return(existsRefNumber, nil)
 				testHelper.mockTrxRepository.EXPECT().CheckRefNumbers(gomock.Any(), gomock.Any()).Return(map[string]bool{"FT2303000001": false}, nil)
 
-				testHelper.mockFlagClient.EXPECT().
-					IsEnabled(testHelper.config.FeatureFlagKeyLookup.AutoCreateAccountIfNotExists).
-					Return(true)
-
 				testHelper.mockTrxRepository.EXPECT().StoreBulkTransaction(gomock.Any(), transactionDBReq).Return(nil)
 				testHelper.mockAccRepository.EXPECT().
 					CheckAccountNumbers(gomock.Any(), []string{"1202517699", "123233333"}).
@@ -568,10 +564,6 @@ func TestService_StoreTransaction(t *testing.T) {
 					CheckAccountNumbers(gomock.Any(), []string{args.req.FromAccount, args.req.ToAccount}).
 					Return(map[string]bool{args.req.FromAccount: true, args.req.ToAccount: true}, nil)
 
-				testHelper.mockFlagClient.EXPECT().
-					IsEnabled(testHelper.config.FeatureFlagKeyLookup.AutoCreateAccountIfNotExists).
-					Return(true)
-
 				testHelper.mockSQLRepository.EXPECT().
 					Atomic(gomock.Any(), gomock.Any()).
 					DoAndReturn(func(ctx context.Context, f func(ctx context.Context, r repositories.SQLRepository) error) error {
@@ -635,10 +627,6 @@ func TestService_StoreTransaction(t *testing.T) {
 					CheckAccountNumbers(gomock.Any(), []string{args.req.FromAccount, args.req.ToAccount}).
 					Return(map[string]bool{args.req.FromAccount: true, args.req.ToAccount: true}, nil)
 
-				testHelper.mockFlagClient.EXPECT().
-					IsEnabled(testHelper.config.FeatureFlagKeyLookup.AutoCreateAccountIfNotExists).
-					Return(true)
-
 				testHelper.mockSQLRepository.EXPECT().
 					Atomic(gomock.Any(), gomock.Any()).
 					DoAndReturn(func(ctx context.Context, f func(ctx context.Context, r repositories.SQLRepository) error) error {
@@ -701,10 +689,6 @@ func TestService_StoreTransaction(t *testing.T) {
 				testHelper.mockAccRepository.EXPECT().
 					CheckAccountNumbers(gomock.Any(), []string{args.req.FromAccount, args.req.ToAccount}).
 					Return(map[string]bool{args.req.FromAccount: true, args.req.ToAccount: true}, nil)
-
-				testHelper.mockFlagClient.EXPECT().
-					IsEnabled(testHelper.config.FeatureFlagKeyLookup.AutoCreateAccountIfNotExists).
-					Return(true)
 
 				testHelper.mockSQLRepository.EXPECT().
 					Atomic(gomock.Any(), gomock.Any()).
@@ -788,10 +772,6 @@ func TestService_StoreTransaction(t *testing.T) {
 					CheckAccountNumbers(gomock.Any(), []string{args.req.FromAccount, args.req.ToAccount}).
 					Return(map[string]bool{args.req.FromAccount: true, args.req.ToAccount: true}, nil)
 
-				testHelper.mockFlagClient.EXPECT().
-					IsEnabled(testHelper.config.FeatureFlagKeyLookup.AutoCreateAccountIfNotExists).
-					Return(true)
-
 				testHelper.mockSQLRepository.EXPECT().
 					Atomic(gomock.Any(), gomock.Any()).
 					DoAndReturn(func(ctx context.Context, f func(ctx context.Context, r repositories.SQLRepository) error) error {
@@ -849,13 +829,9 @@ func TestService_StoreTransaction(t *testing.T) {
 
 				testHelper.mockAccRepository.EXPECT().
 					CheckAccountNumbers(gomock.Any(), []string{args.req.FromAccount, args.req.ToAccount}).
-					Return(map[string]bool{args.req.FromAccount: true, args.req.ToAccount: false}, nil)
+					Return(map[string]bool{args.req.FromAccount: true, args.req.ToAccount: true}, nil)
 
 				testHelper.mockAccRepository.EXPECT().Create(gomock.Any(), gomock.Any()).Return(nil)
-
-				testHelper.mockFlagClient.EXPECT().
-					IsEnabled(testHelper.config.FeatureFlagKeyLookup.AutoCreateAccountIfNotExists).
-					Return(true)
 
 				testHelper.mockSQLRepository.EXPECT().
 					Atomic(gomock.Any(), gomock.Any()).
@@ -916,10 +892,6 @@ func TestService_StoreTransaction(t *testing.T) {
 				testHelper.mockAccRepository.EXPECT().
 					CheckAccountNumbers(gomock.Any(), []string{args.req.FromAccount, args.req.ToAccount}).
 					Return(map[string]bool{args.req.FromAccount: true, args.req.ToAccount: false}, nil)
-
-				testHelper.mockFlagClient.EXPECT().
-					IsEnabled(testHelper.config.FeatureFlagKeyLookup.AutoCreateAccountIfNotExists).
-					Return(true)
 
 				testHelper.mockAccRepository.EXPECT().Create(gomock.Any(), gomock.Any()).Return(assert.AnError)
 			},
