@@ -1,8 +1,10 @@
 package models
 
 import (
+	"context"
 	"fmt"
 
+	xlog "bitbucket.org/Amartha/go-x/log"
 	"github.com/shopspring/decimal"
 )
 
@@ -23,7 +25,7 @@ func NewWalletTransactionSet(fromAccount, toAccount string, amount decimal.Decim
 }
 
 // CalculateCashIn will increase ToAccount actualAmount
-func (trx WalletTransactionSet) CalculateCashIn(accountBalance map[string]Balance) (map[string]Balance, error) {
+func (trx WalletTransactionSet) CalculateCashIn(ctx context.Context, accountBalance map[string]Balance) (map[string]Balance, error) {
 	sourceBalance, ok := accountBalance[trx.FromAccount]
 	if !ok {
 		return accountBalance, fmt.Errorf("source account not found: %s", trx.FromAccount)
@@ -31,6 +33,11 @@ func (trx WalletTransactionSet) CalculateCashIn(accountBalance map[string]Balanc
 
 	err := sourceBalance.Withdraw(trx.Amount, WithTransactionType(trx.TransactionType))
 	if err != nil {
+		xlog.Error(ctx, "failed to withdraw source account",
+			xlog.String("accountNumber", trx.FromAccount),
+			xlog.Any("balance", sourceBalance),
+		)
+
 		return accountBalance, err
 	}
 
@@ -43,6 +50,11 @@ func (trx WalletTransactionSet) CalculateCashIn(accountBalance map[string]Balanc
 
 	err = destinationBalance.AddFunds(trx.Amount, WithTransactionType(trx.TransactionType))
 	if err != nil {
+		xlog.Error(ctx, "failed to add funds to destination account",
+			xlog.String("accountNumber", trx.ToAccount),
+			xlog.Any("balance", destinationBalance),
+		)
+
 		return accountBalance, err
 	}
 
@@ -52,13 +64,13 @@ func (trx WalletTransactionSet) CalculateCashIn(accountBalance map[string]Balanc
 }
 
 // CalculateCashInCommit will calculate committed transaction from reserved transaction
-func (trx WalletTransactionSet) CalculateCashInCommit(accountBalance map[string]Balance) (map[string]Balance, error) {
+func (trx WalletTransactionSet) CalculateCashInCommit(_ context.Context, accountBalance map[string]Balance) (map[string]Balance, error) {
 	// do nothing, since when isReserved is true, the actual balance is already increased
 	return accountBalance, nil
 }
 
 // CalculateCashInCancel will decrease fromAccount actualBalance
-func (trx WalletTransactionSet) CalculateCashInCancel(accountBalance map[string]Balance) (map[string]Balance, error) {
+func (trx WalletTransactionSet) CalculateCashInCancel(ctx context.Context, accountBalance map[string]Balance) (map[string]Balance, error) {
 	destinationBalance, ok := accountBalance[trx.FromAccount]
 	if !ok {
 		return accountBalance, fmt.Errorf("destination account not found: %s", trx.FromAccount)
@@ -66,6 +78,11 @@ func (trx WalletTransactionSet) CalculateCashInCancel(accountBalance map[string]
 
 	err := destinationBalance.Withdraw(trx.Amount, WithTransactionType(trx.TransactionType))
 	if err != nil {
+		xlog.Error(ctx, "failed to withdraw destination account",
+			xlog.String("accountNumber", trx.ToAccount),
+			xlog.Any("balance", destinationBalance),
+		)
+
 		return accountBalance, err
 	}
 
@@ -74,7 +91,7 @@ func (trx WalletTransactionSet) CalculateCashInCancel(accountBalance map[string]
 }
 
 // CalculateCashOut will decrease fromAccount actualBalance
-func (trx WalletTransactionSet) CalculateCashOut(accountBalance map[string]Balance) (map[string]Balance, error) {
+func (trx WalletTransactionSet) CalculateCashOut(ctx context.Context, accountBalance map[string]Balance) (map[string]Balance, error) {
 	sourceBalance, ok := accountBalance[trx.FromAccount]
 	if !ok {
 		return accountBalance, fmt.Errorf("source account not found: %s", trx.FromAccount)
@@ -82,6 +99,11 @@ func (trx WalletTransactionSet) CalculateCashOut(accountBalance map[string]Balan
 
 	err := sourceBalance.Withdraw(trx.Amount, WithTransactionType(trx.TransactionType))
 	if err != nil {
+		xlog.Error(ctx, "failed to withdraw source account",
+			xlog.String("accountNumber", trx.FromAccount),
+			xlog.Any("balance", sourceBalance),
+		)
+
 		return accountBalance, err
 	}
 
@@ -94,6 +116,10 @@ func (trx WalletTransactionSet) CalculateCashOut(accountBalance map[string]Balan
 
 	err = destinationBalance.AddFunds(trx.Amount, WithTransactionType(trx.TransactionType))
 	if err != nil {
+		xlog.Error(ctx, "failed to add funds to destination account",
+			xlog.String("accountNumber", trx.ToAccount),
+			xlog.Any("balance", destinationBalance),
+		)
 		return accountBalance, err
 	}
 
@@ -103,7 +129,7 @@ func (trx WalletTransactionSet) CalculateCashOut(accountBalance map[string]Balan
 }
 
 // CalculateCashOutReserve will increase fromAccount pendingBalance
-func (trx WalletTransactionSet) CalculateCashOutReserve(accountBalance map[string]Balance) (map[string]Balance, error) {
+func (trx WalletTransactionSet) CalculateCashOutReserve(ctx context.Context, accountBalance map[string]Balance) (map[string]Balance, error) {
 	sourceBalance, ok := accountBalance[trx.FromAccount]
 	if !ok {
 		return accountBalance, fmt.Errorf("source account not found: %s", trx.FromAccount)
@@ -111,6 +137,11 @@ func (trx WalletTransactionSet) CalculateCashOutReserve(accountBalance map[strin
 
 	err := sourceBalance.Reserve(trx.Amount, WithTransactionType(trx.TransactionType))
 	if err != nil {
+		xlog.Error(ctx, "failed to reserve source account",
+			xlog.String("accountNumber", trx.FromAccount),
+			xlog.Any("balance", sourceBalance),
+		)
+
 		return accountBalance, err
 	}
 
@@ -118,7 +149,7 @@ func (trx WalletTransactionSet) CalculateCashOutReserve(accountBalance map[strin
 	return accountBalance, nil
 }
 
-func (trx WalletTransactionSet) CalculateCashOutCommit(accountBalance map[string]Balance) (map[string]Balance, error) {
+func (trx WalletTransactionSet) CalculateCashOutCommit(ctx context.Context, accountBalance map[string]Balance) (map[string]Balance, error) {
 	sourceBalance, ok := accountBalance[trx.FromAccount]
 	if !ok {
 		return accountBalance, fmt.Errorf("source account not found: %s", trx.FromAccount)
@@ -126,6 +157,11 @@ func (trx WalletTransactionSet) CalculateCashOutCommit(accountBalance map[string
 
 	err := sourceBalance.Commit(trx.Amount, WithTransactionType(trx.TransactionType))
 	if err != nil {
+		xlog.Error(ctx, "failed to commit source account",
+			xlog.String("accountNumber", trx.FromAccount),
+			xlog.Any("balance", sourceBalance),
+		)
+
 		return accountBalance, err
 	}
 
@@ -138,6 +174,11 @@ func (trx WalletTransactionSet) CalculateCashOutCommit(accountBalance map[string
 
 	err = destinationBalance.AddFunds(trx.Amount, WithTransactionType(trx.TransactionType))
 	if err != nil {
+		xlog.Error(ctx, "failed to add funds to destination account",
+			xlog.String("accountNumber", trx.ToAccount),
+			xlog.Any("balance", destinationBalance),
+		)
+
 		return accountBalance, err
 	}
 
@@ -146,7 +187,7 @@ func (trx WalletTransactionSet) CalculateCashOutCommit(accountBalance map[string
 	return accountBalance, nil
 }
 
-func (trx WalletTransactionSet) CalculateCashOutCancel(accountBalance map[string]Balance) (map[string]Balance, error) {
+func (trx WalletTransactionSet) CalculateCashOutCancel(ctx context.Context, accountBalance map[string]Balance) (map[string]Balance, error) {
 	sourceBalance, ok := accountBalance[trx.FromAccount]
 	if !ok {
 		return accountBalance, fmt.Errorf("source account not found: %s", trx.FromAccount)
@@ -154,6 +195,11 @@ func (trx WalletTransactionSet) CalculateCashOutCancel(accountBalance map[string
 
 	err := sourceBalance.CancelReservation(trx.Amount, WithTransactionType(trx.TransactionType))
 	if err != nil {
+		xlog.Error(ctx, "failed to cancel reserve source account",
+			xlog.String("accountNumber", trx.FromAccount),
+			xlog.Any("balance", sourceBalance),
+		)
+
 		return accountBalance, err
 	}
 
@@ -162,7 +208,7 @@ func (trx WalletTransactionSet) CalculateCashOutCancel(accountBalance map[string
 }
 
 // CalculateTransfer will decrease fromAccount actualBalance
-func (trx WalletTransactionSet) CalculateTransfer(accountBalance map[string]Balance) (map[string]Balance, error) {
+func (trx WalletTransactionSet) CalculateTransfer(ctx context.Context, accountBalance map[string]Balance) (map[string]Balance, error) {
 	sourceBalance, ok := accountBalance[trx.FromAccount]
 	if !ok {
 		return accountBalance, fmt.Errorf("source account not found: %s", trx.FromAccount)
@@ -170,6 +216,11 @@ func (trx WalletTransactionSet) CalculateTransfer(accountBalance map[string]Bala
 
 	err := sourceBalance.Withdraw(trx.Amount, WithTransactionType(trx.TransactionType))
 	if err != nil {
+		xlog.Error(ctx, "failed to withdraw source account",
+			xlog.String("accountNumber", trx.FromAccount),
+			xlog.Any("balance", sourceBalance),
+		)
+
 		return accountBalance, err
 	}
 
@@ -182,6 +233,11 @@ func (trx WalletTransactionSet) CalculateTransfer(accountBalance map[string]Bala
 
 	err = destinationBalance.AddFunds(trx.Amount, WithTransactionType(trx.TransactionType))
 	if err != nil {
+		xlog.Error(ctx, "failed to add funds to destination account",
+			xlog.String("accountNumber", trx.ToAccount),
+			xlog.Any("balance", destinationBalance),
+		)
+
 		return accountBalance, err
 	}
 
@@ -190,7 +246,7 @@ func (trx WalletTransactionSet) CalculateTransfer(accountBalance map[string]Bala
 	return accountBalance, nil
 }
 
-func (trx WalletTransactionSet) CalculateTransferReserve(accountBalance map[string]Balance) (map[string]Balance, error) {
+func (trx WalletTransactionSet) CalculateTransferReserve(ctx context.Context, accountBalance map[string]Balance) (map[string]Balance, error) {
 	sourceBalance, ok := accountBalance[trx.FromAccount]
 	if !ok {
 		return accountBalance, fmt.Errorf("source account not found: %s", trx.FromAccount)
@@ -198,6 +254,11 @@ func (trx WalletTransactionSet) CalculateTransferReserve(accountBalance map[stri
 
 	err := sourceBalance.Reserve(trx.Amount, WithTransactionType(trx.TransactionType))
 	if err != nil {
+		xlog.Error(ctx, "failed to reserve source account",
+			xlog.String("accountNumber", trx.FromAccount),
+			xlog.Any("balance", sourceBalance),
+		)
+
 		return accountBalance, err
 	}
 
@@ -206,7 +267,7 @@ func (trx WalletTransactionSet) CalculateTransferReserve(accountBalance map[stri
 	return accountBalance, nil
 }
 
-func (trx WalletTransactionSet) CalculateTransferCommit(accountBalance map[string]Balance) (map[string]Balance, error) {
+func (trx WalletTransactionSet) CalculateTransferCommit(ctx context.Context, accountBalance map[string]Balance) (map[string]Balance, error) {
 	sourceBalance, ok := accountBalance[trx.FromAccount]
 	if !ok {
 		return accountBalance, fmt.Errorf("source account not found: %s", trx.FromAccount)
@@ -214,6 +275,11 @@ func (trx WalletTransactionSet) CalculateTransferCommit(accountBalance map[strin
 
 	err := sourceBalance.Commit(trx.Amount, WithTransactionType(trx.TransactionType))
 	if err != nil {
+		xlog.Error(ctx, "failed to commit source account",
+			xlog.String("accountNumber", trx.FromAccount),
+			xlog.Any("balance", sourceBalance),
+		)
+
 		return accountBalance, err
 	}
 
@@ -226,6 +292,11 @@ func (trx WalletTransactionSet) CalculateTransferCommit(accountBalance map[strin
 
 	err = destBalance.AddFunds(trx.Amount, WithTransactionType(trx.TransactionType))
 	if err != nil {
+		xlog.Error(ctx, "failed to add funds to destination account",
+			xlog.String("accountNumber", trx.ToAccount),
+			xlog.Any("balance", destBalance),
+		)
+
 		return accountBalance, err
 	}
 
@@ -234,7 +305,7 @@ func (trx WalletTransactionSet) CalculateTransferCommit(accountBalance map[strin
 	return accountBalance, nil
 }
 
-func (trx WalletTransactionSet) CalculateTransferCancel(accountBalance map[string]Balance) (map[string]Balance, error) {
+func (trx WalletTransactionSet) CalculateTransferCancel(ctx context.Context, accountBalance map[string]Balance) (map[string]Balance, error) {
 	sourceBalance, ok := accountBalance[trx.FromAccount]
 	if !ok {
 		return accountBalance, fmt.Errorf("source account not found: %s", trx.FromAccount)
@@ -242,6 +313,11 @@ func (trx WalletTransactionSet) CalculateTransferCancel(accountBalance map[strin
 
 	err := sourceBalance.CancelReservation(trx.Amount, WithTransactionType(trx.TransactionType))
 	if err != nil {
+		xlog.Error(ctx, "failed to cancel reserve source account",
+			xlog.String("accountNumber", trx.FromAccount),
+			xlog.Any("balance", sourceBalance),
+		)
+
 		return accountBalance, err
 	}
 

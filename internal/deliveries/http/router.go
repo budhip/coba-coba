@@ -28,7 +28,6 @@ import (
 	v1transaction "bitbucket.org/Amartha/go-fp-transaction/internal/deliveries/http/v1/transaction"
 	v1walletTrx "bitbucket.org/Amartha/go-fp-transaction/internal/deliveries/http/v1/wallet_transaction"
 	v2Files "bitbucket.org/Amartha/go-fp-transaction/internal/deliveries/http/v2/files"
-	v2transaction "bitbucket.org/Amartha/go-fp-transaction/internal/deliveries/http/v2/transaction"
 
 	"bitbucket.org/Amartha/go-x/log/ctxdata"
 	"github.com/labstack/echo-contrib/echoprometheus"
@@ -174,7 +173,6 @@ func NewHTTPServer(
 	v2Group.Use(m.InternalAuth)
 	// v2Group register api
 	v2Files.New(v2Group, fileService)
-	v2transaction.New(v2Group, transactionService)
 
 	// prepare an endpoint for 'Not Found'.
 	app.Any("*", func(c echo.Context) error {

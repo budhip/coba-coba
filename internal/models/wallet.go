@@ -37,6 +37,10 @@ func (in *WalletFeatureReq) TransformAndValidate() (out WalletFeature, err error
 		balanceRangeMin, err = common.NewDecimalFromString(in.BalanceRangeMin)
 		if err != nil {
 			parseErr = multierror.Append(parseErr, fmt.Errorf("unable to parse balanceRangeMin: %s", err.Error()))
+		} else {
+			if balanceRangeMin.LessThan(decimal.Zero) {
+				parseErr = multierror.Append(parseErr, fmt.Errorf("balanceRangeMin must be greater or equal than 0"))
+			}
 		}
 	}
 
@@ -44,6 +48,10 @@ func (in *WalletFeatureReq) TransformAndValidate() (out WalletFeature, err error
 		balanceRangeMax, err = common.NewDecimalFromString(in.BalanceRangeMax)
 		if err != nil {
 			parseErr = multierror.Append(parseErr, fmt.Errorf("unable to parse balanceRangeMax: %s", err.Error()))
+		} else {
+			if balanceRangeMax.LessThan(decimal.Zero) {
+				parseErr = multierror.Append(parseErr, fmt.Errorf("balanceRangeMax must be greater or equal than 0"))
+			}
 		}
 	}
 
@@ -51,6 +59,10 @@ func (in *WalletFeatureReq) TransformAndValidate() (out WalletFeature, err error
 		negativeBalanceLimit, err = common.NewDecimalFromString(in.NegativeBalanceLimit)
 		if err != nil {
 			parseErr = multierror.Append(parseErr, fmt.Errorf("unable to parse negativeBalanceLimit: %s", err.Error()))
+		} else {
+			if negativeBalanceLimit.LessThan(decimal.Zero) {
+				parseErr = multierror.Append(parseErr, fmt.Errorf("negativeBalanceLimit must be greater or equal than 0"))
+			}
 		}
 	}
 

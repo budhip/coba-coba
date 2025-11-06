@@ -213,6 +213,7 @@ func NewMapTransformer(
 		"RFDMT": &rfdmtTransformer{baseTransformer},
 		"RFDPR": &rfdprTransformer{baseTransformer},
 		"RFDPY": &rfdpyTransformer{baseTransformer},
+		"RFDTF": &rfdtfTransformer{baseTransformer},
 		"RFDTX": &rfdtxTransformer{baseTransformer},
 		"RFDVP": &rfdvpTransformer{baseTransformer},
 		"RPYAA": &rpyaaTransformer{baseTransformer},
@@ -286,6 +287,9 @@ func NewMapTransformer(
 		"SIVTF": &sivtfTransformer{baseTransformer},
 		"BBLTF": &bbltfTransformer{baseTransformer},
 		"RVRTF": &rvrtfTransformer{baseTransformer},
+		"DSBPI": &dsbpiTransformer{baseTransformer},
+		"MMWPI": &mmwpiTransformer{baseTransformer},
+		"MWMPI": &mwmpiTransformer{baseTransformer},
 	}
 }
 

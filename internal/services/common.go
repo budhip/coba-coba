@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -39,36 +40,36 @@ func getBalanceCalculator(processType models.TransactionStoreProcessType) balanc
 	}
 }
 
-type walletBalanceCalculator func(trxSet models.WalletTransactionSet, accountBalance map[string]models.Balance) (map[string]models.Balance, error)
+type walletBalanceCalculator func(ctx context.Context, trxSet models.WalletTransactionSet, accountBalance map[string]models.Balance) (map[string]models.Balance, error)
 
 func getWalletBalanceCalculator(trxFlow models.TransactionFlow, isReserved bool) walletBalanceCalculator {
 	switch trxFlow {
 	case models.TransactionFlowCashIn:
-		return func(trxSet models.WalletTransactionSet, accountBalance map[string]models.Balance) (map[string]models.Balance, error) {
-			return trxSet.CalculateCashIn(accountBalance)
+		return func(ctx context.Context, trxSet models.WalletTransactionSet, accountBalance map[string]models.Balance) (map[string]models.Balance, error) {
+			return trxSet.CalculateCashIn(ctx, accountBalance)
 		}
 	case models.TransactionFlowCashOut:
 		if isReserved {
-			return func(trxSet models.WalletTransactionSet, accountBalance map[string]models.Balance) (map[string]models.Balance, error) {
-				return trxSet.CalculateCashOutReserve(accountBalance)
+			return func(ctx context.Context, trxSet models.WalletTransactionSet, accountBalance map[string]models.Balance) (map[string]models.Balance, error) {
+				return trxSet.CalculateCashOutReserve(ctx, accountBalance)
 			}
 		}
 
-		return func(trxSet models.WalletTransactionSet, accountBalance map[string]models.Balance) (map[string]models.Balance, error) {
-			return trxSet.CalculateCashOut(accountBalance)
+		return func(ctx context.Context, trxSet models.WalletTransactionSet, accountBalance map[string]models.Balance) (map[string]models.Balance, error) {
+			return trxSet.CalculateCashOut(ctx, accountBalance)
 		}
 	case models.TransactionFlowTransfer, models.TransactionFlowRefund:
 		if isReserved {
-			return func(trxSet models.WalletTransactionSet, accountBalance map[string]models.Balance) (map[string]models.Balance, error) {
-				return trxSet.CalculateTransferReserve(accountBalance)
+			return func(ctx context.Context, trxSet models.WalletTransactionSet, accountBalance map[string]models.Balance) (map[string]models.Balance, error) {
+				return trxSet.CalculateTransferReserve(ctx, accountBalance)
 			}
 		}
 
-		return func(trxSet models.WalletTransactionSet, accountBalance map[string]models.Balance) (map[string]models.Balance, error) {
-			return trxSet.CalculateTransfer(accountBalance)
+		return func(ctx context.Context, trxSet models.WalletTransactionSet, accountBalance map[string]models.Balance) (map[string]models.Balance, error) {
+			return trxSet.CalculateTransfer(ctx, accountBalance)
 		}
 	default:
-		return func(trxSet models.WalletTransactionSet, accountBalance map[string]models.Balance) (map[string]models.Balance, error) {
+		return func(ctx context.Context, trxSet models.WalletTransactionSet, accountBalance map[string]models.Balance) (map[string]models.Balance, error) {
 			return nil, fmt.Errorf("transactionFlow not supported: %s", trxFlow)
 		}
 	}
@@ -77,19 +78,19 @@ func getWalletBalanceCalculator(trxFlow models.TransactionFlow, isReserved bool)
 func getWalletBalanceCommitCalculator(trxFlow models.TransactionFlow) walletBalanceCalculator {
 	switch trxFlow {
 	case models.TransactionFlowCashIn:
-		return func(trxSet models.WalletTransactionSet, accountBalance map[string]models.Balance) (map[string]models.Balance, error) {
-			return trxSet.CalculateCashInCommit(accountBalance)
+		return func(ctx context.Context, trxSet models.WalletTransactionSet, accountBalance map[string]models.Balance) (map[string]models.Balance, error) {
+			return trxSet.CalculateCashInCommit(ctx, accountBalance)
 		}
 	case models.TransactionFlowCashOut:
-		return func(trxSet models.WalletTransactionSet, accountBalance map[string]models.Balance) (map[string]models.Balance, error) {
-			return trxSet.CalculateCashOutCommit(accountBalance)
+		return func(ctx context.Context, trxSet models.WalletTransactionSet, accountBalance map[string]models.Balance) (map[string]models.Balance, error) {
+			return trxSet.CalculateCashOutCommit(ctx, accountBalance)
 		}
 	case models.TransactionFlowTransfer, models.TransactionFlowRefund:
-		return func(trxSet models.WalletTransactionSet, accountBalance map[string]models.Balance) (map[string]models.Balance, error) {
-			return trxSet.CalculateTransferCommit(accountBalance)
+		return func(ctx context.Context, trxSet models.WalletTransactionSet, accountBalance map[string]models.Balance) (map[string]models.Balance, error) {
+			return trxSet.CalculateTransferCommit(ctx, accountBalance)
 		}
 	default:
-		return func(trxSet models.WalletTransactionSet, accountBalance map[string]models.Balance) (map[string]models.Balance, error) {
+		return func(ctx context.Context, trxSet models.WalletTransactionSet, accountBalance map[string]models.Balance) (map[string]models.Balance, error) {
 			return nil, fmt.Errorf("transactionFlow not supported: %s", trxFlow)
 		}
 	}
@@ -98,19 +99,19 @@ func getWalletBalanceCommitCalculator(trxFlow models.TransactionFlow) walletBala
 func getWalletBalanceCancelCalculator(trxFlow models.TransactionFlow) walletBalanceCalculator {
 	switch trxFlow {
 	case models.TransactionFlowCashIn:
-		return func(trxSet models.WalletTransactionSet, accountBalance map[string]models.Balance) (map[string]models.Balance, error) {
-			return trxSet.CalculateCashInCancel(accountBalance)
+		return func(ctx context.Context, trxSet models.WalletTransactionSet, accountBalance map[string]models.Balance) (map[string]models.Balance, error) {
+			return trxSet.CalculateCashInCancel(ctx, accountBalance)
 		}
 	case models.TransactionFlowCashOut:
-		return func(trxSet models.WalletTransactionSet, accountBalance map[string]models.Balance) (map[string]models.Balance, error) {
-			return trxSet.CalculateCashOutCancel(accountBalance)
+		return func(ctx context.Context, trxSet models.WalletTransactionSet, accountBalance map[string]models.Balance) (map[string]models.Balance, error) {
+			return trxSet.CalculateCashOutCancel(ctx, accountBalance)
 		}
 	case models.TransactionFlowTransfer, models.TransactionFlowRefund:
-		return func(trxSet models.WalletTransactionSet, accountBalance map[string]models.Balance) (map[string]models.Balance, error) {
-			return trxSet.CalculateTransferCancel(accountBalance)
+		return func(ctx context.Context, trxSet models.WalletTransactionSet, accountBalance map[string]models.Balance) (map[string]models.Balance, error) {
+			return trxSet.CalculateTransferCancel(ctx, accountBalance)
 		}
 	default:
-		return func(trxSet models.WalletTransactionSet, accountBalance map[string]models.Balance) (map[string]models.Balance, error) {
+		return func(ctx context.Context, trxSet models.WalletTransactionSet, accountBalance map[string]models.Balance) (map[string]models.Balance, error) {
 			return nil, fmt.Errorf("transactionFlow not supported: %s", trxFlow)
 		}
 	}

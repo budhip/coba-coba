@@ -174,8 +174,9 @@ type (
 		AmarthaRevenueAdminFeeAFA                string `json:"amartha_revenue_admin_fee_afa"`
 		OperationalReceivableDiscountAdminFeeAFA string `json:"operational_receivable_discount_admin_fee_afa"`
 
-		AccountNumberBankTUPVIForADMFE         map[string]string `json:"account_number_bank_tupvi_for_admfe"`
-		AccountNumberBankCOTLRForADMFEByEntity map[string]string `json:"account_number_bank_cotlr_for_admfe_by_entity"`
+		AccountNumberBankTUPVIForADMFE                    map[string]string `json:"account_number_bank_tupvi_for_admfe"`
+		AccountNumberBankCOTLRForADMFEByEntity            map[string]string `json:"account_number_bank_cotlr_for_admfe_by_entity"`
+		AccountNumberInsurancePremiumDisbursementByEntity map[string]string `json:"account_number_insurance_premium_disbursement_by_entity"`
 	}
 
 	MessageBroker struct {

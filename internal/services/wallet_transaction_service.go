@@ -141,7 +141,7 @@ func (ts *walletTrx) CreateTransactionAtomic(ctx context.Context, nwt models.New
 		for _, ct := range childTransactions {
 			trxSet := models.NewWalletTransactionSet(ct.FromAccount, ct.ToAccount, ct.Amount.Decimal, ct.TypeTransaction)
 
-			updatedBalances, errAtomic = calculateBalance(trxSet, updatedBalances)
+			updatedBalances, errAtomic = calculateBalance(atomicCtx, trxSet, updatedBalances)
 			if errAtomic != nil {
 				return fmt.Errorf("calculate balance failed: %w", errAtomic)
 			}
@@ -348,7 +348,7 @@ func (ts *walletTrx) ProcessReservedTransaction(ctx context.Context, req models.
 		for _, ct := range childTransactions {
 			trxSet := models.NewWalletTransactionSet(ct.FromAccount, ct.ToAccount, ct.Amount.Decimal, ct.TypeTransaction)
 
-			updatedBalances, errAtomic = balanceCalculator(trxSet, updatedBalances)
+			updatedBalances, errAtomic = balanceCalculator(atomicCtx, trxSet, updatedBalances)
 			if errAtomic != nil {
 				return fmt.Errorf("calculate balance failed: %w", errAtomic)
 			}

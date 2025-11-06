@@ -2,6 +2,7 @@ package models
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common"
@@ -217,6 +218,31 @@ func (b *Balance) UnmarshalJSON(data []byte) error {
 	b.pendingBalance = jsonBalance.PendingBalance
 
 	return nil
+}
+
+func (b Balance) String() string {
+	negativeLimit := "nil"
+	if b.negativeBalanceLimit.Valid {
+		negativeLimit = b.negativeBalanceLimit.Decimal.String()
+	}
+
+	rangeMax := "nil"
+	if b.balanceRangeMax.Valid {
+		rangeMax = b.balanceRangeMax.Decimal.String()
+	}
+
+	return fmt.Sprintf("Balance{actual=%s, pending=%s, avail=%s, ignoreSuff=%t, HVT=%t, skipDB=%t, limitEnabled=%t, negLimit=%s, allowedNegTx=%v, max=%s}",
+		b.actualBalance.String(),
+		b.pendingBalance.String(),
+		b.Available().String(),
+		b.ignoreBalanceSufficiency,
+		b.isHVT,
+		b.isSkipBalanceUpdateOnDB,
+		b.isBalanceLimitEnabled,
+		negativeLimit,
+		b.allowedNegativeBalanceTransactionTypes,
+		rangeMax,
+	)
 }
 
 // balanceJSONV2 is new version of Balance JSON
