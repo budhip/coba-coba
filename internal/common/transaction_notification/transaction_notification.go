@@ -71,7 +71,7 @@ func (tn kafkaTransactionNotification) Publish(ctx context.Context, payload mode
 
 	errPublishLogBalance := make(chan error, 1)
 	go func() {
-		err = tn.PublishLogBalance(ctx, payload)
+		err := tn.PublishLogBalance(ctx, payload)
 		if err != nil {
 			// fail open
 			xlog.Error(
@@ -81,7 +81,10 @@ func (tn kafkaTransactionNotification) Publish(ctx context.Context, payload mode
 				xlog.String("topic", tn.topic),
 				xlog.String("message", string(msg.Value.(sarama.ByteEncoder))),
 				xlog.Err(err))
+			errPublishLogBalance <- err
+			return
 		}
+		errPublishLogBalance <- nil
 	}()
 
 	// log the successful publishing of the transaction notification
@@ -89,7 +92,7 @@ func (tn kafkaTransactionNotification) Publish(ctx context.Context, payload mode
 
 	errPublishAcuanNotif := make(chan error, 1)
 	go func() {
-		_, _, err = tn.producer.SendMessage(msg)
+		_, _, err := tn.producer.SendMessage(msg)
 		if err != nil {
 			errPublishAcuanNotif <- err
 			return

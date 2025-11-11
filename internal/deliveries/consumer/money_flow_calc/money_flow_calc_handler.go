@@ -71,12 +71,19 @@ func (mfc MoneyFlowCalcHandler) ConsumeClaim(session sarama.ConsumerGroupSession
 			start := time.Now()
 			logField := mfc.CreateLogField(message)
 
-			err := mfc.handler(ctx, message)
+			err, shouldSkip := mfc.handler(ctx, message)
 			if err != nil {
 				logField = append(logField, xlog.Duration("response-time", time.Since(start)), xlog.Err(err))
-				xlog.Warn(ctx, logMessage, logField...)
 
-				mfc.Nack(ctx, session, message, err)
+				if shouldSkip {
+					// Skip message without sending to DLQ (ineligible transaction)
+					xlog.Info(ctx, logMessage, append(logField, xlog.String("action", "skipped"))...)
+					mfc.Ack(session, message)
+				} else {
+					// Send to DLQ (actual error)
+					xlog.Warn(ctx, logMessage, append(logField, xlog.String("action", "sent_to_dlq"))...)
+					mfc.Nack(ctx, session, message, err)
+				}
 				continue
 			}
 
@@ -91,7 +98,9 @@ func (mfc MoneyFlowCalcHandler) ConsumeClaim(session sarama.ConsumerGroupSession
 	}
 }
 
-func (mfc MoneyFlowCalcHandler) processMessage(ctx context.Context, message *sarama.ConsumerMessage) (err error) {
+// processMessage returns (error, shouldSkip)
+// shouldSkip = true means the message should be acknowledged without sending to DLQ
+func (mfc MoneyFlowCalcHandler) processMessage(ctx context.Context, message *sarama.ConsumerMessage) (error, bool) {
 	var (
 		logMsg = "[PROCESS-MESSAGE]"
 	)
@@ -99,10 +108,11 @@ func (mfc MoneyFlowCalcHandler) processMessage(ctx context.Context, message *sar
 	logField := mfc.CreateLogField(message)
 
 	var rawNotif models.TransactionNotificationRaw
-	if err = json.Unmarshal(message.Value, &rawNotif); err != nil {
+	if err := json.Unmarshal(message.Value, &rawNotif); err != nil {
 		logField = append(logField, xlog.Err(err))
 		xlog.Warn(ctx, logMsg, logField...)
-		return fmt.Errorf("error unmarshal json to raw: %w", err)
+		// Unmarshal error should go to DLQ
+		return fmt.Errorf("error unmarshal json to raw: %w", err), false
 	}
 
 	fixedAcuanData := mfc.fixAmountInJSON(rawNotif.AcuanData)
@@ -111,31 +121,42 @@ func (mfc MoneyFlowCalcHandler) processMessage(ctx context.Context, message *sar
 
 	if len(fixedAcuanData) > 0 {
 		var acuanData goacuanlib.Payload[goacuanlib.DataOrder]
-		if err = json.Unmarshal(fixedAcuanData, &acuanData); err != nil {
+		if err := json.Unmarshal(fixedAcuanData, &acuanData); err != nil {
 			logField = append(logField, xlog.Err(err))
 			xlog.Warn(ctx, logMsg, logField...)
-			return fmt.Errorf("error unmarshal acuan data: %w", err)
+			// Unmarshal error should go to DLQ
+			return fmt.Errorf("error unmarshal acuan data: %w", err), false
 		}
 		notification = acuanData
 	}
 
-	err = mfc.mfs.ProcessTransactionNotification(ctx, notification)
+	err := mfc.mfs.ProcessTransactionNotification(ctx, notification)
 	if err != nil {
+		// Check if error is due to ineligible transaction type
+		if isIneligibleTransactionError(err) {
+			logField = append(logField, xlog.Err(err), xlog.String("reason", "ineligible_transaction"))
+			xlog.Info(ctx, logMsg, logField...)
+			// Skip without sending to DLQ
+			return err, true
+		}
+
+		// Other errors should go to DLQ
 		err = fmt.Errorf("unable to process transaction notification: %w", err)
 		logField = append(logField, xlog.Err(err))
 		xlog.Warn(ctx, logMsg, logField...)
-		return err
+		return err, false
 	}
 
 	xlog.Info(ctx, logMsg, logField...)
-	return nil
+	return nil, false
 }
 
-func (mfc MoneyFlowCalcHandler) handler(ctx context.Context, message *sarama.ConsumerMessage) (err error) {
+// handler returns (error, shouldSkip)
+func (mfc MoneyFlowCalcHandler) handler(ctx context.Context, message *sarama.ConsumerMessage) (error, bool) {
 	startTime := time.Now()
-	err = mfc.processMessage(ctx, message)
+	err, shouldSkip := mfc.processMessage(ctx, message)
 	mfc.RecordMetrics(startTime, message, err)
-	return
+	return err, shouldSkip
 }
 
 func (mfc MoneyFlowCalcHandler) fixAmountInJSON(data []byte) []byte {
@@ -158,4 +179,59 @@ func (mfc MoneyFlowCalcHandler) fixAmountInJSON(data []byte) []byte {
 	}
 
 	return []byte(dataStr)
+}
+
+// isIneligibleTransactionError checks if error is due to ineligible transaction
+func isIneligibleTransactionError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	errMsg := err.Error()
+	// Check for common ineligible transaction error patterns
+	ineligiblePatterns := []string{
+		"payment type not found",
+		"transaction type not found",
+		"not eligible",
+		"skipping ineligible",
+	}
+
+	for _, pattern := range ineligiblePatterns {
+		if contains(errMsg, pattern) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// contains checks if string contains substring (case-insensitive)
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) &&
+		(s == substr ||
+			len(s) > len(substr) &&
+				containsCaseInsensitive(s, substr))
+}
+
+func containsCaseInsensitive(s, substr string) bool {
+	s = toLower(s)
+	substr = toLower(substr)
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}
+
+func toLower(s string) string {
+	b := make([]byte, len(s))
+	for i := range s {
+		c := s[i]
+		if 'A' <= c && c <= 'Z' {
+			c += 'a' - 'A'
+		}
+		b[i] = c
+	}
+	return string(b)
 }

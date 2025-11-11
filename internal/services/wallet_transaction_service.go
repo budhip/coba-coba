@@ -212,7 +212,7 @@ func (ts *walletTrx) CreateTransactionAtomic(ctx context.Context, nwt models.New
 	// please be aware that this timeout is associated with the kafka client timeout
 	// if the kafka client timeout is changed, this timeout should be changed too
 	maxWaitingTimeKafka := 7 * time.Second
-	kafkaCtx, cancelKafka := context.WithTimeout(ctx, maxWaitingTimeKafka)
+	kafkaCtx, cancelKafka := context.WithTimeout(context.Background(), maxWaitingTimeKafka)
 	defer cancelKafka()
 	if !isReserved && isPublish {
 		err := ts.publishNotificationCreateWalletTransactionSuccess(
@@ -415,7 +415,7 @@ func (ts *walletTrx) ProcessReservedTransaction(ctx context.Context, req models.
 	// please be aware that this timeout is associated with the kafka client timeout
 	// if the kafka client timeout is changed, this timeout should be changed too
 	maxWaitingTimeKafka := 7 * time.Second
-	kafkaCtx, cancelKafka := context.WithTimeout(ctx, maxWaitingTimeKafka)
+	kafkaCtx, cancelKafka := context.WithTimeout(context.Background(), maxWaitingTimeKafka)
 	defer cancelKafka()
 	if walletTrx.Status == models.WalletTransactionStatusSuccess {
 		err = ts.publishNotificationCreateWalletTransactionSuccess(

@@ -95,17 +95,25 @@ func (tsh TransactionStreamHandler) ConsumeClaim(session sarama.ConsumerGroupSes
 			start := time.Now()
 			logField := tsh.CreateLogField(message)
 
-			err := tsh.handler(ctx, message)
+			err, shouldSkip := tsh.handler(ctx, message)
 
 			if err != nil {
 				logField = append(logField,
 					xlog.Duration("response-time", time.Since(start)),
 					xlog.Err(err),
-					xlog.String("status", "failed"),
 				)
-				xlog.Warn(ctx, logMessage+"[PROCESS-FAILED]", logField...)
 
-				tsh.Nack(ctx, session, message, err)
+				if shouldSkip {
+					// Skip message without sending to DLQ (ineligible status or payment type)
+					logField = append(logField, xlog.String("status", "skipped"))
+					xlog.Info(ctx, logMessage+"[PROCESS-SKIPPED]", logField...)
+					tsh.Ack(session, message)
+				} else {
+					// Send to DLQ (actual error)
+					logField = append(logField, xlog.String("status", "failed"))
+					xlog.Warn(ctx, logMessage+"[PROCESS-FAILED]", logField...)
+					tsh.Nack(ctx, session, message, err)
+				}
 				continue
 			}
 
@@ -126,7 +134,9 @@ func (tsh TransactionStreamHandler) ConsumeClaim(session sarama.ConsumerGroupSes
 	}
 }
 
-func (tsh TransactionStreamHandler) processMessage(ctx context.Context, message *sarama.ConsumerMessage) error {
+// processMessage returns (error, shouldSkip)
+// shouldSkip = true means the message should be acknowledged without sending to DLQ
+func (tsh TransactionStreamHandler) processMessage(ctx context.Context, message *sarama.ConsumerMessage) (error, bool) {
 	var (
 		logMsg = logMessage + "[PROCESS-MESSAGE]"
 	)
@@ -135,35 +145,39 @@ func (tsh TransactionStreamHandler) processMessage(ctx context.Context, message 
 
 	if len(message.Value) == 0 {
 		xlog.Warn(ctx, logMsg, append(logField, xlog.String("error", "empty message"))...)
-		return fmt.Errorf("empty message received")
+		// Empty message should go to DLQ
+		return fmt.Errorf("empty message received"), false
 	}
 
 	var transactionEvent gopaymentlib.Event
 	if err := json.Unmarshal(message.Value, &transactionEvent); err != nil {
 		logField = append(logField, xlog.Err(err), xlog.String("raw_message", string(message.Value)))
 		xlog.Warn(ctx, logMsg, logField...)
-		return fmt.Errorf("error unmarshal json: %w", err)
+		// Unmarshal error should go to DLQ
+		return fmt.Errorf("error unmarshal json: %w", err), false
 	}
 
+	// Validation errors - these should skip without DLQ
 	if transactionEvent.ID == "" {
-		xlog.Warn(ctx, logMsg, append(logField, xlog.String("error", "missing transaction_id"))...)
-		return fmt.Errorf("papa_transaction_id is required")
+		xlog.Info(ctx, logMsg, append(logField, xlog.String("error", "missing transaction_id"))...)
+		return fmt.Errorf("papa_transaction_id is required"), true
 	}
 
 	if transactionEvent.PaymentType == "" {
-		xlog.Warn(ctx, logMsg, append(logField, xlog.String("error", "missing payment_type"))...)
-		return fmt.Errorf("payment_type is required")
+		xlog.Info(ctx, logMsg, append(logField, xlog.String("error", "missing payment_type"))...)
+		return fmt.Errorf("payment_type is required"), true
 	}
 
 	status := transactionEvent.Status.ConvertSingleAPI().ToString()
 	if !validStatuses[status] {
+		// Invalid status - skip without DLQ
 		xlog.Info(ctx, logMsg, append(logField,
 			xlog.String("status", status),
 			xlog.String("papa_transaction_id", transactionEvent.ID),
 			xlog.String("payment_type", transactionEvent.PaymentType.ConvertSingleAPI().ToString()),
 			xlog.String("info", "skipping invalid transaction status"),
 		)...)
-		return nil
+		return fmt.Errorf("invalid transaction status: %s", status), true
 	}
 
 	xlog.Info(ctx, logMsg, append(logField,
@@ -175,10 +189,19 @@ func (tsh TransactionStreamHandler) processMessage(ctx context.Context, message 
 
 	err := tsh.mfs.ProcessTransactionStream(ctx, transactionEvent)
 	if err != nil {
+		// Check if error is due to ineligible payment type
+		if isIneligibleTransactionError(err) {
+			logField = append(logField, xlog.Err(err), xlog.String("reason", "ineligible_transaction"))
+			xlog.Info(ctx, logMsg, logField...)
+			// Skip without sending to DLQ
+			return err, true
+		}
+
+		// Other errors should go to DLQ
 		err = fmt.Errorf("unable to process transaction stream: %w", err)
 		logField = append(logField, xlog.Err(err))
 		xlog.Warn(ctx, logMsg, logField...)
-		return err
+		return err, false
 	}
 
 	xlog.Info(ctx, logMsg+" [SUCCESS]", append(logField,
@@ -186,12 +209,69 @@ func (tsh TransactionStreamHandler) processMessage(ctx context.Context, message 
 		xlog.String("payment_type", transactionEvent.PaymentType.ConvertSingleAPI().ToString()),
 	)...)
 
-	return nil
+	return nil, false
 }
 
-func (tsh TransactionStreamHandler) handler(ctx context.Context, message *sarama.ConsumerMessage) (err error) {
+// handler returns (error, shouldSkip)
+func (tsh TransactionStreamHandler) handler(ctx context.Context, message *sarama.ConsumerMessage) (error, bool) {
 	startTime := time.Now()
-	err = tsh.processMessage(ctx, message)
+	err, shouldSkip := tsh.processMessage(ctx, message)
 	tsh.RecordMetrics(startTime, message, err)
-	return err
+	return err, shouldSkip
+}
+
+// isIneligibleTransactionError checks if error is due to ineligible transaction
+func isIneligibleTransactionError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	errMsg := err.Error()
+	// Check for common ineligible transaction error patterns
+	ineligiblePatterns := []string{
+		"payment type not found",
+		"transaction type not found",
+		"not eligible",
+		"skipping non-eligible",
+		"summary id not found",
+	}
+
+	for _, pattern := range ineligiblePatterns {
+		if contains(errMsg, pattern) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// contains checks if string contains substring (case-insensitive)
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) &&
+		(s == substr ||
+			len(s) > len(substr) &&
+				containsCaseInsensitive(s, substr))
+}
+
+func containsCaseInsensitive(s, substr string) bool {
+	s = toLower(s)
+	substr = toLower(substr)
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}
+
+func toLower(s string) string {
+	b := make([]byte, len(s))
+	for i := range s {
+		c := s[i]
+		if 'A' <= c && c <= 'Z' {
+			c += 'a' - 'A'
+		}
+		b[i] = c
+	}
+	return string(b)
 }
