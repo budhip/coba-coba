@@ -51,53 +51,39 @@ func (req GetMoneyFlowSummaryRequest) ToFilterOpts() (*MoneyFlowSummaryFilterOpt
 	if cursor != nil {
 		cursorStr := cursor.GetID()
 
-		// Check if cursor is already decoded (plain text format: "date:id")
-		if strings.Contains(cursorStr, ":") && strings.Contains(cursorStr, "T") {
-			// Already decoded, parse directly
-			parts := strings.SplitN(cursorStr, ":", 2)
-			if len(parts) != 2 {
-				return nil, fmt.Errorf("invalid cursor format: expected date:id")
-			}
+		var decodedStr string
 
-			// Parse the date
-			cursorDate, err := time.Parse(time.RFC3339, parts[0])
+		// Try to decode from base64 first
+		decodedBytes, err := base64.StdEncoding.DecodeString(cursorStr)
+		if err != nil {
+			// Try URL encoding
+			decodedBytes, err = base64.URLEncoding.DecodeString(cursorStr)
 			if err != nil {
-				return nil, fmt.Errorf("invalid cursor date format: %w", err)
-			}
-
-			opts.Cursor = &MoneyFlowSummaryCursor{
-				TransactionSourceCreationDate: cursorDate,
-				ID:                            parts[1],
-				IsBackward:                    cursor.IsBackward(),
+				// If decode fails, assume it's already plain text
+				decodedStr = cursorStr
+			} else {
+				decodedStr = string(decodedBytes)
 			}
 		} else {
-			// Try to decode base64
-			decodedBytes, err := base64.RawURLEncoding.DecodeString(cursorStr)
-			if err != nil {
-				// Try with padding
-				decodedBytes, err = base64.URLEncoding.DecodeString(cursorStr)
-				if err != nil {
-					return nil, fmt.Errorf("invalid cursor format: %w", err)
-				}
-			}
+			decodedStr = string(decodedBytes)
+		}
 
-			decodedStr := string(decodedBytes)
-			parts := strings.SplitN(decodedStr, ":", 2)
-			if len(parts) != 2 {
-				return nil, fmt.Errorf("invalid cursor format: expected date:id")
-			}
+		// Parse format: "timestamp|id"
+		parts := strings.SplitN(decodedStr, "|", 2)
+		if len(parts) != 2 {
+			return nil, fmt.Errorf("invalid cursor format: expected timestamp|id, got: %s", decodedStr)
+		}
 
-			// Parse the date
-			cursorDate, err := time.Parse(time.RFC3339, parts[0])
-			if err != nil {
-				return nil, fmt.Errorf("invalid cursor date format: %w", err)
-			}
+		// Parse the date
+		cursorDate, err := time.Parse(time.RFC3339, parts[0])
+		if err != nil {
+			return nil, fmt.Errorf("invalid cursor date format: %w (timestamp: %s)", err, parts[0])
+		}
 
-			opts.Cursor = &MoneyFlowSummaryCursor{
-				TransactionSourceCreationDate: cursorDate,
-				ID:                            parts[1],
-				IsBackward:                    cursor.IsBackward(),
-			}
+		opts.Cursor = &MoneyFlowSummaryCursor{
+			TransactionSourceCreationDate: cursorDate,
+			ID:                            parts[1],
+			IsBackward:                    cursor.IsBackward(),
 		}
 	}
 

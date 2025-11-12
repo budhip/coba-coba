@@ -204,7 +204,7 @@ type MoneyFlowSummaryFilterOptions struct {
 	Cursor                             *MoneyFlowSummaryCursor
 }
 
-// MoneyFlowSummaryCursor represents cursor for pagination based on transaction_source_creation_date
+// MoneyFlowSummaryCursor represents cursor for pagination based on transaction_source_creation_date and ID
 type MoneyFlowSummaryCursor struct {
 	TransactionSourceCreationDate time.Time
 	ID                            string
@@ -212,10 +212,9 @@ type MoneyFlowSummaryCursor struct {
 }
 
 func (c MoneyFlowSummaryCursor) String() string {
-	// Encode as "date:id" using RawURLEncoding (no padding)
-	return base64.RawURLEncoding.EncodeToString([]byte(
-		c.TransactionSourceCreationDate.Format(time.RFC3339) + ":" + c.ID,
-	))
+	// Encode as "timestamp|id" format to base64
+	cursorStr := c.TransactionSourceCreationDate.Format(time.RFC3339) + "|" + c.ID
+	return base64.StdEncoding.EncodeToString([]byte(cursorStr))
 }
 
 type DoGetSummaryIDBySummaryIDRequest struct {
@@ -224,48 +223,48 @@ type DoGetSummaryIDBySummaryIDRequest struct {
 
 // MoneyFlowSummaryBySummaryIDOut represents the output from repository
 type MoneyFlowSummaryBySummaryIDOut struct {
-	Kind                         string
-	ID                           string
-	PaymentType                  string
-	CreatedDate                  string
-	RequestedDate                string
-	ActualDate                   string
-	TotalAmount                  decimal.Decimal
-	Status                       string
-	SourceBankAccountNumber      string
-	SourceBankAccountName        string
-	SourceBankName               string
-	DestinationBankAccountNumber string
-	DestinationBankAccountName   string
-	DestinationBankName          string
+	Kind                         string          `json:"kind"`
+	ID                           string          `json:"id"`
+	PaymentType                  string          `json:"paymentType"`
+	CreatedDate                  string          `json:"createdDate"`
+	RequestedDate                string          `json:"requestedDate"`
+	ActualDate                   string          `json:"actualDate"`
+	TotalAmount                  decimal.Decimal `json:"totalTransfer"`
+	Status                       string          `json:"status"`
+	SourceBankAccountNumber      string          `json:"sourceBankAccountNumber"`
+	SourceBankAccountName        string          `json:"sourceBankAccountName"`
+	SourceBankName               string          `json:"sourceBankName"`
+	DestinationBankAccountNumber string          `json:"destinationBankAccountNumber"`
+	DestinationBankAccountName   string          `json:"destinationBankAccountName"`
+	DestinationBankName          string          `json:"destinationBankName"`
 }
 
 type MoneyFlowSummaryDetailBySummaryIDOut struct {
-	Kind                             string
-	ID                               string
-	PaymentType                      string
-	CreatedDate                      time.Time
-	RequestedDate                    *time.Time
-	ActualDate                       *time.Time
-	TotalTransfer                    decimal.Decimal
-	Status                           string
-	SourceBankAccountNumber          string
-	SourceBankAccountName            string
-	SourceBankName                   string
-	DestinationBankAccountNumber     string
-	DestinationBankAccountName       string
-	DestinationBankName              string
-	RelatedFailedOrRejectedSummaryID *string
-	RelatedTotalTransfer             decimal.Decimal
+	Kind                             string          `json:"kind"`
+	ID                               string          `json:"id"`
+	PaymentType                      string          `json:"paymentType"`
+	CreatedDate                      time.Time       `json:"createdDate"`
+	RequestedDate                    *time.Time      `json:"requestedDate"`
+	ActualDate                       *time.Time      `json:"actualDate"`
+	TotalAmount                      decimal.Decimal `json:"totalTransfer"`
+	Status                           string          `json:"status"`
+	SourceBankAccountNumber          string          `json:"sourceBankAccountNumber"`
+	SourceBankAccountName            string          `json:"sourceBankAccountName"`
+	SourceBankName                   string          `json:"sourceBankName"`
+	DestinationBankAccountNumber     string          `json:"destinationBankAccountNumber"`
+	DestinationBankAccountName       string          `json:"destinationBankAccountName"`
+	DestinationBankName              string          `json:"destinationBankName"`
+	RelatedFailedOrRejectedSummaryID *string         `json:"relatedFailedOrRejectedSummaryId"`
+	RelatedTotalTransfer             decimal.Decimal `json:"relatedTotalTransfer"`
 }
 
 func (m MoneyFlowSummaryDetailBySummaryIDOut) ToModelResponse() MoneyFlowSummaryBySummaryIDOut {
 	dates := dateutil.FormatTimesToRFC3339(m.RequestedDate, m.ActualDate)
 
 	// Calculate final total amount (current + related if exists)
-	finalTotalAmount := m.TotalTransfer
+	finalTotalAmount := m.TotalAmount
 	if m.RelatedFailedOrRejectedSummaryID != nil && !m.RelatedTotalTransfer.IsZero() {
-		finalTotalAmount = m.TotalTransfer.Add(m.RelatedTotalTransfer)
+		finalTotalAmount = m.TotalAmount.Add(m.RelatedTotalTransfer)
 	}
 
 	return MoneyFlowSummaryBySummaryIDOut{
@@ -526,7 +525,7 @@ func (req UpdateMoneyFlowSummaryRequest) ToUpdateModelWithAutoFill(currentReques
 	}
 
 	// Auto-fill actualDate when status changes to SUCCESS and actualDate not provided
-	if *req.MoneyFlowStatus == constants.MoneyFlowStatusSuccess {
+	if req.MoneyFlowStatus != nil && *req.MoneyFlowStatus == constants.MoneyFlowStatusSuccess {
 		if req.ActualDate == nil {
 			now := time.Now()
 			update.ActualDate = &now
@@ -552,11 +551,8 @@ type PendingTransactionAfterFailed struct {
 	TotalTransfer                 decimal.Decimal `db:"total_transfer"`
 }
 
-// GetCursor returns encoded cursor based on transaction_source_creation_date and id
+// GetCursor returns cursor based on transaction_source_creation_date and ID (base64 encoded)
 func (m MoneyFlowSummaryOut) GetCursor() string {
-	cursor := MoneyFlowSummaryCursor{
-		TransactionSourceCreationDate: m.TransactionSourceCreationDate,
-		ID:                            m.ID,
-	}
-	return cursor.String()
+	cursorStr := m.TransactionSourceCreationDate.Format(time.RFC3339) + "|" + m.ID
+	return base64.StdEncoding.EncodeToString([]byte(cursorStr))
 }
