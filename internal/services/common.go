@@ -141,6 +141,21 @@ func getAccountNumbersForUpdateBalance(acuanTransactions []models.TransactionReq
 	return accountNumbers
 }
 
+func getAccountNumbersForEntity(acuanTransactions []models.Transaction) []string {
+	var accountNumbers []string
+	for _, trx := range acuanTransactions {
+		if trx.FromAccount != "" {
+			accountNumbers = append(accountNumbers, trx.FromAccount)
+		}
+
+		if trx.ToAccount != "" {
+			accountNumbers = append(accountNumbers, trx.ToAccount)
+		}
+	}
+
+	return accountNumbers
+}
+
 // getIgnoreBalanceCheckAccountNumbers returns account numbers that should be ignored from balance check
 // usually it is system account or account number that can be negative
 func getIgnoreBalanceCheckAccountNumbers(cfg config.Config) []string {

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/Masterminds/squirrel"
 	"strings"
 	"time"
 
@@ -22,6 +23,7 @@ type AccountRepository interface {
 	GetList(ctx context.Context, opts models.AccountFilterOptions) (result []models.GetAccountOut, err error)
 	GetAllWithoutPagination(ctx context.Context) (result *[]models.Account, err error)
 	GetAllByAccountNumbers(ctx context.Context, accountNumbers []string) (result []models.Account, err error)
+	GetAccountNumberEntity(ctx context.Context, accountNumbers []string) (result map[string]string, err error)
 	CountAll(ctx context.Context, opts models.AccountFilterOptions) (total int, err error)
 	CheckAccountNumbers(ctx context.Context, accountNumbers []string) (exists map[string]bool, err error)
 	CheckDataByID(ctx context.Context, id uint64) (err error)
@@ -202,6 +204,53 @@ func (ar *accountRepository) GetAllByAccountNumbers(ctx context.Context, account
 	}
 
 	return
+}
+
+func (ar *accountRepository) GetAccountNumberEntity(ctx context.Context, accountNumbers []string) (result map[string]string, err error) {
+	monitor := monitoring.New(ctx)
+	defer monitor.Finish(monitoring.WithFinishCheckError(err))
+
+	result = make(map[string]string)
+
+	if len(accountNumbers) == 0 {
+		return result, nil
+	}
+
+	// Build query dengan squirrel
+	query, args, err := squirrel.
+		Select(`"accountNumber"`, `"entityCode"`).
+		From("account").
+		Where(squirrel.Eq{`"accountNumber"`: accountNumbers}).
+		PlaceholderFormat(squirrel.Dollar).
+		ToSql()
+
+	if err != nil {
+		return nil, err
+	}
+
+	db := ar.r.extractTxRead(ctx)
+
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		fmt.Println("masuk sini -----------------")
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var accountNumber, entityCode string
+		err := rows.Scan(&accountNumber, &entityCode)
+		if err != nil {
+			return nil, err
+		}
+		result[accountNumber] = entityCode
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return result, nil
 }
 
 // GetOneByAccountNumber will search account by it's account number on database.

@@ -22,7 +22,6 @@ import (
 type MockAccountRepository struct {
 	ctrl     *gomock.Controller
 	recorder *MockAccountRepositoryMockRecorder
-	isgomock struct{}
 }
 
 // MockAccountRepositoryMockRecorder is the mock recorder for MockAccountRepository.
@@ -141,6 +140,21 @@ func (m *MockAccountRepository) GetAccountBalances(ctx context.Context, req mode
 func (mr *MockAccountRepositoryMockRecorder) GetAccountBalances(ctx, req any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAccountBalances", reflect.TypeOf((*MockAccountRepository)(nil).GetAccountBalances), ctx, req)
+}
+
+// GetAccountNumberEntity mocks base method.
+func (m *MockAccountRepository) GetAccountNumberEntity(ctx context.Context, accountNumbers []string) (map[string]string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAccountNumberEntity", ctx, accountNumbers)
+	ret0, _ := ret[0].(map[string]string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAccountNumberEntity indicates an expected call of GetAccountNumberEntity.
+func (mr *MockAccountRepositoryMockRecorder) GetAccountNumberEntity(ctx, accountNumbers any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAccountNumberEntity", reflect.TypeOf((*MockAccountRepository)(nil).GetAccountNumberEntity), ctx, accountNumbers)
 }
 
 // GetAllByAccountNumbers mocks base method.

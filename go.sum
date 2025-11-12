@@ -1,5 +1,5 @@
-bitbucket.org/Amartha/go-acuan-lib v1.31.0 h1:hKvX1hXSiIKQU38j7PGJbGTr8xRoOJfKj+VswwjXFqQ=
-bitbucket.org/Amartha/go-acuan-lib v1.31.0/go.mod h1:b88z5+LVs9/SVk0n5ATle3Mbj16v6EuH8sCfeWgrSv0=
+bitbucket.org/Amartha/go-acuan-lib v1.32.0 h1:LCTWTRbVQGbV2wQsk8bH8X181GQMTFGFOnXAcykErmg=
+bitbucket.org/Amartha/go-acuan-lib v1.32.0/go.mod h1:b88z5+LVs9/SVk0n5ATle3Mbj16v6EuH8sCfeWgrSv0=
 bitbucket.org/Amartha/go-config-loader-library v1.0.0 h1:qnLXJyKKBPFc4oCUlt1hx8iyI6NRwXd5UQYlqwUWsLo=
 bitbucket.org/Amartha/go-config-loader-library v1.0.0/go.mod h1:D3J2D609WLLjIJ856Dg+kAJNQG+AcwNp1WOdAI9cmM8=
 bitbucket.org/Amartha/go-feature-flag-sdk v0.2.5 h1:sJqsSJULT41tgVWmeh89jBzz43xb20bow4VDCThYYc4=

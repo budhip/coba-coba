@@ -28,6 +28,8 @@ type MoneyFlowRepository interface {
 	GetDetailedTransactionsBySummaryID(ctx context.Context, opts models.DetailedTransactionFilterOptions) ([]models.DetailedTransactionOut, error)
 	CountDetailedTransactions(ctx context.Context, summaryID string) (total int, err error)
 	GetAllDetailedTransactionsBySummaryID(ctx context.Context, summaryID string, refNumber string) ([]models.DetailedTransactionOut, error)
+	GetLastFailedOrRejectedTransaction(ctx context.Context, transactionType string, paymentType string) (*models.FailedOrRejectedTransaction, error)
+	GetPendingTransactionAfterFailed(ctx context.Context, transactionType string, paymentType string, failedCreatedAt time.Time) (*models.PendingTransactionAfterFailed, error)
 }
 
 type moneyFlowRepository sqlRepo
@@ -36,18 +38,19 @@ var _ MoneyFlowRepository = (*moneyFlowRepository)(nil)
 
 const (
 	queryCreateSummary = `
-		INSERT INTO money_flow_summaries (
-			id, transaction_source_creation_date, transaction_type, payment_type, 
-			reference_number, description, source_account, destination_account, 
-			total_transfer, papa_transaction_id, money_flow_status, 
-			requested_date, actual_date, 
-			source_bank_account_number, source_bank_account_name, source_bank_name,
-			destination_bank_account_number, destination_bank_account_name, destination_bank_name,
-			created_at, updated_at
-		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, NOW(), NOW())
-		RETURNING id
-	`
+	INSERT INTO money_flow_summaries (
+		id, transaction_source_creation_date, transaction_type, payment_type, 
+		reference_number, description, source_account, destination_account, 
+		total_transfer, papa_transaction_id, money_flow_status, 
+		requested_date, actual_date, 
+		source_bank_account_number, source_bank_account_name, source_bank_name,
+		destination_bank_account_number, destination_bank_account_name, destination_bank_name,
+		related_failed_or_rejected_summary_id,
+		created_at, updated_at
+	)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, NOW(), NOW())
+	RETURNING id
+`
 
 	queryCreateDetailedSummary = `
 		INSERT INTO detailed_money_flow_summaries (
@@ -86,6 +89,30 @@ const (
 		FROM detailed_money_flow_summaries
 		WHERE summary_id = $1
 	`
+
+	queryGetLastFailedOrRejectedTransaction = `
+		SELECT 
+			id, transaction_source_creation_date, transaction_type,
+			payment_type, total_transfer, money_flow_status, created_at
+		FROM money_flow_summaries
+		WHERE transaction_type = $1 
+		  AND payment_type = $2
+		  AND money_flow_status IN ('FAILED', 'REJECTED')
+		ORDER BY created_at DESC
+		LIMIT 1
+	`
+
+	queryGetPendingTransactionAfterFailed = `
+		SELECT 
+			id, transaction_source_creation_date, total_transfer
+		FROM money_flow_summaries
+		WHERE transaction_type = $1 
+		  AND payment_type = $2
+		  AND money_flow_status = 'PENDING'
+		  AND created_at > $3
+		ORDER BY created_at ASC
+		LIMIT 1
+	`
 )
 
 func (mfr *moneyFlowRepository) CreateSummary(ctx context.Context, in models.CreateMoneyFlowSummary) (string, error) {
@@ -116,6 +143,7 @@ func (mfr *moneyFlowRepository) CreateSummary(ctx context.Context, in models.Cre
 		in.DestinationBankAccountNumber,
 		in.DestinationBankAccountName,
 		in.DestinationBankName,
+		in.RelatedFailedOrRejectedSummaryID,
 	).Scan(&in.ID)
 
 	if err != nil {
@@ -508,4 +536,58 @@ func (mfr *moneyFlowRepository) GetAllDetailedTransactionsBySummaryID(ctx contex
 	}
 
 	return result, nil
+}
+
+// GetLastFailedOrRejectedTransaction
+func (mfr *moneyFlowRepository) GetLastFailedOrRejectedTransaction(ctx context.Context, transactionType string, paymentType string) (*models.FailedOrRejectedTransaction, error) {
+	var err error
+
+	monitor := monitoring.New(ctx)
+	defer monitor.Finish(monitoring.WithFinishCheckError(err))
+
+	db := mfr.r.extractTxRead(ctx)
+
+	var result models.FailedOrRejectedTransaction
+	err = db.QueryRowContext(ctx, queryGetLastFailedOrRejectedTransaction, transactionType, paymentType).Scan(
+		&result.ID,
+		&result.TransactionSourceCreationDate,
+		&result.TransactionType,
+		&result.PaymentType,
+		&result.TotalTransfer,
+		&result.MoneyFlowStatus,
+		&result.CreatedAt,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	return &result, nil
+}
+
+// GetPendingTransactionAfterFailed
+func (mfr *moneyFlowRepository) GetPendingTransactionAfterFailed(ctx context.Context, transactionType string, paymentType string, failedCreatedAt time.Time) (*models.PendingTransactionAfterFailed, error) {
+	var err error
+
+	monitor := monitoring.New(ctx)
+	defer monitor.Finish(monitoring.WithFinishCheckError(err))
+
+	db := mfr.r.extractTxRead(ctx)
+
+	var result models.PendingTransactionAfterFailed
+	err = db.QueryRowContext(ctx, queryGetPendingTransactionAfterFailed, transactionType, paymentType, failedCreatedAt).Scan(
+		&result.ID,
+		&result.TransactionSourceCreationDate,
+		&result.TotalTransfer,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	return &result, nil
 }

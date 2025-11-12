@@ -5,7 +5,7 @@ go 1.24.0
 toolchain go1.24.4
 
 require (
-	bitbucket.org/Amartha/go-acuan-lib v1.31.0
+	bitbucket.org/Amartha/go-acuan-lib v1.32.0
 	bitbucket.org/Amartha/go-config-loader-library v1.0.0
 	bitbucket.org/Amartha/go-feature-flag-sdk v0.2.5
 	bitbucket.org/Amartha/go-payment-lib/payment-api v0.0.0-20250811160817-78482bf34671

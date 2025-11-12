@@ -193,6 +193,14 @@ var (
 	FROM accounts
 	LEFT JOIN feature f ON f."account_number" = accounts."accountNumber"
 	LIMIT 1;`
+
+	queryGetAccountEntity = `
+	SELECT "id", "accountNumber", "ownerId", "createdAt", "updatedAt", "actualBalance", "version", "categoryCode", 
+	"subCategoryCode", "entityCode", "currency", "status", "updateat", "name", "altId", "legacyId", "pendingBalance", 
+	"isHvt", "metadata", "productTypeName"
+	FROM account
+	WHERE "accountNumber" IN (?);
+	`
 )
 
 func buildGetAccountBalancesQuery(req models.GetAccountBalanceRequest) (sql string, args []any, err error) {

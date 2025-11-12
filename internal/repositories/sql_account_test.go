@@ -885,6 +885,69 @@ func (suite *accountTestSuite) TestRepository_GetAllByAccountNumbers() {
 	}
 }
 
+func (suite *accountTestSuite) TestRepository_GetAccountNumberEntity() {
+	type args struct {
+		ctx context.Context
+		accountNumbers []string
+		setupMock func()
+	}
+
+	testCases := []struct {
+		name string
+		args args
+		wantErr bool
+	}{
+		{
+			name:"success",
+			args: args{
+				ctx: context.TODO(),
+				accountNumbers: []string{"222000071045"},
+				setupMock: func() {
+					rows:= sqlmock.NewRows([]string{
+						"accountNumber",
+						"ownerId",
+						"ownerType",
+						"category",
+						"parentAccountNumber",
+						"balance",
+					})
+					suite.mock.
+						ExpectQuery(regexp.QuoteMeta(queryGetAccountEntity)).
+						WillReturnRows(rows)
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "error query",
+			args: args{
+				ctx: context.TODO(),
+				accountNumbers: []string{"failed"},
+				setupMock: func() {
+					suite.mock.
+						ExpectQuery(regexp.QuoteMeta(queryGetAccountEntity)).
+						WillReturnError(assert.AnError)
+				},
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range testCases {
+		tt := tt
+		suite.t.Run(tt.name, func(t *testing.T) {
+			tt.args.setupMock()
+
+			_, err := suite.repo.GetAccountNumberEntity(tt.args.ctx, tt.args.accountNumbers)
+			assert.Equal(t, tt.wantErr, err != nil)
+
+			if err = suite.mock.ExpectationsWereMet(); err != nil {
+				t.Errorf("there were unfulfilled expectations: %s", err)
+			}
+		})
+	}
+}
+
 func (suite *accountTestSuite) TestRepository_GetTotalBalance() {
 	type Args struct {
 		ctx  context.Context

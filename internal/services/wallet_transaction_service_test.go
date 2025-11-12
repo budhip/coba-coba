@@ -121,6 +121,10 @@ func Test_WalletTrxService_CreateTransaction(t *testing.T) {
 							StoreBulkTransaction(gomock.Any(), gomock.Any()).
 							Return(nil)
 
+						testHelper.mockAccRepository.EXPECT().
+							GetAccountNumberEntity(gomock.Any(), gomock.Any()).
+							Return(map[string]string{}, nil)
+
 						testHelper.mockTransactionNotification.EXPECT().Publish(gomock.Any(), gomock.Any()).Return(nil)
 
 						return steps(ctx, atomicHelper.mockSQLRepository)
@@ -561,6 +565,11 @@ func Test_WalletTrxService_ProcessReservedTransaction_Commit(t *testing.T) {
 						atomicHelper.mockTrxRepository.EXPECT().
 							StoreBulkTransaction(gomock.Any(), gomock.Any()).
 							Return(nil)
+
+						testHelper.mockAccRepository.EXPECT().
+							GetAccountNumberEntity(gomock.Any(), gomock.Any()).
+							Return(map[string]string{}, nil).
+							AnyTimes()
 
 						testHelper.mockTransactionNotification.EXPECT().
 							Publish(gomock.Any(), gomock.Any()).

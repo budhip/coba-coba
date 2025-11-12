@@ -201,6 +201,11 @@ func (ts *walletTrx) CreateTransactionAtomic(ctx context.Context, nwt models.New
 			}
 		}
 
+		errAtomic = ts.enrichTransactionsWithEntityData(atomicCtx, acuanTransactions)
+		if errAtomic != nil {
+			return fmt.Errorf("unable to put entity to acuan transaction: %w", errAtomic)
+		}
+
 		return nil
 	})
 	if err != nil {
@@ -229,6 +234,28 @@ func (ts *walletTrx) CreateTransactionAtomic(ctx context.Context, nwt models.New
 	}
 
 	return created, nil
+}
+
+func (ts *walletTrx) enrichTransactionsWithEntityData(ctx context.Context, transactions []models.Transaction) error {
+	accountNumbers := getAccountNumbersForEntity(transactions)
+	if len(accountNumbers) == 0 {
+		return nil
+	}
+	accountRepo := ts.srv.sqlRepo.GetAccountRepository()
+	mapEntity, err := accountRepo.GetAccountNumberEntity(ctx, accountNumbers)
+	if err != nil {
+		return fmt.Errorf("unable to get entityCode: %w", err)
+	}
+
+	for i, trx := range transactions {
+		if sourceEntity, ok := mapEntity[trx.FromAccount]; ok {
+			transactions[i].SourceEntity = sourceEntity
+		}
+		if destinationEntity, ok := mapEntity[trx.ToAccount]; ok {
+			transactions[i].DestinationEntity = destinationEntity
+		}
+	}
+	return nil
 }
 
 // ProcessReservedTransaction will process wallet transaction to COMMIT or CANCEL

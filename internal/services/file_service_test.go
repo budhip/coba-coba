@@ -294,6 +294,7 @@ func TestFileService_UploadWalletTransaction(t *testing.T) {
 							Return(nil)
 						testHelper.mockCacheRepository.EXPECT().Del(gomock.AssignableToTypeOf(ctx), gomock.AssignableToTypeOf([]string{})).
 							Return(nil)
+						testHelper.mockAccRepository.EXPECT().GetAccountNumberEntity(gomock.Any(), gomock.Any()).Return(map[string]string{}, nil)
 
 						testHelper.mockTransactionNotification.EXPECT().Publish(gomock.Any(), gomock.Any()).Return(nil)
 

@@ -40,9 +40,11 @@ type Transaction struct {
 	TransactionID              string              `json:"transactionId"`
 	TransactionDate            time.Time           `json:"transactionDate"`
 	FromAccount                string              `json:"fromAccount"`
+	SourceEntity               string              `json:"sourceEntity,omitempty"`
 	FromAccountProductTypeName string              `json:"fromAccountProductTypeName"`
 	FromAccountName            string              `json:"fromAccountName"`
 	ToAccount                  string              `json:"toAccount"`
+	DestinationEntity          string              `json:"destinationEntity,omitempty"`
 	ToAccountProductTypeName   string              `json:"toAccountProductTypeName"`
 	ToAccountName              string              `json:"toAccountName"`
 	FromNarrative              string              `json:"fromNarrative"`
@@ -92,7 +94,9 @@ func (e *Transaction) ToAcuanLibTransaction() (*model.Transaction, error) {
 		Amount:               e.Amount.Decimal,
 		Currency:             e.Currency,
 		SourceAccountId:      e.FromAccount,
+		SourceEntity:         e.SourceEntity,
 		DestinationAccountId: e.ToAccount,
+		DestinationEntity:    e.DestinationEntity,
 		Description:          e.Description,
 		Method:               method,
 		TransactionType:      transactionType,
