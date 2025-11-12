@@ -190,20 +190,6 @@ func (mr *MockTransactionServiceMockRecorder) GetStatusCount(ctx, threshold, opt
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStatusCount", reflect.TypeOf((*MockTransactionService)(nil).GetStatusCount), ctx, threshold, opts)
 }
 
-// NewStoreBulkTransaction mocks base method.
-func (m *MockTransactionService) NewStoreBulkTransaction(ctx context.Context, req []models.TransactionReq) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "NewStoreBulkTransaction", ctx, req)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// NewStoreBulkTransaction indicates an expected call of NewStoreBulkTransaction.
-func (mr *MockTransactionServiceMockRecorder) NewStoreBulkTransaction(ctx, req any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewStoreBulkTransaction", reflect.TypeOf((*MockTransactionService)(nil).NewStoreBulkTransaction), ctx, req)
-}
-
 // PublishTransaction mocks base method.
 func (m *MockTransactionService) PublishTransaction(ctx context.Context, in models.DoPublishTransactionRequest) (models.DoPublishTransactionResponse, error) {
 	m.ctrl.T.Helper()

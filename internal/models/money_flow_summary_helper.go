@@ -1,13 +1,14 @@
 package models
 
 import (
-	"bitbucket.org/Amartha/go-fp-transaction/internal/common"
-	"bitbucket.org/Amartha/go-fp-transaction/internal/common/constants"
-	"bitbucket.org/Amartha/go-fp-transaction/internal/common/pagination"
 	"encoding/base64"
 	"fmt"
 	"strings"
 	"time"
+
+	"bitbucket.org/Amartha/go-fp-transaction/internal/common"
+	"bitbucket.org/Amartha/go-fp-transaction/internal/common/constants"
+	"bitbucket.org/Amartha/go-fp-transaction/internal/common/pagination"
 )
 
 // ToFilterOpts converts GetMoneyFlowSummaryRequest to MoneyFlowSummaryFilterOptions

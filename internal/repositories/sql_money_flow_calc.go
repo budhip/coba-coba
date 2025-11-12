@@ -5,13 +5,14 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	sq "github.com/Masterminds/squirrel"
 	"strings"
 	"time"
 
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/models"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/monitoring"
+
+	sq "github.com/Masterminds/squirrel"
 
 	"github.com/google/uuid"
 )
@@ -30,6 +31,7 @@ type MoneyFlowRepository interface {
 	GetAllDetailedTransactionsBySummaryID(ctx context.Context, summaryID string, relatedSummaryID *string, refNumber string) ([]models.DetailedTransactionOut, error)
 	GetLastFailedOrRejectedTransaction(ctx context.Context, transactionType string, paymentType string) (*models.FailedOrRejectedTransaction, error)
 	HasPendingTransactionAfterFailedOrRejected(ctx context.Context, transactionType string, paymentType string, failedOrRejectedID string) (bool, error)
+	HasInProgressTransaction(ctx context.Context, transactionType string, paymentType string) (bool, error)
 }
 
 type moneyFlowRepository sqlRepo
@@ -104,7 +106,7 @@ const (
 		WHERE transaction_type = $1 
 		  AND payment_type = $2
 		  AND money_flow_status IN ('FAILED', 'REJECTED')
-		ORDER BY created_at DESC
+		ORDER BY transaction_source_creation_date DESC
 		LIMIT 1
 	`
 
@@ -118,6 +120,16 @@ const (
 			  AND related_failed_or_rejected_summary_id = $3
 		)
 	`
+
+	queryHasInProgressTransaction = `
+	SELECT EXISTS (
+		SELECT 1
+		FROM money_flow_summaries
+		WHERE transaction_type = $1 
+		  AND payment_type = $2
+		  AND money_flow_status = 'IN_PROGRESS'
+	)
+`
 )
 
 func (mfr *moneyFlowRepository) CreateSummary(ctx context.Context, in models.CreateMoneyFlowSummary) (string, error) {
@@ -564,7 +576,11 @@ func (mfr *moneyFlowRepository) GetAllDetailedTransactionsBySummaryID(ctx contex
 }
 
 // GetLastFailedOrRejectedTransaction
-func (mfr *moneyFlowRepository) GetLastFailedOrRejectedTransaction(ctx context.Context, transactionType string, paymentType string) (*models.FailedOrRejectedTransaction, error) {
+func (mfr *moneyFlowRepository) GetLastFailedOrRejectedTransaction(
+	ctx context.Context,
+	transactionType string,
+	paymentType string,
+) (*models.FailedOrRejectedTransaction, error) {
 	var err error
 
 	monitor := monitoring.New(ctx)
@@ -573,7 +589,12 @@ func (mfr *moneyFlowRepository) GetLastFailedOrRejectedTransaction(ctx context.C
 	db := mfr.r.extractTxRead(ctx)
 
 	var result models.FailedOrRejectedTransaction
-	err = db.QueryRowContext(ctx, queryGetLastFailedOrRejectedTransaction, transactionType, paymentType).Scan(
+	err = db.QueryRowContext(
+		ctx,
+		queryGetLastFailedOrRejectedTransaction,
+		transactionType,
+		paymentType,
+	).Scan(
 		&result.ID,
 		&result.TransactionSourceCreationDate,
 		&result.TransactionType,
@@ -582,6 +603,7 @@ func (mfr *moneyFlowRepository) GetLastFailedOrRejectedTransaction(ctx context.C
 		&result.MoneyFlowStatus,
 		&result.CreatedAt,
 	)
+
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -592,7 +614,12 @@ func (mfr *moneyFlowRepository) GetLastFailedOrRejectedTransaction(ctx context.C
 	return &result, nil
 }
 
-func (mfr *moneyFlowRepository) HasPendingTransactionAfterFailedOrRejected(ctx context.Context, transactionType string, paymentType string, failedOrRejectedID string) (bool, error) {
+func (mfr *moneyFlowRepository) HasPendingTransactionAfterFailedOrRejected(
+	ctx context.Context,
+	transactionType string,
+	paymentType string,
+	failedOrRejectedID string,
+) (bool, error) {
 	var err error
 
 	monitor := monitoring.New(ctx)
@@ -606,7 +633,30 @@ func (mfr *moneyFlowRepository) HasPendingTransactionAfterFailedOrRejected(ctx c
 		queryHasPendingTransactionAfterFailedOrRejected,
 		transactionType,
 		paymentType,
-		failedOrRejectedID, // Check if any PENDING has this specific ID in related_failed_or_rejected_summary_id
+		failedOrRejectedID,
+	).Scan(&exists)
+
+	if err != nil {
+		return false, err
+	}
+
+	return exists, nil
+}
+
+func (mfr *moneyFlowRepository) HasInProgressTransaction(ctx context.Context, transactionType string, paymentType string) (bool, error) {
+	var err error
+
+	monitor := monitoring.New(ctx)
+	defer monitor.Finish(monitoring.WithFinishCheckError(err))
+
+	db := mfr.r.extractTxRead(ctx)
+
+	var exists bool
+	err = db.QueryRowContext(
+		ctx,
+		queryHasInProgressTransaction,
+		transactionType,
+		paymentType,
 	).Scan(&exists)
 
 	if err != nil {

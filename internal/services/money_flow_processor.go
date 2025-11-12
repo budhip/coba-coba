@@ -7,6 +7,7 @@ import (
 
 	"bitbucket.org/Amartha/go-fp-transaction/internal/models"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/repositories"
+
 	xlog "bitbucket.org/Amartha/go-x/log"
 
 	"github.com/shopspring/decimal"
@@ -76,7 +77,27 @@ func (tp *TransactionProcessor) ProcessOrUpdate(
 		return processed.ID, nil
 	}
 
-	// STEP 3: No transaction for current date, check for FAILED/REJECTED from previous dates
+	// STEP 3: No transaction for current date, check for IN_PROGRESS transactions first
+	hasInProgress, err := tp.repo.HasInProgressTransaction(
+		ctx,
+		summaryData.TransactionType,
+		summaryData.PaymentType,
+	)
+	if err != nil {
+		return "", fmt.Errorf("failed to check in-progress transaction: %w", err)
+	}
+
+	if hasInProgress {
+		xlog.Info(ctx, "[MONEY-FLOW-PROCESSOR] Found IN_PROGRESS transaction, not setting relation",
+			xlog.String("transaction_type", summaryData.TransactionType),
+			xlog.String("payment_type", summaryData.PaymentType))
+
+		// Create without relation ID because there's an IN_PROGRESS transaction
+		summaryID, err := tp.createNewSummary(ctx, summaryData, acuanTransactionID, amount)
+		return summaryID, err
+	}
+
+	// STEP 4: Check for FAILED/REJECTED from previous dates
 	var relatedFailedOrRejectedID *string
 
 	failedOrRejected, err := tp.repo.GetLastFailedOrRejectedTransaction(
@@ -88,7 +109,7 @@ func (tp *TransactionProcessor) ProcessOrUpdate(
 		return "", fmt.Errorf("failed to check failed/rejected transaction: %w", err)
 	}
 
-	// STEP 4: If found FAILED/REJECTED, check if we should set relation
+	// STEP 5: If found FAILED/REJECTED, check if we should set relation
 	if failedOrRejected != nil {
 		failedDate := failedOrRejected.TransactionSourceCreationDate.Truncate(24 * time.Hour)
 
@@ -99,7 +120,7 @@ func (tp *TransactionProcessor) ProcessOrUpdate(
 				ctx,
 				summaryData.TransactionType,
 				summaryData.PaymentType,
-				failedOrRejected.ID, // Use ID instead of CreatedAt for more precise check
+				failedOrRejected.ID,
 			)
 			if err != nil {
 				return "", fmt.Errorf("failed to check pending after failed/rejected: %w", err)
@@ -131,10 +152,10 @@ func (tp *TransactionProcessor) ProcessOrUpdate(
 		}
 	}
 
-	// STEP 5: Create new summary
-	summaryID, err := tp.repo.CreateSummary(ctx, summaryData)
+	// STEP 6: Create new summary
+	summaryID, err := tp.createNewSummary(ctx, summaryData, acuanTransactionID, amount)
 	if err != nil {
-		return "", fmt.Errorf("failed to create summary: %w", err)
+		return "", err
 	}
 
 	xlog.Info(ctx, "[MONEY-FLOW-PROCESSOR] Created new summary",
@@ -150,7 +171,23 @@ func (tp *TransactionProcessor) ProcessOrUpdate(
 			return "none"
 		}()))
 
-	// STEP 6: Create detailed summary
+	return summaryID, nil
+}
+
+// createNewSummary is a helper method to create new summary and detailed summary
+func (tp *TransactionProcessor) createNewSummary(
+	ctx context.Context,
+	summaryData models.CreateMoneyFlowSummary,
+	acuanTransactionID string,
+	amount decimal.Decimal,
+) (string, error) {
+	// Create new summary
+	summaryID, err := tp.repo.CreateSummary(ctx, summaryData)
+	if err != nil {
+		return "", fmt.Errorf("failed to create summary: %w", err)
+	}
+
+	// Create detailed summary
 	err = tp.repo.CreateDetailedSummary(ctx, models.CreateDetailedMoneyFlowSummary{
 		SummaryID:          summaryID,
 		AcuanTransactionID: acuanTransactionID,
