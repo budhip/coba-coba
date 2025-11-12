@@ -21,7 +21,6 @@ import (
 type MockObjectStorageClient[T any] struct {
 	ctrl     *gomock.Controller
 	recorder *MockObjectStorageClientMockRecorder[T]
-	isgomock struct{}
 }
 
 // MockObjectStorageClientMockRecorder is the mock recorder for MockObjectStorageClient.

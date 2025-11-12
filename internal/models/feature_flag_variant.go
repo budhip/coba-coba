@@ -8,3 +8,6 @@ type AllowedTransactionTypesVariant struct {
 type ExcludeConsumeTransactionVariant struct {
 	SubCategories []string `json:"subCategories"`
 }
+type ListTransactionType struct {
+	TransactionType []string `json:"transactionType"`
+}

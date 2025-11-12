@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -37,6 +38,14 @@ func (ts *walletTrx) CreateTransaction(ctx context.Context, in models.CreateWall
 
 	monitor := monitoring.New(ctx)
 	defer monitor.Finish(monitoring.WithFinishCheckError(err))
+
+	trx, err := ts.validateTransactionTypeAndRefNumber(ctx, in)
+	if err != nil {
+		return nil, fmt.Errorf("validation error: %w", err)
+	}
+	if trx != nil {
+		return trx, nil
+	}
 
 	if err = ts.validateTransactionInput(ctx, in); err != nil {
 		return nil, fmt.Errorf("validation error: %w", err)
@@ -199,11 +208,10 @@ func (ts *walletTrx) CreateTransactionAtomic(ctx context.Context, nwt models.New
 			if errAtomic != nil {
 				return fmt.Errorf("unable to store acuan transaction: %w", errAtomic)
 			}
-		}
-
-		errAtomic = ts.enrichTransactionsWithEntityData(atomicCtx, acuanTransactions)
-		if errAtomic != nil {
-			return fmt.Errorf("unable to put entity to acuan transaction: %w", errAtomic)
+			errAtomic = ts.enrichTransactionsWithEntityData(atomicCtx, acuanTransactions)
+			if errAtomic != nil {
+				return fmt.Errorf("unable to put entity to acuan transaction: %w", errAtomic)
+			}
 		}
 
 		return nil
@@ -604,4 +612,23 @@ func (ts *walletTrx) EnqueueTransaction(ctx context.Context, in models.CreateWal
 	return &models.WalletTransaction{
 		Status: models.WalletTransactionStatusPending,
 	}, nil
+}
+
+func (ts *walletTrx) validateTransactionTypeAndRefNumber(ctx context.Context, in models.CreateWalletTransactionRequest) (data *models.WalletTransaction, err error) {
+	var list models.ListTransactionType
+	variantTransactionTypeAndRefNumber := ts.srv.flag.GetVariant(ts.srv.conf.FeatureFlagKeyLookup.GetVariantTransactionTypeAndRefNumber)
+	if variantTransactionTypeAndRefNumber.Payload.Value != "" {
+		err = json.Unmarshal([]byte(variantTransactionTypeAndRefNumber.Payload.Value), &list)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if slices.Contains(list.TransactionType, in.TransactionType) {
+		data, err = ts.srv.sqlRepo.GetWalletTransactionRepository().CheckTransactionTypeAndReferenceNumber(ctx, in.TransactionType, in.RefNumber)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return
 }

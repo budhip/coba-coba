@@ -242,8 +242,10 @@ type MoneyFlowSummaryBySummaryIDOut struct {
 type MoneyFlowSummaryDetailBySummaryIDOut struct {
 	Kind                             string          `json:"kind"`
 	ID                               string          `json:"id"`
+	TransactionType                  string          `json:"transactionType"`
 	PaymentType                      string          `json:"paymentType"`
 	CreatedDate                      time.Time       `json:"createdDate"`
+	TransactionSourceCreationDate    time.Time       `json:"transactionSourceCreationDate"`
 	RequestedDate                    *time.Time      `json:"requestedDate"`
 	ActualDate                       *time.Time      `json:"actualDate"`
 	TotalAmount                      decimal.Decimal `json:"totalTransfer"`

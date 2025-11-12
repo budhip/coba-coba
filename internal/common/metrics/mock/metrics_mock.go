@@ -26,7 +26,6 @@ import (
 type MockMetrics struct {
 	ctrl     *gomock.Controller
 	recorder *MockMetricsMockRecorder
-	isgomock struct{}
 }
 
 // MockMetricsMockRecorder is the mock recorder for MockMetrics.

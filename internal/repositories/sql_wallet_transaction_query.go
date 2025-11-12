@@ -49,6 +49,27 @@ var (
 	`
 
 	queryWalletTrxGetByRefNumber = `SELECT "id", "status" FROM "wallet_transaction" w WHERE w."refNumber" = $1;`
+
+	queryWalletTrxGetByTransactionTypeAndRefNumber = `SELECT
+			"id",
+			"accountNumber",
+			"refNumber",
+			"transactionType",
+			"transactionFlow",
+			"transactionTime",
+			"netAmount",
+			"breakdownAmounts",
+			"status",
+			"destinationAccountNumber",
+			"description",
+			"metadata",
+			"createdAt"
+		FROM wallet_transaction 
+         WHERE "transactionType" = $1
+           AND "refNumber" = $2 
+           AND "createdAt" >= CURRENT_DATE - INTERVAL '30 days'
+         ORDER BY "createdAt" DESC
+         LIMIT 1;`
 )
 
 func buildListWalletTrxQuery(opts models.WalletTrxFilterOptions) (sql string, args []interface{}, err error) {

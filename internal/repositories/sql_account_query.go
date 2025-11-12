@@ -193,15 +193,36 @@ var (
 	FROM accounts
 	LEFT JOIN feature f ON f."account_number" = accounts."accountNumber"
 	LIMIT 1;`
-
-	queryGetAccountEntity = `
-	SELECT "id", "accountNumber", "ownerId", "createdAt", "updatedAt", "actualBalance", "version", "categoryCode", 
-	"subCategoryCode", "entityCode", "currency", "status", "updateat", "name", "altId", "legacyId", "pendingBalance", 
-	"isHvt", "metadata", "productTypeName"
-	FROM account
-	WHERE "accountNumber" IN (?);
-	`
 )
+
+func buildAccountsEntityQuery(accountNumbers []string) (string, []interface{}, error) {
+    queryBuilder := sq.
+        Select(
+            `"accountNumber"`,
+            `"name"`,
+            `"ownerId"`,
+            `"productTypeName"`,
+            `"categoryCode"`,
+            `"subCategoryCode"`,
+            `"entityCode"`,
+            `"altId"`,
+            `"legacyId"`,
+            `"isHvt"`,
+            `"status"`,
+            `"metadata"`,
+        ).
+        From("account").
+        Where(sq.Eq{`"accountNumber"`: accountNumbers}).
+		PlaceholderFormat(sq.Dollar)
+
+
+    sql, args, err := queryBuilder.ToSql()
+    if err != nil {
+        return "", nil, err
+    }
+    return sql, args, nil
+
+}
 
 func buildGetAccountBalancesQuery(req models.GetAccountBalanceRequest) (sql string, args []any, err error) {
 	psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)

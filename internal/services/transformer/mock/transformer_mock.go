@@ -21,7 +21,6 @@ import (
 type MockTransformer struct {
 	ctrl     *gomock.Controller
 	recorder *MockTransformerMockRecorder
-	isgomock struct{}
 }
 
 // MockTransformerMockRecorder is the mock recorder for MockTransformer.

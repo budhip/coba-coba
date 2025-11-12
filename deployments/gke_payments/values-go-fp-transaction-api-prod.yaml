@@ -99,3 +99,8 @@ volumeMounts:
   - name: config
     readOnly: true
     mountPath: /config
+
+lifeCycle:
+  preStop:
+    exec:
+      command: ["/bin/sh", "-c", "sleep 5"]

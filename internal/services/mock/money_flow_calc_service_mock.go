@@ -23,7 +23,6 @@ import (
 type MockMoneyFlowService struct {
 	ctrl     *gomock.Controller
 	recorder *MockMoneyFlowServiceMockRecorder
-	isgomock struct{}
 }
 
 // MockMoneyFlowServiceMockRecorder is the mock recorder for MockMoneyFlowService.
@@ -135,17 +134,17 @@ func (mr *MockMoneyFlowServiceMockRecorder) ProcessTransactionNotification(ctx, 
 }
 
 // ProcessTransactionStream mocks base method.
-func (m *MockMoneyFlowService) ProcessTransactionStream(ctx context.Context, arg1 event.Event) error {
+func (m *MockMoneyFlowService) ProcessTransactionStream(ctx context.Context, event event.Event) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ProcessTransactionStream", ctx, arg1)
+	ret := m.ctrl.Call(m, "ProcessTransactionStream", ctx, event)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // ProcessTransactionStream indicates an expected call of ProcessTransactionStream.
-func (mr *MockMoneyFlowServiceMockRecorder) ProcessTransactionStream(ctx, arg1 any) *gomock.Call {
+func (mr *MockMoneyFlowServiceMockRecorder) ProcessTransactionStream(ctx, event any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProcessTransactionStream", reflect.TypeOf((*MockMoneyFlowService)(nil).ProcessTransactionStream), ctx, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProcessTransactionStream", reflect.TypeOf((*MockMoneyFlowService)(nil).ProcessTransactionStream), ctx, event)
 }
 
 // UpdateSummary mocks base method.

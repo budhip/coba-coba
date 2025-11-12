@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	"bitbucket.org/Amartha/go-fp-transaction/cmd/setup"
@@ -51,16 +50,15 @@ func main() {
 	)
 
 	starters = append(starters, httpServer.Start())
-	stoppers = append(stoppers, httpServer.Stop())
-	stoppers = append(stoppers, stopperContract...)
+	stoppers = append(stoppers, stopperContract...) // Added FIRST → Will stop LAST (Kafka, DB, Cache)
+	stoppers = append(stoppers, httpServer.Stop())  // Added LAST → Will stop FIRST (HTTP)
 
-	wg := new(sync.WaitGroup)
-	wg.Add(1)
-	go func() {
-		graceful.StartProcessAtBackground(starters...)
-		graceful.StopProcessAtBackground(s.Config.App.GracefulTimeout, stoppers...)
-		wg.Done()
-	}()
-	wg.Wait()
-	xlog.Info(ctx, "http server stopped!")
+	xlog.Info(ctx, "starting services in background...")
+	graceful.StartProcessAtBackground(starters...)
+
+	xlog.Info(ctx, "services started, waiting for shutdown signal...")
+
+	// This blocks until shutdown signal is received (includes 10 second sleep)
+	graceful.StopProcessAtBackground(s.Config.App.GracefulTimeout, stoppers...)
+	xlog.Info(ctx, "all services stopped successfully!")
 }

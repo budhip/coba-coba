@@ -343,6 +343,43 @@ func (mf *moneyFlowCalc) UpdateSummary(ctx context.Context, summaryID string, re
 		return err
 	}
 
+	// NEW VALIDATION: Check for PENDING transactions before current date when transitioning from PENDING to IN_PROGRESS
+	if req.MoneyFlowStatus != nil &&
+		currentSummary.Status == constants.MoneyFlowStatusPending &&
+		*req.MoneyFlowStatus == constants.MoneyFlowStatusInProgress {
+
+		// Check if there are any PENDING transactions before this date with same transaction_type and payment_type
+		hasPendingBefore, err := mf.srv.sqlRepo.GetMoneyFlowCalcRepository().HasPendingTransactionBefore(
+			ctx,
+			currentSummary.TransactionType,
+			currentSummary.PaymentType,
+			currentSummary.TransactionSourceCreationDate,
+		)
+		if err != nil {
+			xlog.Error(ctx, "[MONEY-FLOW-UPDATE] Failed to check pending transactions before",
+				xlog.String("summary_id", summaryID),
+				xlog.String("transaction_type", currentSummary.TransactionType),
+				xlog.String("payment_type", currentSummary.PaymentType),
+				xlog.Time("transaction_date", currentSummary.TransactionSourceCreationDate),
+				xlog.Err(err))
+			return fmt.Errorf("failed to check pending transactions: %w", err)
+		}
+
+		if hasPendingBefore {
+			errMsg := fmt.Sprintf("cannot transition to IN_PROGRESS: there are PENDING transactions with the same payment type (%s) and transaction type (%s) from earlier dates that must be processed first",
+				currentSummary.PaymentType,
+				currentSummary.TransactionType)
+
+			xlog.Warn(ctx, "[MONEY-FLOW-UPDATE] Blocked status transition due to earlier PENDING transactions",
+				xlog.String("summary_id", summaryID),
+				xlog.String("transaction_type", currentSummary.TransactionType),
+				xlog.String("payment_type", currentSummary.PaymentType),
+				xlog.Time("transaction_date", currentSummary.TransactionSourceCreationDate))
+
+			return fmt.Errorf(errMsg)
+		}
+	}
+
 	// Validate IN_PROGRESS requirements
 	if err = req.ValidateInProgressRequirements(); err != nil {
 		xlog.Warn(ctx, "[MONEY-FLOW-UPDATE] IN_PROGRESS validation failed",

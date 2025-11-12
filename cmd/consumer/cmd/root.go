@@ -4,7 +4,6 @@ import (
 	"context"
 	"log"
 	"os"
-	"sync"
 	"time"
 
 	"bitbucket.org/Amartha/go-fp-transaction/cmd/setup"
@@ -27,8 +26,7 @@ var rootCmd = &cobra.Command{
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
-	err := rootCmd.Execute()
-	if err != nil {
+	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}
 }
@@ -57,42 +55,47 @@ func runConsumer(ccmd *cobra.Command, args []string) {
 		starters []graceful.ProcessStarter
 		stoppers []graceful.ProcessStopper
 	)
-	ctx, cancel := context.WithCancel(ctx)
 
-	name, _ := ccmd.Flags().GetString(runConsumerCmdName)
+	consumerName, _ := ccmd.Flags().GetString(runConsumerCmdName)
+	xlog.Infof(ctx, "initializing consumer: %s", consumerName)
 
-	s, stopperContract, err := setup.Init("consumer-" + name)
-	stoppers = append(stoppers, stopperContract...)
+	// Step 1: Initialize setup
+	s, stopperContract, err := setup.Init("consumer-" + consumerName)
 	if err != nil {
 		timeout := 5 * time.Second
 		if s != nil && s.Config.App.GracefulTimeout != 0 {
 			timeout = s.Config.App.GracefulTimeout
 		}
-		graceful.StopProcess(timeout, stoppers...)
+		graceful.StopProcess(timeout, stopperContract...)
 		log.Fatalf("failed to setup app: %v", err)
 	}
 
-	consumerProcess, consumerStopper, err := consumer.NewKafkaConsumer(ctx, name, s.Config, s.Service, s.RepoCache, s)
-	stoppers = append(stoppers, consumerStopper...)
+	// Step 2: Create Kafka consumer
+	consumerProcess, consumerStopper, err := consumer.NewKafkaConsumer(ctx, consumerName, s.Config, s.Service, s.RepoCache, s)
 	if err != nil {
-		graceful.StopProcess(s.Config.App.GracefulTimeout, stoppers...)
+		// Only stop setup resources, not consumer resources (they don't exist yet)
+		graceful.StopProcess(s.Config.App.GracefulTimeout, stopperContract...)
 		xlog.Fatalf(ctx, "failed to setup consumer: %v", err)
 	}
 
+	// Step 3: Create health check server
 	healthCheckProcess := kafkaconsumer.NewHTTPServer(ctx, s.Config, s.Metrics)
 
+	// Step 4: Collect all starters and stoppers
 	starters = append(starters, consumerProcess.Start(), healthCheckProcess.Start())
-	stoppers = append(stoppers, consumerProcess.Stop(), healthCheckProcess.Stop())
+	// Since graceful.StopProcess() calls slices.Reverse(), we append in OPPOSITE order:
+	stoppers = append(stoppers, stopperContract...)        // Added FIRST → Will stop LAST (Kafka producers, DB, Cache)
+	stoppers = append(stoppers, consumerStopper...)        // Added 2nd → Will stop 3rd (Consumer resources)
+	stoppers = append(stoppers, consumerProcess.Stop())    // Added 3rd → Will stop 2nd (Kafka consumer)
+	stoppers = append(stoppers, healthCheckProcess.Stop()) // Added LAST → Will stop FIRST (Health check HTTP)
 
-	wg := new(sync.WaitGroup)
-	wg.Add(1)
-	go func() {
-		graceful.StartProcessAtBackground(starters...)
-		graceful.StopProcessAtBackground(s.Config.App.GracefulTimeout, stoppers...)
-		wg.Done()
-	}()
+	xlog.Info(ctx, "starting consumer services in background...")
+	graceful.StartProcessAtBackground(starters...)
 
-	wg.Wait()
-	cancel()
-	xlog.Info(ctx, "consumer server stopped!")
+	xlog.Infof(ctx, "consumer %s started, waiting for shutdown signal...", consumerName)
+
+	// Block until shutdown signal is received (includes 10 second sleep)
+	graceful.StopProcessAtBackground(s.Config.App.GracefulTimeout, stoppers...)
+
+	xlog.Infof(ctx, "consumer %s stopped successfully!", consumerName)
 }

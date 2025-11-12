@@ -21,7 +21,6 @@ import (
 type MocksqlTx struct {
 	ctrl     *gomock.Controller
 	recorder *MocksqlTxMockRecorder
-	isgomock struct{}
 }
 
 // MocksqlTxMockRecorder is the mock recorder for MocksqlTx.

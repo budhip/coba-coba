@@ -2,6 +2,7 @@ package services_test
 
 import (
 	"context"
+	"github.com/Unleash/unleash-client-go/v3/api"
 	"testing"
 	"time"
 
@@ -93,6 +94,17 @@ func Test_WalletTrxService_CreateTransaction(t *testing.T) {
 				mockValidationBeforeCommit()
 
 				testHelper.mockFlagClient.EXPECT().
+					GetVariant(testHelper.config.FeatureFlagKeyLookup.GetVariantTransactionTypeAndRefNumber).
+					Return(&api.Variant{
+						Name: "transactionType",
+						Payload: api.Payload{
+							Type:  "transactionType",
+							Value: `{"transactionType": ["TUPQR"]}`,
+						},
+						Enabled: false,
+					})
+
+				testHelper.mockFlagClient.EXPECT().
 					IsEnabled(testHelper.config.FeatureFlagKeyLookup.UseAccountConfigFromExternal).
 					Return(false)
 
@@ -133,8 +145,70 @@ func Test_WalletTrxService_CreateTransaction(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "happy path but data already created",
+			args: models.CreateWalletTransactionRequest{
+				TransactionType: "TUPVA",
+				NetAmount: models.Amount{
+					ValueDecimal: models.NewDecimalFromExternal(validAmount),
+				},
+				Amounts: []models.AmountDetail{{
+					Type: "TUPVA",
+					Amount: &models.Amount{
+						ValueDecimal: models.NewDecimalFromExternal(validAmount),
+					},
+				}},
+				TransactionFlow:          models.TransactionFlowTransfer,
+				AccountNumber:            defaultAccountBalances[0].AccountNumber,
+				DestinationAccountNumber: defaultAccountBalances[1].AccountNumber,
+				RefNumber:                "333",
+				TransactionTime:          time.Date(2025, 8, 1, 0, 0, 0, 0, time.UTC).Format(time.RFC3339),
+			},
+			doMock: func(args models.CreateWalletTransactionRequest) {
+				mockValidationBeforeCommit()
+
+				testHelper.mockFlagClient.EXPECT().
+					GetVariant(testHelper.config.FeatureFlagKeyLookup.GetVariantTransactionTypeAndRefNumber).
+					Return(&api.Variant{
+						Name: "transactionType",
+						Payload: api.Payload{
+							Type:  "transactionType",
+							Value: `{"transactionType": ["TUPVA"]}`,
+						},
+						Enabled: false,
+					})
+
+				testHelper.mockWalletTrxRepository.EXPECT().CheckTransactionTypeAndReferenceNumber(gomock.Any(), args.TransactionType, args.RefNumber).Return(&models.WalletTransaction{
+					ID:                       "string",
+					Status:                   "string",
+					AccountNumber:            "string",
+					DestinationAccountNumber: "string",
+					RefNumber:                "string",
+					TransactionType:          "string",
+					TransactionTime:          time.Time{},
+					TransactionFlow:          "",
+					NetAmount:                models.Amount{},
+					Amounts:                  nil,
+					Description:              "",
+					Metadata:                 nil,
+					CreatedAt:                time.Time{},
+				}, nil)
+			},
+			wantErr: false,
+		},
+		{
 			name: "failed - validation - get master error",
 			doMock: func(args models.CreateWalletTransactionRequest) {
+				testHelper.mockFlagClient.EXPECT().
+					GetVariant(testHelper.config.FeatureFlagKeyLookup.GetVariantTransactionTypeAndRefNumber).
+					Return(&api.Variant{
+						Name: "transactionType",
+						Payload: api.Payload{
+							Type:  "transactionType",
+							Value: `{"transactionType": ["TUPQR"]}`,
+						},
+						Enabled: false,
+					})
+
 				testHelper.mockMasterData.EXPECT().
 					GetListTransactionTypeCode(gomock.AssignableToTypeOf(context.Background())).
 					Return(nil, assert.AnError)
@@ -147,6 +221,17 @@ func Test_WalletTrxService_CreateTransaction(t *testing.T) {
 				TransactionType: "INVALID",
 			},
 			doMock: func(args models.CreateWalletTransactionRequest) {
+				testHelper.mockFlagClient.EXPECT().
+					GetVariant(testHelper.config.FeatureFlagKeyLookup.GetVariantTransactionTypeAndRefNumber).
+					Return(&api.Variant{
+						Name: "transactionType",
+						Payload: api.Payload{
+							Type:  "transactionType",
+							Value: `{"transactionType": ["TUPQR"]}`,
+						},
+						Enabled: false,
+					})
+
 				testHelper.mockMasterData.EXPECT().
 					GetListTransactionTypeCode(gomock.AssignableToTypeOf(context.Background())).
 					Return([]string{"TUPVA"}, nil)
@@ -162,6 +247,17 @@ func Test_WalletTrxService_CreateTransaction(t *testing.T) {
 				},
 			},
 			doMock: func(args models.CreateWalletTransactionRequest) {
+				testHelper.mockFlagClient.EXPECT().
+					GetVariant(testHelper.config.FeatureFlagKeyLookup.GetVariantTransactionTypeAndRefNumber).
+					Return(&api.Variant{
+						Name: "transactionType",
+						Payload: api.Payload{
+							Type:  "transactionType",
+							Value: `{"transactionType": ["TUPQR"]}`,
+						},
+						Enabled: false,
+					})
+
 				testHelper.mockMasterData.EXPECT().
 					GetListTransactionTypeCode(gomock.AssignableToTypeOf(context.Background())).
 					Return([]string{"TUPVA"}, nil)
@@ -180,6 +276,17 @@ func Test_WalletTrxService_CreateTransaction(t *testing.T) {
 				}},
 			},
 			doMock: func(args models.CreateWalletTransactionRequest) {
+				testHelper.mockFlagClient.EXPECT().
+					GetVariant(testHelper.config.FeatureFlagKeyLookup.GetVariantTransactionTypeAndRefNumber).
+					Return(&api.Variant{
+						Name: "transactionType",
+						Payload: api.Payload{
+							Type:  "transactionType",
+							Value: `{"transactionType": ["TUPQR"]}`,
+						},
+						Enabled: false,
+					})
+
 				testHelper.mockMasterData.EXPECT().
 					GetListTransactionTypeCode(gomock.AssignableToTypeOf(context.Background())).
 					Return([]string{"TUPVA"}, nil)
@@ -201,6 +308,17 @@ func Test_WalletTrxService_CreateTransaction(t *testing.T) {
 				}},
 			},
 			doMock: func(args models.CreateWalletTransactionRequest) {
+				testHelper.mockFlagClient.EXPECT().
+					GetVariant(testHelper.config.FeatureFlagKeyLookup.GetVariantTransactionTypeAndRefNumber).
+					Return(&api.Variant{
+						Name: "transactionType",
+						Payload: api.Payload{
+							Type:  "transactionType",
+							Value: `{"transactionType": ["TUPQR"]}`,
+						},
+						Enabled: false,
+					})
+
 				testHelper.mockMasterData.EXPECT().
 					GetListTransactionTypeCode(gomock.AssignableToTypeOf(context.Background())).
 					Return([]string{"TUPVA"}, nil)
@@ -223,6 +341,17 @@ func Test_WalletTrxService_CreateTransaction(t *testing.T) {
 				TransactionFlow: models.TransactionFlowTransfer,
 			},
 			doMock: func(args models.CreateWalletTransactionRequest) {
+				testHelper.mockFlagClient.EXPECT().
+					GetVariant(testHelper.config.FeatureFlagKeyLookup.GetVariantTransactionTypeAndRefNumber).
+					Return(&api.Variant{
+						Name: "transactionType",
+						Payload: api.Payload{
+							Type:  "transactionType",
+							Value: `{"transactionType": ["TUPQR"]}`,
+						},
+						Enabled: false,
+					})
+
 				testHelper.mockMasterData.EXPECT().
 					GetListTransactionTypeCode(gomock.AssignableToTypeOf(context.Background())).
 					Return([]string{"TUPVA"}, nil)
@@ -246,13 +375,22 @@ func Test_WalletTrxService_CreateTransaction(t *testing.T) {
 				IsReserved:      true,
 			},
 			doMock: func(args models.CreateWalletTransactionRequest) {
+				testHelper.mockFlagClient.EXPECT().
+					GetVariant(testHelper.config.FeatureFlagKeyLookup.GetVariantTransactionTypeAndRefNumber).
+					Return(&api.Variant{
+						Name: "transactionType",
+						Payload: api.Payload{
+							Type:  "transactionType",
+							Value: `{"transactionType": ["TUPQR"]}`,
+						},
+						Enabled: false,
+					})
 				testHelper.mockMasterData.EXPECT().
 					GetListTransactionTypeCode(gomock.AssignableToTypeOf(context.Background())).
 					Return([]string{"TUPVA"}, nil)
 			},
 			wantErr: true,
 		},
-
 		{
 			name: "failed - atomic - err get balance",
 			args: models.CreateWalletTransactionRequest{
@@ -273,6 +411,17 @@ func Test_WalletTrxService_CreateTransaction(t *testing.T) {
 			},
 			doMock: func(args models.CreateWalletTransactionRequest) {
 				mockValidationBeforeCommit()
+
+				testHelper.mockFlagClient.EXPECT().
+					GetVariant(testHelper.config.FeatureFlagKeyLookup.GetVariantTransactionTypeAndRefNumber).
+					Return(&api.Variant{
+						Name: "transactionType",
+						Payload: api.Payload{
+							Type:  "transactionType",
+							Value: `{"transactionType": ["TUPQR"]}`,
+						},
+						Enabled: false,
+					})
 
 				testHelper.mockFlagClient.EXPECT().
 					IsEnabled(testHelper.config.FeatureFlagKeyLookup.UseAccountConfigFromExternal).
@@ -315,6 +464,17 @@ func Test_WalletTrxService_CreateTransaction(t *testing.T) {
 			},
 			doMock: func(args models.CreateWalletTransactionRequest) {
 				mockValidationBeforeCommit()
+
+				testHelper.mockFlagClient.EXPECT().
+					GetVariant(testHelper.config.FeatureFlagKeyLookup.GetVariantTransactionTypeAndRefNumber).
+					Return(&api.Variant{
+						Name: "transactionType",
+						Payload: api.Payload{
+							Type:  "transactionType",
+							Value: `{"transactionType": ["TUPQR"]}`,
+						},
+						Enabled: false,
+					})
 
 				testHelper.mockFlagClient.EXPECT().
 					IsEnabled(testHelper.config.FeatureFlagKeyLookup.UseAccountConfigFromExternal).
@@ -361,6 +521,17 @@ func Test_WalletTrxService_CreateTransaction(t *testing.T) {
 			},
 			doMock: func(args models.CreateWalletTransactionRequest) {
 				mockValidationBeforeCommit()
+
+				testHelper.mockFlagClient.EXPECT().
+					GetVariant(testHelper.config.FeatureFlagKeyLookup.GetVariantTransactionTypeAndRefNumber).
+					Return(&api.Variant{
+						Name: "transactionType",
+						Payload: api.Payload{
+							Type:  "transactionType",
+							Value: `{"transactionType": ["TUPQR"]}`,
+						},
+						Enabled: false,
+					})
 
 				testHelper.mockFlagClient.EXPECT().
 					IsEnabled(testHelper.config.FeatureFlagKeyLookup.UseAccountConfigFromExternal).
@@ -412,6 +583,17 @@ func Test_WalletTrxService_CreateTransaction(t *testing.T) {
 			},
 			doMock: func(args models.CreateWalletTransactionRequest) {
 				mockValidationBeforeCommit()
+
+				testHelper.mockFlagClient.EXPECT().
+					GetVariant(testHelper.config.FeatureFlagKeyLookup.GetVariantTransactionTypeAndRefNumber).
+					Return(&api.Variant{
+						Name: "transactionType",
+						Payload: api.Payload{
+							Type:  "transactionType",
+							Value: `{"transactionType": ["TUPQR"]}`,
+						},
+						Enabled: false,
+					})
 
 				testHelper.mockFlagClient.EXPECT().
 					IsEnabled(testHelper.config.FeatureFlagKeyLookup.UseAccountConfigFromExternal).

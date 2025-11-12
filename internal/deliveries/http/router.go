@@ -14,6 +14,7 @@ import (
 	"bitbucket.org/Amartha/go-fp-transaction/internal/deliveries/http/health"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/repositories"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/services"
+	xlog "bitbucket.org/Amartha/go-x/log"
 
 	v1account "bitbucket.org/Amartha/go-fp-transaction/internal/deliveries/http/v1/account"
 	v1accountBalance "bitbucket.org/Amartha/go-fp-transaction/internal/deliveries/http/v1/account_balances"
@@ -58,7 +59,15 @@ func (s *svc) Start() graceful.ProcessStarter {
 
 func (s *svc) Stop() graceful.ProcessStopper {
 	return func(ctx context.Context) error {
-		return s.e.Shutdown(ctx)
+		err := s.e.Shutdown(ctx)
+
+		if err != nil {
+			xlog.Errorf(ctx, "[SHUTDOWN] HTTP server error: %v", err)
+		} else {
+			xlog.Info(ctx, "[SHUTDOWN] HTTP server stopped successfully")
+		}
+
+		return err
 	}
 }
 

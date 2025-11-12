@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/Masterminds/squirrel"
 	"strings"
 	"time"
 
@@ -212,42 +211,31 @@ func (ar *accountRepository) GetAccountNumberEntity(ctx context.Context, account
 
 	result = make(map[string]string)
 
+	db := ar.r.extractTxRead(ctx)
+
 	if len(accountNumbers) == 0 {
 		return result, nil
 	}
 
-	// Build query dengan squirrel
-	query, args, err := squirrel.
-		Select(`"accountNumber"`, `"entityCode"`).
-		From("account").
-		Where(squirrel.Eq{`"accountNumber"`: accountNumbers}).
-		PlaceholderFormat(squirrel.Dollar).
-		ToSql()
-
+	queryStr, args, err := buildAccountsEntityQuery(accountNumbers)
 	if err != nil {
-		return nil, err
+		return 
 	}
-
-	db := ar.r.extractTxRead(ctx)
-
-	rows, err := db.QueryContext(ctx, query, args...)
+	rows, err := db.QueryContext(ctx, queryStr, args...)
 	if err != nil {
-		fmt.Println("masuk sini -----------------")
-		return nil, err
+		return 
 	}
 	defer rows.Close()
-
 	for rows.Next() {
-		var accountNumber, entityCode string
-		err := rows.Scan(&accountNumber, &entityCode)
+		var entity models.AccountUpsert
+		err = rows.Scan(&entity.AccountNumber, &entity.Name, &entity.OwnerID, &entity.ProductTypeName, &entity.CategoryCode, &entity.SubCategoryCode, &entity.EntityCode, &entity.Currency, &entity.Status, &entity.IsHVT, &entity.Status, &entity.Metadata)
 		if err != nil {
-			return nil, err
+			return 
 		}
-		result[accountNumber] = entityCode
+		result[entity.AccountNumber] = entity.EntityCode
 	}
-
-	if err = rows.Err(); err != nil {
-		return nil, err
+	if rows.Err() != nil {
+		return 
 	}
 
 	return result, nil

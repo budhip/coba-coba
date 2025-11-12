@@ -1,14 +1,13 @@
 package repositories
 
 import (
+	"bitbucket.org/Amartha/go-fp-transaction/internal/common"
+	"bitbucket.org/Amartha/go-fp-transaction/internal/models"
+	"bitbucket.org/Amartha/go-fp-transaction/internal/monitoring"
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
-
-	"bitbucket.org/Amartha/go-fp-transaction/internal/common"
-	"bitbucket.org/Amartha/go-fp-transaction/internal/models"
-	"bitbucket.org/Amartha/go-fp-transaction/internal/monitoring"
 )
 
 type WalletTransactionRepository interface {
@@ -16,6 +15,7 @@ type WalletTransactionRepository interface {
 	GetById(ctx context.Context, id string) (*models.WalletTransaction, error)
 	Update(ctx context.Context, id string, data models.WalletTransactionUpdate) (*models.WalletTransaction, error)
 	GetByRefNumber(ctx context.Context, refNumber string) (*models.WalletTransaction, error)
+	CheckTransactionTypeAndReferenceNumber(ctx context.Context, trxType, refNumber string) (*models.WalletTransaction, error)
 	List(ctx context.Context, opts models.WalletTrxFilterOptions) ([]models.WalletTransaction, error)
 	CountAll(ctx context.Context, opts models.WalletTrxFilterOptions) (total int, err error)
 }
@@ -24,13 +24,13 @@ type walletTrxRepo sqlRepo
 
 var _ WalletTransactionRepository = (*walletTrxRepo)(nil)
 
-func (r *walletTrxRepo) Create(ctx context.Context, in models.NewWalletTransaction) (*models.WalletTransaction, error) {
+func (e *walletTrxRepo) Create(ctx context.Context, in models.NewWalletTransaction) (*models.WalletTransaction, error) {
 	var err error
 
 	monitor := monitoring.New(ctx)
 	defer monitor.Finish(monitoring.WithFinishCheckError(err))
 
-	db := r.r.extractTxWrite(ctx)
+	db := e.r.extractTxWrite(ctx)
 
 	args, err := common.GetFieldValues(in)
 	if err != nil {
@@ -69,13 +69,13 @@ func (r *walletTrxRepo) Create(ctx context.Context, in models.NewWalletTransacti
 	return &created, nil
 }
 
-func (r *walletTrxRepo) GetById(ctx context.Context, id string) (*models.WalletTransaction, error) {
+func (e *walletTrxRepo) GetById(ctx context.Context, id string) (*models.WalletTransaction, error) {
 	var err error
 
 	monitor := monitoring.New(ctx)
 	defer monitor.Finish(monitoring.WithFinishCheckError(err))
 
-	db := r.r.extractTxWrite(ctx)
+	db := e.r.extractTxWrite(ctx)
 
 	var destinationAccountNumber, description sql.NullString
 	var wt models.WalletTransaction
@@ -152,13 +152,13 @@ func (e *walletTrxRepo) Update(ctx context.Context, id string, data models.Walle
 	return &wt, nil
 }
 
-func (r *walletTrxRepo) GetByRefNumber(ctx context.Context, refNumber string) (*models.WalletTransaction, error) {
+func (e *walletTrxRepo) GetByRefNumber(ctx context.Context, refNumber string) (*models.WalletTransaction, error) {
 	var err error
 
 	monitor := monitoring.New(ctx)
 	defer monitor.Finish(monitoring.WithFinishCheckError(err))
 
-	db := r.r.extractTxWrite(ctx)
+	db := e.r.extractTxWrite(ctx)
 
 	var created models.WalletTransaction
 	err = db.QueryRowContext(ctx, queryWalletTrxGetByRefNumber, refNumber).
@@ -176,12 +176,12 @@ func (r *walletTrxRepo) GetByRefNumber(ctx context.Context, refNumber string) (*
 	return &created, nil
 }
 
-func (r *walletTrxRepo) List(ctx context.Context, opts models.WalletTrxFilterOptions) ([]models.WalletTransaction, error) {
+func (e *walletTrxRepo) List(ctx context.Context, opts models.WalletTrxFilterOptions) ([]models.WalletTransaction, error) {
 	var err error
 	monitor := monitoring.New(ctx)
 	defer monitor.Finish(monitoring.WithFinishCheckError(err))
 
-	db := r.r.extractTxWrite(ctx)
+	db := e.r.extractTxWrite(ctx)
 
 	query, args, err := buildListWalletTrxQuery(opts)
 	if err != nil {
@@ -244,4 +244,42 @@ func (e *walletTrxRepo) CountAll(ctx context.Context, opts models.WalletTrxFilte
 	}
 
 	return
+}
+
+func (e *walletTrxRepo) CheckTransactionTypeAndReferenceNumber(ctx context.Context, trxType, refNumber string) (*models.WalletTransaction, error) {
+	var err error
+	monitor := monitoring.New(ctx)
+	defer monitor.Finish(monitoring.WithFinishCheckError(err))
+
+	db := e.r.extractTxWrite(ctx)
+
+	var data models.WalletTransaction
+	var destinationAccountNumber, description sql.NullString
+	err = db.QueryRowContext(ctx, queryWalletTrxGetByTransactionTypeAndRefNumber, trxType, refNumber).
+		Scan(
+			&data.ID,
+			&data.AccountNumber,
+			&data.RefNumber,
+			&data.TransactionType,
+			&data.TransactionFlow,
+			&data.TransactionTime,
+			&data.NetAmount,
+			&data.Amounts,
+			&data.Status,
+			&destinationAccountNumber,
+			&description,
+			&data.Metadata,
+			&data.CreatedAt,
+		)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	data.DestinationAccountNumber = destinationAccountNumber.String
+	data.Description = description.String
+
+	return &data, nil
 }

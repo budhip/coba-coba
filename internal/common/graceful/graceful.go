@@ -7,6 +7,7 @@ import (
 	"syscall"
 	"time"
 
+	xlog "bitbucket.org/Amartha/go-x/log"
 	"golang.org/x/exp/slices"
 )
 
@@ -30,6 +31,8 @@ func StartProcessAtBackground(ps ...ProcessStarter) {
 }
 
 func StopProcessAtBackground(duration time.Duration, ps ...ProcessStopper) {
+	ctx := context.Background()
+
 	sigusr1 := make(chan os.Signal, 1)
 	signal.Notify(sigusr1, syscall.SIGUSR1)
 
@@ -37,24 +40,44 @@ func StopProcessAtBackground(duration time.Duration, ps ...ProcessStopper) {
 	signal.Notify(sigterm, syscall.SIGINT, syscall.SIGTERM)
 
 	select {
-	case <-sigterm:
+	case sig := <-sigterm:
+		xlog.Infof(ctx, "received signal: %v, initiating graceful shutdown...", sig)
+		time.Sleep(10 * time.Second)
+
 		StopProcess(duration, ps...)
-	case <-sigusr1:
+
+	case sig := <-sigusr1:
+		xlog.Infof(ctx, "received signal: %v, initiating graceful shutdown...", sig)
+		time.Sleep(10 * time.Second)
+
 		StopProcess(duration, ps...)
 	}
 }
 
 func StopProcess(duration time.Duration, ps ...ProcessStopper) {
+	ctx := context.Background()
 	slices.Reverse(ps)
 
-	for _, p := range ps {
+	xlog.Infof(ctx, "stopping %d services (timeout: %v)...", len(ps), duration)
+
+	for i, p := range ps {
 		func() {
 			if p == nil {
 				return
 			}
-			ctx, stop := context.WithTimeout(context.Background(), duration)
-			defer stop()
-			_ = p(ctx)
+
+			stopCtx, cancel := context.WithTimeout(context.Background(), duration)
+			defer cancel()
+
+			xlog.Infof(ctx, "stopping service %d/%d...", i+1, len(ps))
+
+			if err := p(stopCtx); err != nil {
+				xlog.Errorf(ctx, "error stopping service %d: %v", i+1, err)
+			} else {
+				xlog.Infof(ctx, "service %d stopped successfully", i+1)
+			}
 		}()
 	}
+
+	xlog.Info(ctx, "all services shutdown complete")
 }

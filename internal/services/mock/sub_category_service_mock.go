@@ -21,7 +21,6 @@ import (
 type MockSubCategoryService struct {
 	ctrl     *gomock.Controller
 	recorder *MockSubCategoryServiceMockRecorder
-	isgomock struct{}
 }
 
 // MockSubCategoryServiceMockRecorder is the mock recorder for MockSubCategoryService.

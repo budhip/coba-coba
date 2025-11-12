@@ -21,7 +21,6 @@ import (
 type MockWalletTransactionRepository struct {
 	ctrl     *gomock.Controller
 	recorder *MockWalletTransactionRepositoryMockRecorder
-	isgomock struct{}
 }
 
 // MockWalletTransactionRepositoryMockRecorder is the mock recorder for MockWalletTransactionRepository.
@@ -39,6 +38,21 @@ func NewMockWalletTransactionRepository(ctrl *gomock.Controller) *MockWalletTran
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockWalletTransactionRepository) EXPECT() *MockWalletTransactionRepositoryMockRecorder {
 	return m.recorder
+}
+
+// CheckTransactionTypeAndReferenceNumber mocks base method.
+func (m *MockWalletTransactionRepository) CheckTransactionTypeAndReferenceNumber(ctx context.Context, trxType, refNumber string) (*models.WalletTransaction, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CheckTransactionTypeAndReferenceNumber", ctx, trxType, refNumber)
+	ret0, _ := ret[0].(*models.WalletTransaction)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CheckTransactionTypeAndReferenceNumber indicates an expected call of CheckTransactionTypeAndReferenceNumber.
+func (mr *MockWalletTransactionRepositoryMockRecorder) CheckTransactionTypeAndReferenceNumber(ctx, trxType, refNumber any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckTransactionTypeAndReferenceNumber", reflect.TypeOf((*MockWalletTransactionRepository)(nil).CheckTransactionTypeAndReferenceNumber), ctx, trxType, refNumber)
 }
 
 // CountAll mocks base method.

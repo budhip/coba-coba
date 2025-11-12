@@ -32,6 +32,7 @@ type MoneyFlowRepository interface {
 	GetLastFailedOrRejectedTransaction(ctx context.Context, transactionType string, paymentType string) (*models.FailedOrRejectedTransaction, error)
 	HasPendingTransactionAfterFailedOrRejected(ctx context.Context, transactionType string, paymentType string, failedOrRejectedID string) (bool, error)
 	HasInProgressTransaction(ctx context.Context, transactionType string, paymentType string) (bool, error)
+	HasPendingTransactionBefore(ctx context.Context, transactionType string, paymentType string, transactionDate time.Time) (bool, error)
 }
 
 type moneyFlowRepository sqlRepo
@@ -78,9 +79,11 @@ const (
 
 	queryGetSummaryDetailBySummaryID = `
 		SELECT
-		    mfs.id, 
+		    mfs.id,
+		    mfs.transaction_type,
 		    mfs.payment_type, 
-		    mfs.created_at, 
+		    mfs.created_at,
+		    mfs.transaction_source_creation_date,
 		    mfs.requested_date, 
 		    mfs.actual_date,
 			mfs.total_transfer, 
@@ -128,6 +131,17 @@ const (
 		WHERE transaction_type = $1 
 		  AND payment_type = $2
 		  AND money_flow_status = 'IN_PROGRESS'
+	)
+`
+
+	queryHasPendingTransactionBefore = `
+	SELECT EXISTS (
+		SELECT 1
+		FROM money_flow_summaries
+		WHERE transaction_type = $1 
+		  AND payment_type = $2
+		  AND money_flow_status = 'PENDING'
+		  AND transaction_source_creation_date < $3
 	)
 `
 )
@@ -402,8 +416,10 @@ func (mfr *moneyFlowRepository) GetSummaryDetailBySummaryID(ctx context.Context,
 
 	err = db.QueryRowContext(ctx, queryGetSummaryDetailBySummaryID, summaryID).Scan(
 		&result.ID,
+		&result.TransactionType,
 		&result.PaymentType,
 		&result.CreatedDate,
+		&result.TransactionSourceCreationDate,
 		&result.RequestedDate,
 		&result.ActualDate,
 		&result.TotalAmount,
@@ -657,6 +673,37 @@ func (mfr *moneyFlowRepository) HasInProgressTransaction(ctx context.Context, tr
 		queryHasInProgressTransaction,
 		transactionType,
 		paymentType,
+	).Scan(&exists)
+
+	if err != nil {
+		return false, err
+	}
+
+	return exists, nil
+}
+
+// HasPendingTransactionBefore checks if there's any PENDING transaction before the given date
+// with the same transaction_type and payment_type
+func (mfr *moneyFlowRepository) HasPendingTransactionBefore(
+	ctx context.Context,
+	transactionType string,
+	paymentType string,
+	transactionDate time.Time,
+) (bool, error) {
+	var err error
+
+	monitor := monitoring.New(ctx)
+	defer monitor.Finish(monitoring.WithFinishCheckError(err))
+
+	db := mfr.r.extractTxRead(ctx)
+
+	var exists bool
+	err = db.QueryRowContext(
+		ctx,
+		queryHasPendingTransactionBefore,
+		transactionType,
+		paymentType,
+		transactionDate,
 	).Scan(&exists)
 
 	if err != nil {

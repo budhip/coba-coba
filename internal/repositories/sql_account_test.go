@@ -887,32 +887,52 @@ func (suite *accountTestSuite) TestRepository_GetAllByAccountNumbers() {
 
 func (suite *accountTestSuite) TestRepository_GetAccountNumberEntity() {
 	type args struct {
-		ctx context.Context
+		ctx            context.Context
 		accountNumbers []string
-		setupMock func()
+		setupMock      func()
 	}
 
 	testCases := []struct {
-		name string
-		args args
+		name    string
+		args    args
 		wantErr bool
 	}{
 		{
-			name:"success",
+			name: "success",
 			args: args{
-				ctx: context.TODO(),
+				ctx:            context.TODO(),
 				accountNumbers: []string{"222000071045"},
 				setupMock: func() {
-					rows:= sqlmock.NewRows([]string{
+					rows := sqlmock.NewRows([]string{
 						"accountNumber",
+						"name",
 						"ownerId",
-						"ownerType",
-						"category",
-						"parentAccountNumber",
-						"balance",
-					})
+						"productTypeName",
+						"categoryCode",
+						"subCategoryCode",
+						"entityCode",
+						"altId",
+						"legacyId",
+						"isHvt",
+						"status",
+						"metadata",
+					}).AddRow(
+						"222000071045",
+						"Test Account",
+						"owner-1",
+						"ABC",
+						"CAT1",
+						"SUBCAT1",
+						"ENT1",
+						"ALT123",
+						"LEG123",
+						true,
+						"ACTIVE",
+						`{"meta":"data"}`,
+					)
+
 					suite.mock.
-						ExpectQuery(regexp.QuoteMeta(queryGetAccountEntity)).
+						ExpectQuery(regexp.QuoteMeta(`SELECT "accountNumber", "name", "ownerId", "productTypeName", "categoryCode", "subCategoryCode", "entityCode", "altId", "legacyId", "isHvt", "status", "metadata" FROM account`)).
 						WillReturnRows(rows)
 				},
 			},
@@ -921,11 +941,11 @@ func (suite *accountTestSuite) TestRepository_GetAccountNumberEntity() {
 		{
 			name: "error query",
 			args: args{
-				ctx: context.TODO(),
+				ctx:            context.TODO(),
 				accountNumbers: []string{"failed"},
 				setupMock: func() {
 					suite.mock.
-						ExpectQuery(regexp.QuoteMeta(queryGetAccountEntity)).
+						ExpectQuery(regexp.QuoteMeta(`SELECT "accountNumber", "name", "ownerId", "productTypeName", "categoryCode", "subCategoryCode", "entityCode", "altId", "legacyId", "isHvt", "status", "metadata" FROM account`)).
 						WillReturnError(assert.AnError)
 				},
 			},
@@ -941,7 +961,7 @@ func (suite *accountTestSuite) TestRepository_GetAccountNumberEntity() {
 			_, err := suite.repo.GetAccountNumberEntity(tt.args.ctx, tt.args.accountNumbers)
 			assert.Equal(t, tt.wantErr, err != nil)
 
-			if err = suite.mock.ExpectationsWereMet(); err != nil {
+			if err := suite.mock.ExpectationsWereMet(); err != nil {
 				t.Errorf("there were unfulfilled expectations: %s", err)
 			}
 		})
