@@ -29,7 +29,8 @@ type MoneyFlowRepository interface {
 	CountDetailedTransactions(ctx context.Context, summaryID string) (total int, err error)
 	GetAllDetailedTransactionsBySummaryID(ctx context.Context, summaryID string, refNumber string) ([]models.DetailedTransactionOut, error)
 	GetLastFailedOrRejectedTransaction(ctx context.Context, transactionType string, paymentType string) (*models.FailedOrRejectedTransaction, error)
-	GetPendingTransactionAfterFailed(ctx context.Context, transactionType string, paymentType string, failedCreatedAt time.Time) (*models.PendingTransactionAfterFailed, error)
+	//GetPendingTransactionAfterFailed(ctx context.Context, transactionType string, paymentType string, failedCreatedAt time.Time) (*models.PendingTransactionAfterFailed, error)
+	HasPendingTransactionAfterFailedOrRejected(ctx context.Context, transactionType string, paymentType string, failedOrRejectedID string) (bool, error)
 }
 
 type moneyFlowRepository sqlRepo
@@ -102,16 +103,27 @@ const (
 		LIMIT 1
 	`
 
-	queryGetPendingTransactionAfterFailed = `
-		SELECT 
-			id, transaction_source_creation_date, total_transfer
-		FROM money_flow_summaries
-		WHERE transaction_type = $1 
-		  AND payment_type = $2
-		  AND money_flow_status = 'PENDING'
-		  AND created_at > $3
-		ORDER BY created_at ASC
-		LIMIT 1
+	//queryGetPendingTransactionAfterFailed = `
+	//	SELECT
+	//		id, transaction_source_creation_date, total_transfer
+	//	FROM money_flow_summaries
+	//	WHERE transaction_type = $1
+	//	  AND payment_type = $2
+	//	  AND money_flow_status = 'PENDING'
+	//	  AND transaction_source_creation_date > $3
+	//	ORDER BY transaction_source_creation_date ASC
+	//	LIMIT 1
+	//`
+
+	queryHasPendingTransactionAfterFailedOrRejected = `
+		SELECT EXISTS (
+			SELECT 1
+			FROM money_flow_summaries
+			WHERE transaction_type = $1 
+			  AND payment_type = $2
+			  AND money_flow_status = 'PENDING'
+			  AND related_failed_or_rejected_summary_id = $3
+		)
 	`
 )
 
@@ -567,8 +579,32 @@ func (mfr *moneyFlowRepository) GetLastFailedOrRejectedTransaction(ctx context.C
 	return &result, nil
 }
 
-// GetPendingTransactionAfterFailed
-func (mfr *moneyFlowRepository) GetPendingTransactionAfterFailed(ctx context.Context, transactionType string, paymentType string, failedCreatedAt time.Time) (*models.PendingTransactionAfterFailed, error) {
+//// GetPendingTransactionAfterFailed
+//func (mfr *moneyFlowRepository) GetPendingTransactionAfterFailed(ctx context.Context, transactionType string, paymentType string, failedCreatedAt time.Time) (*models.PendingTransactionAfterFailed, error) {
+//	var err error
+//
+//	monitor := monitoring.New(ctx)
+//	defer monitor.Finish(monitoring.WithFinishCheckError(err))
+//
+//	db := mfr.r.extractTxRead(ctx)
+//
+//	var result models.PendingTransactionAfterFailed
+//	err = db.QueryRowContext(ctx, queryGetPendingTransactionAfterFailed, transactionType, paymentType, failedCreatedAt).Scan(
+//		&result.ID,
+//		&result.TransactionSourceCreationDate,
+//		&result.TotalTransfer,
+//	)
+//	if err != nil {
+//		if err == sql.ErrNoRows {
+//			return nil, nil
+//		}
+//		return nil, err
+//	}
+//
+//	return &result, nil
+//}
+
+func (mfr *moneyFlowRepository) HasPendingTransactionAfterFailedOrRejected(ctx context.Context, transactionType string, paymentType string, failedOrRejectedID string) (bool, error) {
 	var err error
 
 	monitor := monitoring.New(ctx)
@@ -576,18 +612,18 @@ func (mfr *moneyFlowRepository) GetPendingTransactionAfterFailed(ctx context.Con
 
 	db := mfr.r.extractTxRead(ctx)
 
-	var result models.PendingTransactionAfterFailed
-	err = db.QueryRowContext(ctx, queryGetPendingTransactionAfterFailed, transactionType, paymentType, failedCreatedAt).Scan(
-		&result.ID,
-		&result.TransactionSourceCreationDate,
-		&result.TotalTransfer,
-	)
+	var exists bool
+	err = db.QueryRowContext(
+		ctx,
+		queryHasPendingTransactionAfterFailedOrRejected,
+		transactionType,
+		paymentType,
+		failedOrRejectedID, // Check if any PENDING has this specific ID in related_failed_or_rejected_summary_id
+	).Scan(&exists)
+
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, nil
-		}
-		return nil, err
+		return false, err
 	}
 
-	return &result, nil
+	return exists, nil
 }

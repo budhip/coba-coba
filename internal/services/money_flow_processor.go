@@ -30,87 +30,9 @@ func (tp *TransactionProcessor) ProcessOrUpdate(
 	amount decimal.Decimal,
 ) (string, error) {
 
-	// STEP 1: Check if there's a last FAILED or REJECTED transaction with same type and payment
-	failedOrRejected, err := tp.repo.GetLastFailedOrRejectedTransaction(
-		ctx,
-		summaryData.TransactionType,
-		summaryData.PaymentType,
-	)
-	if err != nil {
-		return "", fmt.Errorf("failed to check failed/rejected transaction: %w", err)
-	}
+	currentDate := summaryData.TransactionSourceCreationDate.Truncate(24 * time.Hour)
 
-	var relatedFailedOrRejectedID *string
-
-	if failedOrRejected != nil {
-		xlog.Info(ctx, "[MONEY-FLOW-PROCESSOR] Found failed/rejected transaction",
-			xlog.String("failed_rejected_id", failedOrRejected.ID),
-			xlog.String("status", failedOrRejected.MoneyFlowStatus),
-			xlog.String("transaction_type", failedOrRejected.TransactionType),
-			xlog.String("payment_type", failedOrRejected.PaymentType))
-
-		// STEP 2: Check if there's a PENDING transaction after the FAILED/REJECTED one
-		pendingAfterFailed, err := tp.repo.GetPendingTransactionAfterFailed(
-			ctx,
-			summaryData.TransactionType,
-			summaryData.PaymentType,
-			failedOrRejected.CreatedAt,
-		)
-		if err != nil {
-			return "", fmt.Errorf("failed to check pending transaction after failed: %w", err)
-		}
-
-		if pendingAfterFailed != nil {
-			// STEP 3a: Found PENDING after FAILED/REJECTED
-			xlog.Info(ctx, "[MONEY-FLOW-PROCESSOR] Found pending transaction after failed/rejected",
-				xlog.String("pending_id", pendingAfterFailed.ID),
-				xlog.Time("pending_date", pendingAfterFailed.TransactionSourceCreationDate))
-
-			// Check if the pending transaction date is today
-			today := time.Now().Truncate(24 * time.Hour)
-			pendingDate := pendingAfterFailed.TransactionSourceCreationDate.Truncate(24 * time.Hour)
-
-			if pendingDate.Equal(today) || pendingDate.Equal(summaryData.TransactionSourceCreationDate.Truncate(24*time.Hour)) {
-				// Update existing PENDING transaction by adding the amount
-				totalAmount := amount.Add(pendingAfterFailed.TotalTransfer)
-				updateReq := models.MoneyFlowSummaryUpdate{
-					TotalTransfer: &totalAmount,
-				}
-
-				err = tp.repo.UpdateSummary(ctx, pendingAfterFailed.ID, updateReq)
-				if err != nil {
-					return "", fmt.Errorf("failed to update pending summary: %w", err)
-				}
-
-				xlog.Info(ctx, "[MONEY-FLOW-PROCESSOR] Updated pending transaction amount",
-					xlog.String("pending_id", pendingAfterFailed.ID),
-					xlog.String("new_total", totalAmount.String()))
-
-				// Create detailed summary for this transaction
-				err = tp.repo.CreateDetailedSummary(ctx, models.CreateDetailedMoneyFlowSummary{
-					SummaryID:          pendingAfterFailed.ID,
-					AcuanTransactionID: acuanTransactionID,
-				})
-				if err != nil {
-					return "", fmt.Errorf("failed to create detailed summary: %w", err)
-				}
-
-				return pendingAfterFailed.ID, nil
-			}
-
-			// If pending date is not today, fall through to create new with relation
-			xlog.Info(ctx, "[MONEY-FLOW-PROCESSOR] Pending date is not today, creating new summary with relation")
-		}
-
-		// STEP 3b: No PENDING found after FAILED/REJECTED, create new with relation
-		relatedFailedOrRejectedID = &failedOrRejected.ID
-		summaryData.RelatedFailedOrRejectedSummaryID = relatedFailedOrRejectedID
-
-		xlog.Info(ctx, "[MONEY-FLOW-PROCESSOR] Creating new summary with relation to failed/rejected",
-			xlog.String("related_failed_rejected_id", *relatedFailedOrRejectedID))
-	}
-
-	// STEP 4: Check if transaction already processed for today (existing logic)
+	// STEP 1: Check if transaction already processed for current date
 	processed, err := tp.repo.GetTransactionProcessed(
 		ctx,
 		summaryData.TransactionType,
@@ -120,27 +42,13 @@ func (tp *TransactionProcessor) ProcessOrUpdate(
 		return "", fmt.Errorf("failed to check transaction: %w", err)
 	}
 
-	var summaryID string
+	// STEP 2: If transaction exists for current date, just update it
+	if processed != nil {
+		xlog.Info(ctx, "[MONEY-FLOW-PROCESSOR] Found existing transaction for current date",
+			xlog.String("summary_id", processed.ID),
+			xlog.Time("transaction_date", currentDate))
 
-	if processed == nil {
-		// Create new summary
-		summaryID, err = tp.repo.CreateSummary(ctx, summaryData)
-		if err != nil {
-			return "", fmt.Errorf("failed to create summary: %w", err)
-		}
-
-		xlog.Info(ctx, "[MONEY-FLOW-PROCESSOR] Created new summary",
-			xlog.String("summary_id", summaryID),
-			xlog.String("transaction_type", summaryData.TransactionType),
-			xlog.String("payment_type", summaryData.PaymentType),
-			xlog.String("related_failed_rejected_id", func() string {
-				if relatedFailedOrRejectedID != nil {
-					return *relatedFailedOrRejectedID
-				}
-				return "none"
-			}()))
-	} else {
-		// Update existing summary
+		// Update existing summary by adding the amount
 		totalAmount := amount.Add(processed.TotalTransfer)
 		updateReq := models.MoneyFlowSummaryUpdate{
 			TotalTransfer: &totalAmount,
@@ -150,14 +58,99 @@ func (tp *TransactionProcessor) ProcessOrUpdate(
 		if err != nil {
 			return "", fmt.Errorf("failed to update summary: %w", err)
 		}
-		summaryID = processed.ID
 
 		xlog.Info(ctx, "[MONEY-FLOW-PROCESSOR] Updated existing summary",
-			xlog.String("summary_id", summaryID),
+			xlog.String("summary_id", processed.ID),
+			xlog.String("previous_total", processed.TotalTransfer.String()),
 			xlog.String("new_total", totalAmount.String()))
+
+		// Create detailed summary for this transaction
+		err = tp.repo.CreateDetailedSummary(ctx, models.CreateDetailedMoneyFlowSummary{
+			SummaryID:          processed.ID,
+			AcuanTransactionID: acuanTransactionID,
+		})
+		if err != nil {
+			return "", fmt.Errorf("failed to create detailed summary: %w", err)
+		}
+
+		return processed.ID, nil
 	}
 
-	// Create detailed summary
+	// STEP 3: No transaction for current date, check for FAILED/REJECTED from previous dates
+	var relatedFailedOrRejectedID *string
+
+	failedOrRejected, err := tp.repo.GetLastFailedOrRejectedTransaction(
+		ctx,
+		summaryData.TransactionType,
+		summaryData.PaymentType,
+	)
+	if err != nil {
+		return "", fmt.Errorf("failed to check failed/rejected transaction: %w", err)
+	}
+
+	// STEP 4: If found FAILED/REJECTED, check if we should set relation
+	if failedOrRejected != nil {
+		failedDate := failedOrRejected.TransactionSourceCreationDate.Truncate(24 * time.Hour)
+
+		// Only set relation if FAILED/REJECTED is from a DIFFERENT (previous) date
+		if failedDate.Before(currentDate) {
+			// Check if there's already a PENDING transaction created after this specific FAILED/REJECTED
+			hasPendingAfter, err := tp.repo.HasPendingTransactionAfterFailedOrRejected(
+				ctx,
+				summaryData.TransactionType,
+				summaryData.PaymentType,
+				failedOrRejected.ID, // Use ID instead of CreatedAt for more precise check
+			)
+			if err != nil {
+				return "", fmt.Errorf("failed to check pending after failed/rejected: %w", err)
+			}
+
+			// Only set relation if there's NO PENDING yet after this specific FAILED/REJECTED
+			if !hasPendingAfter {
+				relatedFailedOrRejectedID = &failedOrRejected.ID
+				summaryData.RelatedFailedOrRejectedSummaryID = relatedFailedOrRejectedID
+
+				xlog.Info(ctx, "[MONEY-FLOW-PROCESSOR] Setting relation to failed/rejected (first transaction after this failure)",
+					xlog.String("failed_rejected_id", failedOrRejected.ID),
+					xlog.String("status", failedOrRejected.MoneyFlowStatus),
+					xlog.Time("failed_date", failedDate),
+					xlog.Time("current_date", currentDate),
+					xlog.String("transaction_type", failedOrRejected.TransactionType),
+					xlog.String("payment_type", failedOrRejected.PaymentType))
+			} else {
+				xlog.Info(ctx, "[MONEY-FLOW-PROCESSOR] Found failed/rejected but PENDING already exists after it, not setting relation",
+					xlog.String("failed_rejected_id", failedOrRejected.ID),
+					xlog.Time("failed_date", failedDate),
+					xlog.Time("current_date", currentDate))
+			}
+		} else {
+			xlog.Info(ctx, "[MONEY-FLOW-PROCESSOR] Found failed/rejected but same date, not setting relation",
+				xlog.String("failed_rejected_id", failedOrRejected.ID),
+				xlog.Time("failed_date", failedDate),
+				xlog.Time("current_date", currentDate))
+		}
+	}
+
+	// STEP 5: Create new summary
+	summaryID, err := tp.repo.CreateSummary(ctx, summaryData)
+	if err != nil {
+		return "", fmt.Errorf("failed to create summary: %w", err)
+	}
+
+	xlog.Info(ctx, "[MONEY-FLOW-PROCESSOR] Created new summary",
+		xlog.String("summary_id", summaryID),
+		xlog.Time("transaction_date", currentDate),
+		xlog.String("transaction_type", summaryData.TransactionType),
+		xlog.String("payment_type", summaryData.PaymentType),
+		xlog.String("amount", amount.String()),
+		xlog.String("related_failed_rejected_id", func() string {
+			if relatedFailedOrRejectedID != nil {
+				return *relatedFailedOrRejectedID
+			}
+			return "none"
+		}()))
+
+	// STEP 6: Create detailed summary
 	err = tp.repo.CreateDetailedSummary(ctx, models.CreateDetailedMoneyFlowSummary{
 		SummaryID:          summaryID,
 		AcuanTransactionID: acuanTransactionID,
