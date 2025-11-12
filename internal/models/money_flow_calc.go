@@ -204,14 +204,18 @@ type MoneyFlowSummaryFilterOptions struct {
 	Cursor                             *MoneyFlowSummaryCursor
 }
 
-// MoneFlowSummaryCursor represents cursor for pagination
+// MoneyFlowSummaryCursor represents cursor for pagination based on transaction_source_creation_date
 type MoneyFlowSummaryCursor struct {
-	ID         string
-	IsBackward bool
+	TransactionSourceCreationDate time.Time
+	ID                            string
+	IsBackward                    bool
 }
 
 func (c MoneyFlowSummaryCursor) String() string {
-	return c.ID
+	// Encode as "date:id" using RawURLEncoding (no padding)
+	return base64.RawURLEncoding.EncodeToString([]byte(
+		c.TransactionSourceCreationDate.Format(time.RFC3339) + ":" + c.ID,
+	))
 }
 
 type DoGetSummaryIDBySummaryIDRequest struct {
@@ -243,7 +247,7 @@ type MoneyFlowSummaryDetailBySummaryIDOut struct {
 	CreatedDate                      time.Time
 	RequestedDate                    *time.Time
 	ActualDate                       *time.Time
-	TotalAmount                      decimal.Decimal
+	TotalTransfer                    decimal.Decimal
 	Status                           string
 	SourceBankAccountNumber          string
 	SourceBankAccountName            string
@@ -259,9 +263,9 @@ func (m MoneyFlowSummaryDetailBySummaryIDOut) ToModelResponse() MoneyFlowSummary
 	dates := dateutil.FormatTimesToRFC3339(m.RequestedDate, m.ActualDate)
 
 	// Calculate final total amount (current + related if exists)
-	finalTotalAmount := m.TotalAmount
+	finalTotalAmount := m.TotalTransfer
 	if m.RelatedFailedOrRejectedSummaryID != nil && !m.RelatedTotalTransfer.IsZero() {
-		finalTotalAmount = m.TotalAmount.Add(m.RelatedTotalTransfer)
+		finalTotalAmount = m.TotalTransfer.Add(m.RelatedTotalTransfer)
 	}
 
 	return MoneyFlowSummaryBySummaryIDOut{
@@ -546,4 +550,13 @@ type PendingTransactionAfterFailed struct {
 	ID                            string          `db:"id"`
 	TransactionSourceCreationDate time.Time       `db:"transaction_source_date"`
 	TotalTransfer                 decimal.Decimal `db:"total_transfer"`
+}
+
+// GetCursor returns encoded cursor based on transaction_source_creation_date and id
+func (m MoneyFlowSummaryOut) GetCursor() string {
+	cursor := MoneyFlowSummaryCursor{
+		TransactionSourceCreationDate: m.TransactionSourceCreationDate,
+		ID:                            m.ID,
+	}
+	return cursor.String()
 }

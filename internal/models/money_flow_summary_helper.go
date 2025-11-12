@@ -6,6 +6,8 @@ import (
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common/pagination"
 	"encoding/base64"
 	"fmt"
+	"strings"
+	"time"
 )
 
 // ToFilterOpts converts GetMoneyFlowSummaryRequest to MoneyFlowSummaryFilterOptions
@@ -47,18 +49,59 @@ func (req GetMoneyFlowSummaryRequest) ToFilterOpts() (*MoneyFlowSummaryFilterOpt
 	opts.Limit = limit
 
 	if cursor != nil {
-		opts.Cursor = &MoneyFlowSummaryCursor{
-			ID:         cursor.GetID(),
-			IsBackward: cursor.IsBackward(),
+		cursorStr := cursor.GetID()
+
+		// Check if cursor is already decoded (plain text format: "date:id")
+		if strings.Contains(cursorStr, ":") && strings.Contains(cursorStr, "T") {
+			// Already decoded, parse directly
+			parts := strings.SplitN(cursorStr, ":", 2)
+			if len(parts) != 2 {
+				return nil, fmt.Errorf("invalid cursor format: expected date:id")
+			}
+
+			// Parse the date
+			cursorDate, err := time.Parse(time.RFC3339, parts[0])
+			if err != nil {
+				return nil, fmt.Errorf("invalid cursor date format: %w", err)
+			}
+
+			opts.Cursor = &MoneyFlowSummaryCursor{
+				TransactionSourceCreationDate: cursorDate,
+				ID:                            parts[1],
+				IsBackward:                    cursor.IsBackward(),
+			}
+		} else {
+			// Try to decode base64
+			decodedBytes, err := base64.RawURLEncoding.DecodeString(cursorStr)
+			if err != nil {
+				// Try with padding
+				decodedBytes, err = base64.URLEncoding.DecodeString(cursorStr)
+				if err != nil {
+					return nil, fmt.Errorf("invalid cursor format: %w", err)
+				}
+			}
+
+			decodedStr := string(decodedBytes)
+			parts := strings.SplitN(decodedStr, ":", 2)
+			if len(parts) != 2 {
+				return nil, fmt.Errorf("invalid cursor format: expected date:id")
+			}
+
+			// Parse the date
+			cursorDate, err := time.Parse(time.RFC3339, parts[0])
+			if err != nil {
+				return nil, fmt.Errorf("invalid cursor date format: %w", err)
+			}
+
+			opts.Cursor = &MoneyFlowSummaryCursor{
+				TransactionSourceCreationDate: cursorDate,
+				ID:                            parts[1],
+				IsBackward:                    cursor.IsBackward(),
+			}
 		}
 	}
 
 	return opts, nil
-}
-
-// GetCursor returns encoded cursor
-func (m MoneyFlowSummaryOut) GetCursor() string {
-	return base64.StdEncoding.EncodeToString([]byte(m.ID))
 }
 
 // ToFilterOpts converts request to filter options
