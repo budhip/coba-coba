@@ -71,7 +71,7 @@ func (qb *MoneyFlowQueryBuilder) applyCursorPagination(query sq.SelectBuilder, c
 	return query
 }
 
-// BuildListQuery builds the query for fetching money flow summaries list
+// BuildListQuery builds the query for fetching money flow summaries list with related summary support
 func (qb *MoneyFlowQueryBuilder) BuildListQuery(opts models.MoneyFlowSummaryFilterOptions) (string, []interface{}, error) {
 	columns := []string{
 		`mfs."id"`,
@@ -82,9 +82,14 @@ func (qb *MoneyFlowQueryBuilder) BuildListQuery(opts models.MoneyFlowSummaryFilt
 		`mfs."requested_date"`,
 		`mfs."actual_date"`,
 		`mfs."created_at"`,
+		`mfs."related_failed_or_rejected_summary_id"`,
+		`COALESCE(related."total_transfer", 0) as related_total_transfer`,
 	}
 
-	query := qb.psql.Select(columns...).From("money_flow_summaries as mfs")
+	query := qb.psql.Select(columns...).
+		From("money_flow_summaries as mfs").
+		LeftJoin(`money_flow_summaries as related ON mfs."related_failed_or_rejected_summary_id" = related."id"`)
+
 	query = qb.applyCommonFilters(query, opts)
 	query = qb.applyCursorPagination(query, opts.Cursor, opts.Limit)
 
@@ -99,7 +104,27 @@ func (qb *MoneyFlowQueryBuilder) BuildCountQuery(opts models.MoneyFlowSummaryFil
 	return query.ToSql()
 }
 
-// BuildDetailedTransactionsQuery builds query for detailed transactions
+// applyDetailedTransactionFilters applies filters for detailed transactions
+func (qb *MoneyFlowQueryBuilder) applyDetailedTransactionFilters(query sq.SelectBuilder, opts models.DetailedTransactionFilterOptions) sq.SelectBuilder {
+	// Build WHERE condition to include both summaryID and relatedSummaryID if exists
+	if opts.RelatedFailedOrRejectedSummaryID != nil && *opts.RelatedFailedOrRejectedSummaryID != "" {
+		query = query.Where(sq.Or{
+			sq.Eq{`dmfs."summary_id"`: opts.SummaryID},
+			sq.Eq{`dmfs."summary_id"`: *opts.RelatedFailedOrRejectedSummaryID},
+		})
+	} else {
+		query = query.Where(sq.Eq{`dmfs."summary_id"`: opts.SummaryID})
+	}
+
+	// Add refNumber filter if provided
+	if opts.RefNumber != "" {
+		query = query.Where(sq.Eq{`t."refNumber"`: opts.RefNumber})
+	}
+
+	return query
+}
+
+// BuildDetailedTransactionsQuery builds query for detailed transactions with related summary support
 func (qb *MoneyFlowQueryBuilder) BuildDetailedTransactionsQuery(opts models.DetailedTransactionFilterOptions) (string, []interface{}, error) {
 	columns := []string{
 		`dmfs."id"`,
@@ -116,13 +141,9 @@ func (qb *MoneyFlowQueryBuilder) BuildDetailedTransactionsQuery(opts models.Deta
 
 	query := qb.psql.Select(columns...).
 		From("detailed_money_flow_summaries as dmfs").
-		InnerJoin(`transaction t ON t."transactionId" = dmfs.acuan_transaction_id`).
-		Where(sq.Eq{`dmfs."summary_id"`: opts.SummaryID})
+		InnerJoin(`transaction t ON t."transactionId" = dmfs.acuan_transaction_id`)
 
-	// Add refNumber filter if provided
-	if opts.RefNumber != "" {
-		query = query.Where(sq.Eq{`t."refNumber"`: opts.RefNumber})
-	}
+	query = qb.applyDetailedTransactionFilters(query, opts)
 
 	// Apply cursor pagination for detailed transactions
 	if opts.Cursor != nil {
@@ -140,6 +161,17 @@ func (qb *MoneyFlowQueryBuilder) BuildDetailedTransactionsQuery(opts models.Deta
 	if opts.Limit > 0 {
 		query = query.Limit(uint64(opts.Limit))
 	}
+
+	return query.ToSql()
+}
+
+// BuildCountDetailedTransactionsQuery builds query for counting detailed transactions with related summary support
+func (qb *MoneyFlowQueryBuilder) BuildCountDetailedTransactionsQuery(opts models.DetailedTransactionFilterOptions) (string, []interface{}, error) {
+	query := qb.psql.Select("COUNT(*)").
+		From("detailed_money_flow_summaries as dmfs").
+		InnerJoin(`transaction t ON t."transactionId" = dmfs.acuan_transaction_id`)
+
+	query = qb.applyDetailedTransactionFilters(query, opts)
 
 	return query.ToSql()
 }

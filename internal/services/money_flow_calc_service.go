@@ -285,14 +285,24 @@ func (mf *moneyFlowCalc) GetDetailedTransactionsBySummaryID(ctx context.Context,
 
 	mfsRepo := mf.srv.sqlRepo.GetMoneyFlowCalcRepository()
 
-	// Get detailed transactions
+	// First, get the summary to check if it has a related failed/rejected summary
+	summary, err := mfsRepo.GetSummaryDetailBySummaryID(ctx, summaryID)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get summary detail: %w", err)
+	}
+
+	// Set the related summary ID in filter options
+	opts.SummaryID = summaryID
+	opts.RelatedFailedOrRejectedSummaryID = summary.RelatedFailedOrRejectedSummaryID
+
+	// Get detailed transactions (now includes transactions from both summaries)
 	transactions, err := mfsRepo.GetDetailedTransactionsBySummaryID(ctx, opts)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to get detailed transactions: %w", err)
 	}
 
-	// Count total
-	total, err := mfsRepo.CountDetailedTransactions(ctx, summaryID)
+	// Count total (now includes count from both summaries)
+	total, err := mfsRepo.CountDetailedTransactions(ctx, opts)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to count detailed transactions: %w", err)
 	}
@@ -377,15 +387,23 @@ func (mf *moneyFlowCalc) DownloadDetailedTransactionsBySummaryID(ctx context.Con
 
 	mfsRepo := mf.srv.sqlRepo.GetMoneyFlowCalcRepository()
 
-	// Check if summary exists
-	_, err = mfsRepo.GetSummaryDetailBySummaryID(ctx, req.SummaryID)
+	// Check if summary exists and get related summary info
+	summary, err := mfsRepo.GetSummaryDetailBySummaryID(ctx, req.SummaryID)
 	if err != nil {
 		err = checkDatabaseError(err, models.ErrKeySummaryIdnotFound)
 		return err
 	}
 
-	// Get all detailed transactions
-	transactions, err := mfsRepo.GetAllDetailedTransactionsBySummaryID(ctx, req.SummaryID, req.RefNumber)
+	// Set related summary ID for download
+	req.RelatedFailedOrRejectedSummaryID = summary.RelatedFailedOrRejectedSummaryID
+
+	// Get all detailed transactions (now includes transactions from both summaries)
+	transactions, err := mfsRepo.GetAllDetailedTransactionsBySummaryID(
+		ctx,
+		req.SummaryID,
+		req.RelatedFailedOrRejectedSummaryID,
+		req.RefNumber,
+	)
 	if err != nil {
 		return fmt.Errorf("failed to get detailed transactions: %w", err)
 	}

@@ -159,26 +159,34 @@ type GetMoneyFlowSummaryListResponse struct {
 
 // MoneyFlowSummaryOut represents the output from repository
 type MoneyFlowSummaryOut struct {
-	ID                            string
-	TransactionSourceCreationDate time.Time
-	PaymentType                   string
-	TotalTransfer                 decimal.Decimal
-	MoneyFlowStatus               string
-	RequestedDate                 *time.Time
-	ActualDate                    *time.Time
-	CreatedAt                     time.Time
+	ID                               string
+	TransactionSourceCreationDate    time.Time
+	PaymentType                      string
+	TotalTransfer                    decimal.Decimal
+	MoneyFlowStatus                  string
+	RequestedDate                    *time.Time
+	ActualDate                       *time.Time
+	CreatedAt                        time.Time
+	RelatedFailedOrRejectedSummaryID *string
+	RelatedTotalTransfer             decimal.Decimal
 }
 
 // ToModelResponse implements PaginateableContent interface
 func (m MoneyFlowSummaryOut) ToModelResponse() MoneyFlowSummaryResponse {
 	dates := dateutil.FormatTimesToRFC3339(m.RequestedDate, m.ActualDate)
 
+	// Calculate final total transfer (current + related if exists)
+	finalTotalTransfer := m.TotalTransfer
+	if m.RelatedFailedOrRejectedSummaryID != nil && !m.RelatedTotalTransfer.IsZero() {
+		finalTotalTransfer = m.TotalTransfer.Add(m.RelatedTotalTransfer)
+	}
+
 	return MoneyFlowSummaryResponse{
 		Kind:                          constants.MoneyFlowKind,
 		ID:                            m.ID,
 		TransactionSourceCreationDate: m.TransactionSourceCreationDate.Format(constants.DateFormatYYYYMMDD),
 		PaymentType:                   m.PaymentType,
-		TotalTransfer:                 m.TotalTransfer,
+		TotalTransfer:                 finalTotalTransfer,
 		Status:                        m.MoneyFlowStatus,
 		CreatedAt:                     m.CreatedAt.Format(time.RFC3339),
 		RequestedDate:                 dates[0],
@@ -229,24 +237,32 @@ type MoneyFlowSummaryBySummaryIDOut struct {
 }
 
 type MoneyFlowSummaryDetailBySummaryIDOut struct {
-	Kind                         string
-	ID                           string
-	PaymentType                  string
-	CreatedDate                  time.Time
-	RequestedDate                *time.Time
-	ActualDate                   *time.Time
-	TotalAmount                  decimal.Decimal
-	Status                       string
-	SourceBankAccountNumber      string
-	SourceBankAccountName        string
-	SourceBankName               string
-	DestinationBankAccountNumber string
-	DestinationBankAccountName   string
-	DestinationBankName          string
+	Kind                             string
+	ID                               string
+	PaymentType                      string
+	CreatedDate                      time.Time
+	RequestedDate                    *time.Time
+	ActualDate                       *time.Time
+	TotalAmount                      decimal.Decimal
+	Status                           string
+	SourceBankAccountNumber          string
+	SourceBankAccountName            string
+	SourceBankName                   string
+	DestinationBankAccountNumber     string
+	DestinationBankAccountName       string
+	DestinationBankName              string
+	RelatedFailedOrRejectedSummaryID *string
+	RelatedTotalTransfer             decimal.Decimal
 }
 
 func (m MoneyFlowSummaryDetailBySummaryIDOut) ToModelResponse() MoneyFlowSummaryBySummaryIDOut {
 	dates := dateutil.FormatTimesToRFC3339(m.RequestedDate, m.ActualDate)
+
+	// Calculate final total amount (current + related if exists)
+	finalTotalAmount := m.TotalAmount
+	if m.RelatedFailedOrRejectedSummaryID != nil && !m.RelatedTotalTransfer.IsZero() {
+		finalTotalAmount = m.TotalAmount.Add(m.RelatedTotalTransfer)
+	}
 
 	return MoneyFlowSummaryBySummaryIDOut{
 		Kind:                         constants.MoneyFlowKind,
@@ -255,7 +271,7 @@ func (m MoneyFlowSummaryDetailBySummaryIDOut) ToModelResponse() MoneyFlowSummary
 		CreatedDate:                  m.CreatedDate.Format(time.RFC3339),
 		RequestedDate:                dates[0],
 		ActualDate:                   dates[1],
-		TotalAmount:                  m.TotalAmount,
+		TotalAmount:                  finalTotalAmount,
 		Status:                       m.Status,
 		SourceBankAccountNumber:      m.SourceBankAccountNumber,
 		SourceBankAccountName:        m.SourceBankAccountName,
@@ -277,10 +293,11 @@ type DoGetDetailedTransactionsBySummaryIDRequest struct {
 
 // DetailedTransactionFilterOptions represents filter options for detailed transactions query
 type DetailedTransactionFilterOptions struct {
-	SummaryID string
-	RefNumber string
-	Limit     int
-	Cursor    *DetailedTransactionCursor
+	SummaryID                        string
+	RelatedFailedOrRejectedSummaryID *string
+	RefNumber                        string
+	Limit                            int
+	Cursor                           *DetailedTransactionCursor
 }
 
 // DetailedTransactionCursor represents cursor for pagination
@@ -389,9 +406,10 @@ type DoDownloadDetailedTransactionsBySummaryIDRequest struct {
 
 // DownloadDetailedTransactionsRequest represents download request with writer
 type DownloadDetailedTransactionsRequest struct {
-	SummaryID string
-	RefNumber string
-	Writer    io.Writer
+	SummaryID                        string
+	RelatedFailedOrRejectedSummaryID *string
+	RefNumber                        string
+	Writer                           io.Writer
 }
 
 // ValidateStatusTransition validates if status transition is allowed
@@ -457,7 +475,7 @@ func (req UpdateMoneyFlowSummaryRequest) ValidateInProgressRequirements() error 
 	return nil
 }
 
-// ToUpdateModel converts request to MoneyFlowSummaryUpdate with auto-fill logic
+// ToUpdateModelWithAutoFill converts request to MoneyFlowSummaryUpdate with auto-fill logic
 func (req UpdateMoneyFlowSummaryRequest) ToUpdateModelWithAutoFill(currentRequestedDate *time.Time) (*MoneyFlowSummaryUpdate, error) {
 	update := &MoneyFlowSummaryUpdate{}
 
