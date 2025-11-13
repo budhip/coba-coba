@@ -366,17 +366,15 @@ func (mf *moneyFlowCalc) UpdateSummary(ctx context.Context, summaryID string, re
 		}
 
 		if hasPendingBefore {
-			errMsg := fmt.Sprintf("cannot transition to IN_PROGRESS: there are PENDING transactions with the same payment type (%s) and transaction type (%s) from earlier dates that must be processed first",
-				currentSummary.PaymentType,
-				currentSummary.TransactionType)
-
 			xlog.Warn(ctx, "[MONEY-FLOW-UPDATE] Blocked status transition due to earlier PENDING transactions",
 				xlog.String("summary_id", summaryID),
 				xlog.String("transaction_type", currentSummary.TransactionType),
 				xlog.String("payment_type", currentSummary.PaymentType),
 				xlog.Time("transaction_date", currentSummary.TransactionSourceCreationDate))
 
-			return fmt.Errorf(errMsg)
+			return fmt.Errorf("cannot transition to IN_PROGRESS: there are PENDING transactions with the same payment type (%s) and transaction type (%s) from earlier dates that must be processed first",
+				currentSummary.PaymentType,
+				currentSummary.TransactionType)
 		}
 	}
 
