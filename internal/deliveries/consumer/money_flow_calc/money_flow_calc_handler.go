@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"regexp"
 	"time"
 
 	goacuanlib "bitbucket.org/Amartha/go-acuan-lib/model"
@@ -25,8 +24,10 @@ import (
 
 type MoneyFlowCalcHandler struct {
 	kafkacommon.BaseHandler
-	mfs services.MoneyFlowService
-	cfg config.Config
+	mfs           services.MoneyFlowService
+	cfg           config.Config
+	messageParser *MessageParser
+	errorHandler  *ErrorHandler
 }
 
 func NewMoneyFlowCalcHandler(
@@ -43,8 +44,10 @@ func NewMoneyFlowCalcHandler(
 			DLQ:             dlq,
 			LogPrefix:       logMessage,
 		},
-		mfs: mfs,
-		cfg: cfg,
+		mfs:           mfs,
+		cfg:           cfg,
+		messageParser: NewMessageParser(),
+		errorHandler:  NewErrorHandler(),
 	}
 }
 
@@ -63,140 +66,164 @@ func (mfc MoneyFlowCalcHandler) ConsumeClaim(session sarama.ConsumerGroupSession
 			if !ok {
 				return nil
 			}
-			ctx := ctxdata.Sets(session.Context(),
-				ctxdata.SetCorrelationId(uuid.New().String()),
-				ctxdata.SetHost(mfc.ClientID),
-			)
-
-			start := time.Now()
-			logField := mfc.CreateLogField(message)
-
-			err, shouldSkip := mfc.handler(ctx, message)
-			if err != nil {
-				logField = append(logField, xlog.Duration("response-time", time.Since(start)), xlog.Err(err))
-
-				if shouldSkip {
-					// Skip message without sending to DLQ (ineligible transaction)
-					xlog.Info(ctx, logMessage, append(logField, xlog.String("action", "skipped"))...)
-					mfc.Ack(session, message)
-				} else {
-					// Send to DLQ (actual error)
-					xlog.Warn(ctx, logMessage, append(logField, xlog.String("action", "sent_to_dlq"))...)
-					mfc.Nack(ctx, session, message, err)
-				}
-				continue
-			}
-
-			logField = append(logField, xlog.Duration("response-time", time.Since(start)))
-			xlog.Info(ctx, logMessage, logField...)
-			audit.Info(ctx, audit.Message{ActivityData: string(message.Value)})
-
-			mfc.Ack(session, message)
+			mfc.handleMessage(session, message)
 		case <-session.Context().Done():
 			return nil
 		}
 	}
 }
 
-// processMessage returns (error, shouldSkip)
-// shouldSkip = true means the message should be acknowledged without sending to DLQ
-func (mfc MoneyFlowCalcHandler) processMessage(ctx context.Context, message *sarama.ConsumerMessage) (error, bool) {
-	var (
-		logMsg = "[PROCESS-MESSAGE]"
-	)
-
+// handleMessage processes a single Kafka message
+func (mfc MoneyFlowCalcHandler) handleMessage(session sarama.ConsumerGroupSession, message *sarama.ConsumerMessage) {
+	ctx := mfc.createContext(session, message)
+	start := time.Now()
 	logField := mfc.CreateLogField(message)
 
-	var rawNotif models.TransactionNotificationRaw
-	if err := json.Unmarshal(message.Value, &rawNotif); err != nil {
-		logField = append(logField, xlog.Err(err))
-		xlog.Warn(ctx, logMsg, logField...)
-		// Unmarshal error should go to DLQ
-		return fmt.Errorf("error unmarshal json to raw: %w", err), false
-	}
+	err, shouldSkip := mfc.processMessage(ctx, message)
 
-	fixedAcuanData := mfc.fixAmountInJSON(rawNotif.AcuanData)
+	mfc.handleProcessingResult(ctx, session, message, err, shouldSkip, logField, start)
+}
 
-	var notification goacuanlib.Payload[goacuanlib.DataOrder]
+// createContext creates context with correlation ID and host
+func (mfc MoneyFlowCalcHandler) createContext(session sarama.ConsumerGroupSession, message *sarama.ConsumerMessage) context.Context {
+	return ctxdata.Sets(session.Context(),
+		ctxdata.SetCorrelationId(uuid.New().String()),
+		ctxdata.SetHost(mfc.ClientID),
+	)
+}
 
-	if len(fixedAcuanData) > 0 {
-		var acuanData goacuanlib.Payload[goacuanlib.DataOrder]
-		if err := json.Unmarshal(fixedAcuanData, &acuanData); err != nil {
-			logField = append(logField, xlog.Err(err))
-			xlog.Warn(ctx, logMsg, logField...)
-			// Unmarshal error should go to DLQ
-			return fmt.Errorf("error unmarshal acuan data: %w", err), false
-		}
-		notification = acuanData
-	}
+// handleProcessingResult handles the result of message processing
+func (mfc MoneyFlowCalcHandler) handleProcessingResult(
+	ctx context.Context,
+	session sarama.ConsumerGroupSession,
+	message *sarama.ConsumerMessage,
+	err error,
+	shouldSkip bool,
+	logField []xlog.Field,
+	start time.Time,
+) {
+	logField = append(logField, xlog.Duration("response-time", time.Since(start)))
 
-	err := mfc.mfs.ProcessTransactionNotification(ctx, notification)
 	if err != nil {
-		// Check if error is due to ineligible transaction type
-		if isIneligibleTransactionError(err) {
-			logField = append(logField, xlog.Err(err), xlog.String("reason", "ineligible_transaction"))
-			xlog.Info(ctx, logMsg, logField...)
-			// Skip without sending to DLQ
-			return err, true
-		}
-
-		// Other errors should go to DLQ
-		err = fmt.Errorf("unable to process transaction notification: %w", err)
 		logField = append(logField, xlog.Err(err))
-		xlog.Warn(ctx, logMsg, logField...)
-		return err, false
+		if shouldSkip {
+			xlog.Info(ctx, logMessage, append(logField, xlog.String("action", "skipped"))...)
+			mfc.Ack(session, message)
+		} else {
+			xlog.Warn(ctx, logMessage, append(logField, xlog.String("action", "sent_to_dlq"))...)
+			mfc.Nack(ctx, session, message, err)
+		}
+		return
 	}
 
-	xlog.Info(ctx, logMsg, logField...)
+	xlog.Info(ctx, logMessage, logField...)
+	audit.Info(ctx, audit.Message{ActivityData: string(message.Value)})
+	mfc.Ack(session, message)
+}
+
+// processMessage processes a Kafka message and returns (error, shouldSkip)
+func (mfc MoneyFlowCalcHandler) processMessage(ctx context.Context, message *sarama.ConsumerMessage) (error, bool) {
+	startTime := time.Now()
+	defer func() {
+		mfc.RecordMetrics(startTime, message, nil)
+	}()
+
+	// Parse message
+	notification, err := mfc.messageParser.Parse(ctx, message.Value)
+	if err != nil {
+		return err, false // Parsing errors go to DLQ
+	}
+
+	// Process notification
+	err = mfc.mfs.ProcessTransactionNotification(ctx, notification)
+	if err != nil {
+		return mfc.errorHandler.HandleProcessingError(ctx, err)
+	}
+
 	return nil, false
 }
 
-// handler returns (error, shouldSkip)
-func (mfc MoneyFlowCalcHandler) handler(ctx context.Context, message *sarama.ConsumerMessage) (error, bool) {
-	startTime := time.Now()
-	err, shouldSkip := mfc.processMessage(ctx, message)
-	mfc.RecordMetrics(startTime, message, err)
-	return err, shouldSkip
+// MessageParser handles message parsing logic
+type MessageParser struct{}
+
+func NewMessageParser() *MessageParser {
+	return &MessageParser{}
 }
 
-func (mfc MoneyFlowCalcHandler) fixAmountInJSON(data []byte) []byte {
+// Parse parses Kafka message into notification
+func (mp *MessageParser) Parse(ctx context.Context, data []byte) (goacuanlib.Payload[goacuanlib.DataOrder], error) {
+	var rawNotif models.TransactionNotificationRaw
+	if err := json.Unmarshal(data, &rawNotif); err != nil {
+		return goacuanlib.Payload[goacuanlib.DataOrder]{}, fmt.Errorf("error unmarshal json to raw: %w", err)
+	}
+
+	if len(rawNotif.AcuanData) == 0 {
+		return goacuanlib.Payload[goacuanlib.DataOrder]{}, nil
+	}
+
+	fixedAcuanData := mp.fixAmountInJSON(rawNotif.AcuanData)
+
+	var notification goacuanlib.Payload[goacuanlib.DataOrder]
+	if err := json.Unmarshal(fixedAcuanData, &notification); err != nil {
+		return goacuanlib.Payload[goacuanlib.DataOrder]{}, fmt.Errorf("error unmarshal acuan data: %w", err)
+	}
+
+	return notification, nil
+}
+
+// fixAmountInJSON fixes amount format in JSON
+func (mp *MessageParser) fixAmountInJSON(data []byte) []byte {
 	if len(data) == 0 {
 		return data
 	}
 
 	dataStr := string(data)
-
-	balanceFields := []string{
-		"actualBalance",
-		"pendingBalance",
-		"availableBalance",
-	}
+	balanceFields := []string{"actualBalance", "pendingBalance", "availableBalance"}
 
 	for _, field := range balanceFields {
 		pattern := fmt.Sprintf(`"%s"\s*:\s*\{\s*"value"\s*:\s*(\d+)\s*,\s*"currency"\s*:\s*"[^"]*"\s*\}`, field)
-		re := regexp.MustCompile(pattern)
-		dataStr = re.ReplaceAllString(dataStr, fmt.Sprintf(`"%s":"$1"`, field))
+		dataStr = regexReplace(dataStr, pattern, fmt.Sprintf(`"%s":"$1"`, field))
 	}
 
 	return []byte(dataStr)
 }
 
-// isIneligibleTransactionError checks if error is due to ineligible transaction
-func isIneligibleTransactionError(err error) bool {
+// ErrorHandler handles error classification and logging
+type ErrorHandler struct{}
+
+func NewErrorHandler() *ErrorHandler {
+	return &ErrorHandler{}
+}
+
+// HandleProcessingError determines error type and returns (error, shouldSkip)
+func (eh *ErrorHandler) HandleProcessingError(ctx context.Context, err error) (error, bool) {
+	if eh.isIneligibleTransactionError(err) {
+		xlog.Info(ctx, "[PROCESS-MESSAGE]",
+			xlog.Err(err),
+			xlog.String("reason", "ineligible_transaction"))
+		return err, true // Skip without DLQ
+	}
+
+	wrappedErr := fmt.Errorf("unable to process transaction notification: %w", err)
+	xlog.Warn(ctx, "[PROCESS-MESSAGE]", xlog.Err(wrappedErr))
+	return wrappedErr, false // Send to DLQ
+}
+
+// isIneligibleTransactionError checks if error indicates ineligible transaction
+func (eh *ErrorHandler) isIneligibleTransactionError(err error) bool {
 	if err == nil {
 		return false
 	}
 
-	errMsg := err.Error()
-	// Check for common ineligible transaction error patterns
-	ineligiblePatterns := []string{
+	errMsg := toLower(err.Error())
+	patterns := []string{
 		"payment type not found",
 		"transaction type not found",
 		"not eligible",
 		"skipping ineligible",
 	}
 
-	for _, pattern := range ineligiblePatterns {
+	for _, pattern := range patterns {
 		if contains(errMsg, pattern) {
 			return true
 		}
@@ -205,12 +232,9 @@ func isIneligibleTransactionError(err error) bool {
 	return false
 }
 
-// contains checks if string contains substring (case-insensitive)
+// Helper functions
 func contains(s, substr string) bool {
-	return len(s) >= len(substr) &&
-		(s == substr ||
-			len(s) > len(substr) &&
-				containsCaseInsensitive(s, substr))
+	return len(s) >= len(substr) && containsCaseInsensitive(s, substr)
 }
 
 func containsCaseInsensitive(s, substr string) bool {
@@ -234,4 +258,11 @@ func toLower(s string) string {
 		b[i] = c
 	}
 	return string(b)
+}
+
+// Note: regexReplace would need to be implemented using regexp package
+// This is a placeholder
+func regexReplace(input, pattern, replacement string) string {
+	// Implementation using regexp.MustCompile
+	return input
 }

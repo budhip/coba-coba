@@ -5,6 +5,7 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"io"
 	"time"
 
 	goacuanlib "bitbucket.org/Amartha/go-acuan-lib/model"
@@ -57,72 +58,6 @@ func (mf *moneyFlowCalc) CheckEligibleTransaction(ctx context.Context, paymentTy
 	}
 
 	return config, paymentType, nil
-}
-
-func (mf *moneyFlowCalc) ProcessTransactionNotification(ctx context.Context, notification goacuanlib.Payload[goacuanlib.DataOrder]) error {
-	var err error
-
-	monitor := monitoring.New(ctx)
-	defer monitor.Finish(monitoring.WithFinishCheckError(err))
-
-	// Validate notification status
-	if notification.Body.Data.Order.Transactions[0].Status != 1 {
-		xlog.Info(ctx, "[MONEY-FLOW-CALC] Skipping non-success transaction",
-			xlog.String("status", string(notification.Body.Data.Order.Transactions[0].Status)),
-			xlog.String("ref_number", notification.Body.Data.Order.RefNumber))
-		return nil
-	}
-
-	// Validate order time
-	if notification.Body.Data.Order.OrderTime.Time == nil {
-		xlog.Warn(ctx, "[MONEY-FLOW-CALC] Transaction time is nil",
-			xlog.String("ref_number", notification.Body.Data.Order.RefNumber))
-		return nil
-	}
-
-	orderTime := *notification.Body.Data.Order.OrderTime.Time
-	if orderTime.IsZero() {
-		xlog.Warn(ctx, "[MONEY-FLOW-CALC] Invalid transaction time",
-			xlog.String("ref_number", notification.Body.Data.Order.RefNumber))
-		return nil
-	}
-
-	jakartaLocation, _ := time.LoadLocation("Asia/Jakarta")
-	creationDate := time.Date(
-		orderTime.Year(),
-		orderTime.Month(),
-		orderTime.Day(),
-		0, 0, 0, 0,
-		jakartaLocation,
-	)
-
-	// Process each transaction
-	for _, trx := range notification.Body.Data.Order.Transactions {
-		transactionType := string(trx.TransactionType)
-
-		businessRulesData, paymentType, err := mf.CheckEligibleTransaction(ctx, "", transactionType)
-		if err != nil {
-			return err
-		}
-
-		if businessRulesData == nil {
-			xlog.Info(ctx, "[MONEY-FLOW-CALC] Skipping ineligible transaction",
-				xlog.String("transaction_type", transactionType),
-				xlog.String("ref_number", notification.Body.Data.Order.RefNumber))
-			continue
-		}
-
-		summaryID, err := mf.processSingleTransaction(ctx, trx, paymentType, businessRulesData, creationDate)
-		if err != nil {
-			xlog.Error(ctx, "[MONEY-FLOW-CALC] Failed to process transaction",
-				xlog.String("summary_id", summaryID),
-				xlog.String("acuan_transaction_id", trx.Id.String()),
-				xlog.Err(err))
-			return err
-		}
-	}
-
-	return nil
 }
 
 func (mf *moneyFlowCalc) processSingleTransaction(
@@ -310,178 +245,381 @@ func (mf *moneyFlowCalc) GetDetailedTransactionsBySummaryID(ctx context.Context,
 	return transactions, total, nil
 }
 
+// UpdateSummary validates and updates a money flow summary
 func (mf *moneyFlowCalc) UpdateSummary(ctx context.Context, summaryID string, req models.UpdateMoneyFlowSummaryRequest) error {
 	var err error
 
 	monitor := monitoring.New(ctx)
 	defer monitor.Finish(monitoring.WithFinishCheckError(err))
 
-	// Validate request - at least one field must be provided
-	if err = req.Validate(); err != nil {
+	// Validate request
+	validator := NewUpdateValidator(mf.srv.sqlRepo.GetMoneyFlowCalcRepository())
+	if err = validator.ValidateRequest(req); err != nil {
 		return err
 	}
 
-	// Get current summary details
+	// Get current summary
 	currentSummary, err := mf.srv.sqlRepo.GetMoneyFlowCalcRepository().GetSummaryDetailBySummaryID(ctx, summaryID)
 	if err != nil {
-		err = checkDatabaseError(err, models.ErrKeySummaryIdnotFound)
+		return checkDatabaseError(err, models.ErrKeySummaryIdnotFound)
+	}
+
+	// Validate status transition and requirements
+	if err = validator.ValidateTransition(ctx, req, currentSummary); err != nil {
+		mf.logValidationError(ctx, summaryID, currentSummary.Status, req, err)
 		return err
 	}
 
-	// Validate status transition if status is being changed
-	if err = req.ValidateStatusTransition(currentSummary.Status); err != nil {
-		xlog.Warn(ctx, "[MONEY-FLOW-UPDATE] Invalid status transition",
-			xlog.String("summary_id", summaryID),
-			xlog.String("current_status", currentSummary.Status),
-			xlog.String("new_status", func() string {
-				if req.MoneyFlowStatus != nil {
-					return *req.MoneyFlowStatus
-				}
-				return ""
-			}()),
-			xlog.Err(err))
-		return err
-	}
-
-	// NEW VALIDATION: Check for PENDING transactions before current date when transitioning from PENDING to IN_PROGRESS
-	if req.MoneyFlowStatus != nil &&
-		currentSummary.Status == constants.MoneyFlowStatusPending &&
-		*req.MoneyFlowStatus == constants.MoneyFlowStatusInProgress {
-
-		// Check if there are any PENDING transactions before this date with same transaction_type and payment_type
-		hasPendingBefore, err := mf.srv.sqlRepo.GetMoneyFlowCalcRepository().HasPendingTransactionBefore(
-			ctx,
-			currentSummary.TransactionType,
-			currentSummary.PaymentType,
-			currentSummary.TransactionSourceCreationDate,
-		)
-		if err != nil {
-			xlog.Error(ctx, "[MONEY-FLOW-UPDATE] Failed to check pending transactions before",
-				xlog.String("summary_id", summaryID),
-				xlog.String("transaction_type", currentSummary.TransactionType),
-				xlog.String("payment_type", currentSummary.PaymentType),
-				xlog.Time("transaction_date", currentSummary.TransactionSourceCreationDate),
-				xlog.Err(err))
-			return fmt.Errorf("failed to check pending transactions: %w", err)
-		}
-
-		if hasPendingBefore {
-			xlog.Warn(ctx, "[MONEY-FLOW-UPDATE] Blocked status transition due to earlier PENDING transactions",
-				xlog.String("summary_id", summaryID),
-				xlog.String("transaction_type", currentSummary.TransactionType),
-				xlog.String("payment_type", currentSummary.PaymentType),
-				xlog.Time("transaction_date", currentSummary.TransactionSourceCreationDate))
-
-			return fmt.Errorf("cannot transition to IN_PROGRESS: there are PENDING transactions with the same payment type (%s) and transaction type (%s) from earlier dates that must be processed first",
-				currentSummary.PaymentType,
-				currentSummary.TransactionType)
-		}
-	}
-
-	// Validate IN_PROGRESS requirements
-	if err = req.ValidateInProgressRequirements(); err != nil {
-		xlog.Warn(ctx, "[MONEY-FLOW-UPDATE] IN_PROGRESS validation failed",
-			xlog.String("summary_id", summaryID),
-			xlog.Err(err))
-		return err
-	}
-
-	// Convert request to update model with auto-fill logic
+	// Convert and update
 	updateModel, err := req.ToUpdateModelWithAutoFill(currentSummary.RequestedDate)
 	if err != nil {
 		return err
 	}
 
-	// Update summary
-	err = mf.srv.sqlRepo.GetMoneyFlowCalcRepository().UpdateSummary(ctx, summaryID, *updateModel)
-	if err != nil {
-		xlog.Error(ctx, "[MONEY-FLOW-UPDATE] Failed to update summary",
-			xlog.String("summary_id", summaryID),
-			xlog.Err(err))
+	if err = mf.srv.sqlRepo.GetMoneyFlowCalcRepository().UpdateSummary(ctx, summaryID, *updateModel); err != nil {
+		mf.logUpdateError(ctx, summaryID, err)
 		return fmt.Errorf("failed to update money flow summary: %w", err)
 	}
 
-	xlog.Info(ctx, "[MONEY-FLOW-UPDATE] Successfully updated money flow summary",
+	mf.logUpdateSuccess(ctx, summaryID, req, currentSummary.Status)
+	return nil
+}
+
+// logValidationError logs validation errors
+func (mf *moneyFlowCalc) logValidationError(
+	ctx context.Context,
+	summaryID string,
+	currentStatus string,
+	req models.UpdateMoneyFlowSummaryRequest,
+	err error,
+) {
+	fields := []xlog.Field{
 		xlog.String("summary_id", summaryID),
-		xlog.String("status", func() string {
-			if req.MoneyFlowStatus != nil {
-				return *req.MoneyFlowStatus
-			}
-			return currentSummary.Status
-		}()))
+		xlog.String("current_status", currentStatus),
+		xlog.Err(err),
+	}
+
+	if req.MoneyFlowStatus != nil {
+		fields = append(fields, xlog.String("new_status", *req.MoneyFlowStatus))
+	}
+
+	xlog.Warn(ctx, constants.LogPrefixMoneyFlowUpdate+" Invalid status transition", fields...)
+}
+
+// logUpdateError logs update errors
+func (mf *moneyFlowCalc) logUpdateError(ctx context.Context, summaryID string, err error) {
+	xlog.Error(ctx, constants.LogPrefixMoneyFlowUpdate+" Failed to update summary",
+		xlog.String("summary_id", summaryID),
+		xlog.Err(err))
+}
+
+// logUpdateSuccess logs successful updates
+func (mf *moneyFlowCalc) logUpdateSuccess(
+	ctx context.Context,
+	summaryID string,
+	req models.UpdateMoneyFlowSummaryRequest,
+	currentStatus string,
+) {
+	status := currentStatus
+	if req.MoneyFlowStatus != nil {
+		status = *req.MoneyFlowStatus
+	}
+
+	xlog.Info(ctx, constants.LogPrefixMoneyFlowUpdate+" Successfully updated money flow summary",
+		xlog.String("summary_id", summaryID),
+		xlog.String("status", status))
+}
+
+// UpdateValidator handles validation logic for updates
+type UpdateValidator struct {
+	repo repositories.MoneyFlowRepository
+}
+
+// NewUpdateValidator creates a new update validator
+func NewUpdateValidator(repo repositories.MoneyFlowRepository) *UpdateValidator {
+	return &UpdateValidator{repo: repo}
+}
+
+// ValidateRequest validates the basic update request
+func (v *UpdateValidator) ValidateRequest(req models.UpdateMoneyFlowSummaryRequest) error {
+	return req.Validate()
+}
+
+// ValidateTransition validates status transition and requirements
+func (v *UpdateValidator) ValidateTransition(
+	ctx context.Context,
+	req models.UpdateMoneyFlowSummaryRequest,
+	currentSummary models.MoneyFlowSummaryDetailBySummaryIDOut,
+) error {
+	// Validate status transition
+	if err := req.ValidateStatusTransition(currentSummary.Status); err != nil {
+		return err
+	}
+
+	// Validate IN_PROGRESS requirements
+	if err := req.ValidateInProgressRequirements(); err != nil {
+		return err
+	}
+
+	// Validate no pending transactions before
+	if err := v.validateNoPendingBefore(ctx, req, currentSummary); err != nil {
+		return err
+	}
 
 	return nil
 }
 
+// validateNoPendingBefore checks for pending transactions before current date
+func (v *UpdateValidator) validateNoPendingBefore(
+	ctx context.Context,
+	req models.UpdateMoneyFlowSummaryRequest,
+	currentSummary models.MoneyFlowSummaryDetailBySummaryIDOut,
+) error {
+	// Only check when transitioning from PENDING to IN_PROGRESS
+	if !v.isTransitioningToInProgress(req, currentSummary) {
+		return nil
+	}
+
+	hasPendingBefore, err := v.repo.HasPendingTransactionBefore(
+		ctx,
+		currentSummary.TransactionType,
+		currentSummary.PaymentType,
+		currentSummary.TransactionSourceCreationDate,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to check pending transactions: %w", err)
+	}
+
+	if hasPendingBefore {
+		return fmt.Errorf(
+			constants.ErrMsgPendingTransactionBefore,
+			currentSummary.PaymentType,
+			currentSummary.TransactionType,
+		)
+	}
+
+	return nil
+}
+
+// isTransitioningToInProgress checks if transitioning to IN_PROGRESS
+func (v *UpdateValidator) isTransitioningToInProgress(
+	req models.UpdateMoneyFlowSummaryRequest,
+	currentSummary models.MoneyFlowSummaryDetailBySummaryIDOut,
+) bool {
+	return req.MoneyFlowStatus != nil &&
+		currentSummary.Status == constants.MoneyFlowStatusPending &&
+		*req.MoneyFlowStatus == constants.MoneyFlowStatusInProgress
+}
+
 // DownloadDetailedTransactionsBySummaryID downloads detailed transactions as CSV
-func (mf *moneyFlowCalc) DownloadDetailedTransactionsBySummaryID(ctx context.Context, req models.DownloadDetailedTransactionsRequest) error {
+func (mf *moneyFlowCalc) DownloadDetailedTransactionsBySummaryID(
+	ctx context.Context,
+	req models.DownloadDetailedTransactionsRequest,
+) error {
 	var err error
 
 	monitor := monitoring.New(ctx)
 	defer monitor.Finish(monitoring.WithFinishCheckError(err))
 
-	mfsRepo := mf.srv.sqlRepo.GetMoneyFlowCalcRepository()
-
-	// Check if summary exists and get related summary info
-	summary, err := mfsRepo.GetSummaryDetailBySummaryID(ctx, req.SummaryID)
+	// Prepare download request
+	downloadReq, err := mf.prepareDownloadRequest(ctx, req)
 	if err != nil {
-		err = checkDatabaseError(err, models.ErrKeySummaryIdnotFound)
 		return err
 	}
 
-	// Set related summary ID for download
-	req.RelatedFailedOrRejectedSummaryID = summary.RelatedFailedOrRejectedSummaryID
-
-	// Get all detailed transactions (now includes transactions from both summaries)
-	transactions, err := mfsRepo.GetAllDetailedTransactionsBySummaryID(
+	// Get transactions
+	transactions, err := mf.srv.sqlRepo.GetMoneyFlowCalcRepository().GetAllDetailedTransactionsBySummaryID(
 		ctx,
-		req.SummaryID,
-		req.RelatedFailedOrRejectedSummaryID,
-		req.RefNumber,
+		downloadReq.SummaryID,
+		downloadReq.RelatedFailedOrRejectedSummaryID,
+		downloadReq.RefNumber,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to get detailed transactions: %w", err)
 	}
 
-	// Create CSV writer
-	writer := csv.NewWriter(req.Writer)
-	defer writer.Flush()
+	// Write CSV
+	return mf.writeTransactionsToCSV(req.Writer, transactions)
+}
+
+// prepareDownloadRequest prepares the download request with related summary info
+func (mf *moneyFlowCalc) prepareDownloadRequest(
+	ctx context.Context,
+	req models.DownloadDetailedTransactionsRequest,
+) (models.DownloadDetailedTransactionsRequest, error) {
+	summary, err := mf.srv.sqlRepo.GetMoneyFlowCalcRepository().GetSummaryDetailBySummaryID(ctx, req.SummaryID)
+	if err != nil {
+		return models.DownloadDetailedTransactionsRequest{}, checkDatabaseError(err, models.ErrKeySummaryIdnotFound)
+	}
+
+	req.RelatedFailedOrRejectedSummaryID = summary.RelatedFailedOrRejectedSummaryID
+	return req, nil
+}
+
+// writeTransactionsToCSV writes transactions to CSV writer
+func (mf *moneyFlowCalc) writeTransactionsToCSV(
+	writer io.Writer,
+	transactions []models.DetailedTransactionOut,
+) error {
+	csvWriter := csv.NewWriter(writer)
+	defer csvWriter.Flush()
 
 	// Write header
-	header := []string{
-		"transactionDate",
-		"transactionId",
-		"reffNumb",
-		"typeTransaction",
-		"fromAccount",
-		"toAccount",
-		"amount",
-		"description",
-		"metadata",
-	}
-	if err := writer.Write(header); err != nil {
+	if err := csvWriter.Write(constants.CSVHeaders); err != nil {
 		return fmt.Errorf("failed to write CSV header: %w", err)
 	}
 
 	// Write data rows
 	for _, trx := range transactions {
-		record := []string{
-			trx.TransactionDate.Format(constants.DateFormatYYYYMMDD),
-			trx.TransactionID,
-			trx.RefNumber,
-			trx.TypeTransaction,
-			trx.SourceAccount,
-			trx.DestinationAccount,
-			trx.Amount.String(),
-			trx.Description,
-			trx.Metadata,
-		}
-		if err := writer.Write(record); err != nil {
+		record := mf.transactionToCSVRecord(trx)
+		if err := csvWriter.Write(record); err != nil {
 			return fmt.Errorf("failed to write CSV row: %w", err)
 		}
 	}
 
 	return nil
+}
+
+// transactionToCSVRecord converts transaction to CSV record
+func (mf *moneyFlowCalc) transactionToCSVRecord(trx models.DetailedTransactionOut) []string {
+	return []string{
+		trx.TransactionDate.Format(constants.DateFormatYYYYMMDD),
+		trx.TransactionID,
+		trx.RefNumber,
+		trx.TypeTransaction,
+		trx.SourceAccount,
+		trx.DestinationAccount,
+		trx.Amount.String(),
+		trx.Description,
+		trx.Metadata,
+	}
+}
+
+// ProcessTransactionNotification processes transaction notification with validation
+func (mf *moneyFlowCalc) ProcessTransactionNotification(
+	ctx context.Context,
+	notification goacuanlib.Payload[goacuanlib.DataOrder],
+) error {
+	var err error
+
+	monitor := monitoring.New(ctx)
+	defer monitor.Finish(monitoring.WithFinishCheckError(err))
+
+	// Validate notification
+	validator := NewNotificationValidator()
+	if err = validator.Validate(notification); err != nil {
+		return err
+	}
+
+	// Get order time
+	orderTime, err := validator.GetOrderTime(notification)
+	if err != nil {
+		return err
+	}
+
+	creationDate := getCreationDate(orderTime)
+
+	// Process each transaction
+	return mf.processTransactions(ctx, notification, creationDate)
+}
+
+// processTransactions processes all transactions in notification
+func (mf *moneyFlowCalc) processTransactions(
+	ctx context.Context,
+	notification goacuanlib.Payload[goacuanlib.DataOrder],
+	creationDate time.Time,
+) error {
+	for _, trx := range notification.Body.Data.Order.Transactions {
+		if err := mf.processEligibleTransaction(ctx, trx, notification.Body.Data.Order.RefNumber, creationDate); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// processEligibleTransaction processes a single eligible transaction
+func (mf *moneyFlowCalc) processEligibleTransaction(
+	ctx context.Context,
+	trx goacuanlib.Transaction,
+	refNumber string,
+	creationDate time.Time,
+) error {
+	transactionType := string(trx.TransactionType)
+
+	// Check eligibility
+	businessRulesData, paymentType, err := mf.CheckEligibleTransaction(ctx, "", transactionType)
+	if err != nil {
+		return err
+	}
+
+	if businessRulesData == nil {
+		xlog.Info(ctx, constants.LogPrefixMoneyFlowCalc+" Skipping ineligible transaction",
+			xlog.String("transaction_type", transactionType),
+			xlog.String("ref_number", refNumber))
+		return nil
+	}
+
+	// Process transaction
+	_, err = mf.processSingleTransaction(ctx, trx, paymentType, businessRulesData, creationDate)
+	if err != nil {
+		xlog.Error(ctx, constants.LogPrefixMoneyFlowCalc+" Failed to process transaction",
+			xlog.String("acuan_transaction_id", trx.Id.String()),
+			xlog.Err(err))
+		return err
+	}
+
+	return nil
+}
+
+// NotificationValidator validates transaction notifications
+type NotificationValidator struct{}
+
+// NewNotificationValidator creates a new notification validator
+func NewNotificationValidator() *NotificationValidator {
+	return &NotificationValidator{}
+}
+
+// Validate validates the notification
+func (v *NotificationValidator) Validate(notification goacuanlib.Payload[goacuanlib.DataOrder]) error {
+	if len(notification.Body.Data.Order.Transactions) == 0 {
+		return nil
+	}
+
+	// Validate transaction status
+	if notification.Body.Data.Order.Transactions[0].Status != 1 {
+		xlog.Info(context.Background(), constants.LogPrefixMoneyFlowCalc+" Skipping non-success transaction",
+			xlog.String("status", string(notification.Body.Data.Order.Transactions[0].Status)),
+			xlog.String("ref_number", notification.Body.Data.Order.RefNumber))
+		return fmt.Errorf("transaction status not success")
+	}
+
+	return nil
+}
+
+// GetOrderTime gets and validates order time
+func (v *NotificationValidator) GetOrderTime(notification goacuanlib.Payload[goacuanlib.DataOrder]) (time.Time, error) {
+	if notification.Body.Data.Order.OrderTime.Time == nil {
+		return time.Time{}, fmt.Errorf("transaction time is nil")
+	}
+
+	orderTime := *notification.Body.Data.Order.OrderTime.Time
+	if orderTime.IsZero() {
+		return time.Time{}, fmt.Errorf("invalid transaction time")
+	}
+
+	return orderTime, nil
+}
+
+// getCreationDate gets creation date in Jakarta timezone
+func getCreationDate(orderTime time.Time) time.Time {
+	jakartaLocation, _ := time.LoadLocation("Asia/Jakarta")
+	return time.Date(
+		orderTime.Year(),
+		orderTime.Month(),
+		orderTime.Day(),
+		0, 0, 0, 0,
+		jakartaLocation,
+	)
 }
 
 // loadBusinessRules loads and validates business rules from feature flag
