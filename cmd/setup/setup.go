@@ -62,7 +62,6 @@ func Init(command string) (setup *Setup, stopper []graceful.ProcessStopper, err 
 		os.Getenv(""),
 		confLoader.WithConfigFileName("config"),
 		confLoader.WithConfigFileSearchPaths("/config", "."),
-		confLoader.WithConfigFileSearchPaths("./config"), // tambahin ini, tapi jangan di commit ke master.
 	)
 	err = l.Load(&cfg)
 	if err != nil {
