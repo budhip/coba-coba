@@ -32,6 +32,7 @@ func New(app *echo.Group, moneyFlowSvc services.MoneyFlowService) {
 	api.GET("/:summaryID/transactions", handler.getDetailedTransactionsBySummaryID)
 	api.PATCH("/:summaryID", handler.updateSummary)
 	api.GET("/:summaryID/transactions/download", handler.downloadDetailedTransactionsBySummaryID)
+	api.PATCH("/:summaryID/activation", handler.updateActivationStatus)
 }
 
 // getList API to get money flow summary with filters
@@ -248,4 +249,43 @@ func (h *moneyFlowSummariesHandler) downloadDetailedTransactionsBySummaryID(c ec
 	filename := fmt.Sprintf("detailed_transactions_%s_%s.csv", summaryID, timestamp)
 
 	return http.CSVSuccessResponse(c, filename)
+}
+
+// @Summary 	Update money flow summary activation status
+// @Description Update money flow summary activation status (active/inactive) by summary ID
+// @Tags 		MoneyFlowSummary
+// @Accept		json
+// @Produce		json
+// @Param 		summaryID path string true "summary identifier"
+// @Param		X-Secret-Key header string true "X-Secret-Key"
+// @Param   	body body models.UpdateActivationStatusRequest true "Update status request body"
+// @Success 	200 {object} models.UpdateActivationStatusResponse "Response indicates that the status has been updated successfully"
+// @Failure 	400 {object} http.RestErrorResponseModel "Bad request error"
+// @Failure 	404 {object} http.RestErrorResponseModel "Data not found"
+// @Failure 	500 {object} http.RestErrorResponseModel "Internal server error"
+// @Router /v1/money-flow-summaries/{summaryID}/activation [patch]
+func (h *moneyFlowSummariesHandler) updateActivationStatus(c echo.Context) error {
+	summaryID := c.Param("summaryID")
+
+	// Parse request body
+	req := new(models.UpdateActivationStatusRequest)
+	if err := c.Bind(req); err != nil {
+		return http.RestErrorResponse(c, nethttp.StatusBadRequest, err)
+	}
+
+	// Update status
+	err := h.moneyFlowService.UpdateActivationStatus(c.Request().Context(), summaryID, req.IsActive)
+	if err != nil {
+		return http.HandleRepositoryError(c, err)
+	}
+
+	// Return success response
+	response := models.UpdateActivationStatusResponse{
+		Kind:      constants.MoneyFlowKind,
+		SummaryID: summaryID,
+		IsActive:  req.IsActive,
+		Message:   "Money flow summary status updated successfully",
+	}
+
+	return http.RestSuccessResponse(c, nethttp.StatusOK, response)
 }

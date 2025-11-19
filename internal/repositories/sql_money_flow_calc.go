@@ -33,6 +33,8 @@ type MoneyFlowRepository interface {
 	HasPendingTransactionAfterFailedOrRejected(ctx context.Context, transactionType string, paymentType string, failedOrRejectedID string) (bool, error)
 	HasInProgressTransaction(ctx context.Context, transactionType string, paymentType string) (bool, error)
 	HasPendingTransactionBefore(ctx context.Context, transactionType string, paymentType string, transactionDate time.Time) (bool, error)
+	UpdateActivationStatus(ctx context.Context, summaryID string, isActive bool) error
+	GetSummaryDetailBySummaryIDAllStatus(ctx context.Context, summaryID string) (result models.MoneyFlowSummaryDetailBySummaryIDOut, err error)
 }
 
 type moneyFlowRepository sqlRepo
@@ -98,7 +100,7 @@ const (
 			COALESCE(related.total_transfer, 0) as related_total_transfer
 		FROM money_flow_summaries mfs
 		LEFT JOIN money_flow_summaries related ON mfs.related_failed_or_rejected_summary_id = related.id
-		WHERE mfs.id = $1
+		WHERE mfs.id = $1 AND mfs.is_active = TRUE
 	`
 
 	queryGetLastFailedOrRejectedTransaction = `
@@ -144,6 +146,35 @@ const (
 		  AND transaction_source_creation_date < $3
 	)
 `
+	queryUpdateActivationStatus = `
+		UPDATE money_flow_summaries 
+		SET is_active = $2, updated_at = NOW()
+		WHERE id = $1
+	`
+
+	queryGetSummaryDetailBySummaryIDAllStatus = `
+		SELECT
+		    mfs.id,
+		    mfs.transaction_type,
+		    mfs.payment_type, 
+		    mfs.created_at,
+		    mfs.transaction_source_creation_date,
+		    mfs.requested_date, 
+		    mfs.actual_date,
+			mfs.total_transfer, 
+			mfs.money_flow_status, 
+			mfs.source_bank_account_number, 
+			mfs.source_bank_account_name, 
+			mfs.source_bank_name,
+			mfs.destination_bank_account_number, 
+			mfs.destination_bank_account_name, 
+			mfs.destination_bank_name,
+			mfs.related_failed_or_rejected_summary_id,
+			COALESCE(related.total_transfer, 0) as related_total_transfer
+		FROM money_flow_summaries mfs
+		LEFT JOIN money_flow_summaries related ON mfs.related_failed_or_rejected_summary_id = related.id
+		WHERE mfs.id = $1
+	`
 )
 
 func (mfr *moneyFlowRepository) CreateSummary(ctx context.Context, in models.CreateMoneyFlowSummary) (string, error) {
@@ -535,6 +566,8 @@ func (mfr *moneyFlowRepository) GetAllDetailedTransactionsBySummaryID(ctx contex
 		Select(columns...).
 		From("detailed_money_flow_summaries as dmfs").
 		InnerJoin(`transaction t ON t."transactionId" = dmfs.acuan_transaction_id`).
+		InnerJoin(`money_flow_summaries mfs ON mfs."id" = dmfs."summary_id"`).
+		Where(sq.Eq{`mfs."is_active"`: true}).
 		OrderBy(`t."transactionDate" ASC, dmfs."id" ASC`)
 
 	// Build WHERE condition to include both summaryID and relatedSummaryID if exists
@@ -711,4 +744,61 @@ func (mfr *moneyFlowRepository) HasPendingTransactionBefore(
 	}
 
 	return exists, nil
+}
+
+func (mfr *moneyFlowRepository) UpdateActivationStatus(ctx context.Context, summaryID string, isActive bool) error {
+	var err error
+
+	monitor := monitoring.New(ctx)
+	defer monitor.Finish(monitoring.WithFinishCheckError(err))
+
+	db := mfr.r.extractTxWrite(ctx)
+
+	res, err := db.ExecContext(ctx, queryUpdateActivationStatus, summaryID, isActive)
+	if err != nil {
+		return err
+	}
+
+	affectedRows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if affectedRows == 0 {
+		return common.ErrNoRowsAffected
+	}
+
+	return nil
+}
+
+func (mfr *moneyFlowRepository) GetSummaryDetailBySummaryIDAllStatus(ctx context.Context, summaryID string) (result models.MoneyFlowSummaryDetailBySummaryIDOut, err error) {
+	monitor := monitoring.New(ctx)
+	defer monitor.Finish(monitoring.WithFinishCheckError(err))
+
+	db := mfr.r.extractTxWrite(ctx)
+
+	err = db.QueryRowContext(ctx, queryGetSummaryDetailBySummaryIDAllStatus, summaryID).Scan(
+		&result.ID,
+		&result.TransactionType,
+		&result.PaymentType,
+		&result.CreatedDate,
+		&result.TransactionSourceCreationDate,
+		&result.RequestedDate,
+		&result.ActualDate,
+		&result.TotalAmount,
+		&result.Status,
+		&result.SourceBankAccountNumber,
+		&result.SourceBankAccountName,
+		&result.SourceBankName,
+		&result.DestinationBankAccountNumber,
+		&result.DestinationBankAccountName,
+		&result.DestinationBankName,
+		&result.RelatedFailedOrRejectedSummaryID,
+		&result.RelatedTotalTransfer,
+	)
+	if err != nil {
+		return
+	}
+
+	return
 }

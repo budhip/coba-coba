@@ -24,6 +24,8 @@ func (qb *MoneyFlowQueryBuilder) applyCommonFilters(query sq.SelectBuilder, opts
 	// Always filter by transaction_source_creation_date < today
 	query = query.Where(sq.Lt{`mfs."transaction_source_creation_date"`: time.Now().Truncate(24 * time.Hour)})
 
+	query = query.Where(sq.Eq{`mfs."is_active"`: true})
+
 	if opts.PaymentType != "" {
 		query = query.Where(sq.Eq{`mfs."payment_type"`: opts.PaymentType})
 	}
@@ -154,7 +156,9 @@ func (qb *MoneyFlowQueryBuilder) BuildDetailedTransactionsQuery(opts models.Deta
 
 	query := qb.psql.Select(columns...).
 		From("detailed_money_flow_summaries as dmfs").
-		InnerJoin(`transaction t ON t."transactionId" = dmfs.acuan_transaction_id`)
+		InnerJoin(`transaction t ON t."transactionId" = dmfs.acuan_transaction_id`).
+		InnerJoin(`money_flow_summaries mfs ON mfs."id" = dmfs."summary_id"`).
+		Where(sq.Eq{`mfs."is_active"`: true})
 
 	query = qb.applyDetailedTransactionFilters(query, opts)
 
@@ -182,7 +186,9 @@ func (qb *MoneyFlowQueryBuilder) BuildDetailedTransactionsQuery(opts models.Deta
 func (qb *MoneyFlowQueryBuilder) BuildCountDetailedTransactionsQuery(opts models.DetailedTransactionFilterOptions) (string, []interface{}, error) {
 	query := qb.psql.Select("COUNT(*)").
 		From("detailed_money_flow_summaries as dmfs").
-		InnerJoin(`transaction t ON t."transactionId" = dmfs.acuan_transaction_id`)
+		InnerJoin(`transaction t ON t."transactionId" = dmfs.acuan_transaction_id`).
+		InnerJoin(`money_flow_summaries mfs ON mfs."id" = dmfs."summary_id"`).
+		Where(sq.Eq{`mfs."is_active"`: true})
 
 	query = qb.applyDetailedTransactionFilters(query, opts)
 

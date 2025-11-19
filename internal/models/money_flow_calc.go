@@ -37,6 +37,7 @@ type MoneyFlowSummary struct {
 	CreatedAt                        time.Time       `db:"created_at"`
 	UpdatedAt                        time.Time       `db:"updated_at"`
 	RelatedFailedOrRejectedSummaryID *string         `db:"related_failed_or_rejected_summary_id"`
+	IsActive                         bool            `db:"is_active"`
 }
 
 // DetailedMoneyFlowSummary represents the detailed_money_flow_summaries table
@@ -557,4 +558,17 @@ type PendingTransactionAfterFailed struct {
 func (m MoneyFlowSummaryOut) GetCursor() string {
 	cursorStr := m.TransactionSourceCreationDate.Format(time.RFC3339) + "|" + m.ID
 	return base64.StdEncoding.EncodeToString([]byte(cursorStr))
+}
+
+// UpdateActivationStatusRequest represents request to update is_active status
+type UpdateActivationStatusRequest struct {
+	IsActive bool `json:"isActive" example:"false"`
+}
+
+// UpdateActivationStatusResponse represents response after updating status
+type UpdateActivationStatusResponse struct {
+	Kind      string `json:"kind" example:"moneyFlowCalc"`
+	SummaryID string `json:"summaryId" example:"bbc15647-0e2e-4f3a-9b2b-a4a918d3f34b"`
+	IsActive  bool   `json:"isActive" example:"false"`
+	Message   string `json:"message" example:"Money flow summary status updated successfully"`
 }

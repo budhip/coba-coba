@@ -29,6 +29,7 @@ type MoneyFlowService interface {
 	GetDetailedTransactionsBySummaryID(ctx context.Context, summaryID string, opts models.DetailedTransactionFilterOptions) ([]models.DetailedTransactionOut, int, error)
 	UpdateSummary(ctx context.Context, summaryID string, req models.UpdateMoneyFlowSummaryRequest) error
 	DownloadDetailedTransactionsBySummaryID(ctx context.Context, req models.DownloadDetailedTransactionsRequest) error
+	UpdateActivationStatus(ctx context.Context, summaryID string, isActive bool) error
 }
 
 type moneyFlowCalc service
@@ -651,4 +652,38 @@ func (mf *moneyFlowCalc) loadBusinessRules(ctx context.Context) (*models.Busines
 	}
 
 	return &businessRulesData, nil
+}
+
+func (mf *moneyFlowCalc) UpdateActivationStatus(ctx context.Context, summaryID string, isActive bool) error {
+	var err error
+
+	monitor := monitoring.New(ctx)
+	defer monitor.Finish(monitoring.WithFinishCheckError(err))
+
+	// Check if summary exists
+	_, err = mf.srv.sqlRepo.GetMoneyFlowCalcRepository().GetSummaryDetailBySummaryIDAllStatus(ctx, summaryID)
+	if err != nil {
+		return checkDatabaseError(err, models.ErrKeySummaryIdnotFound)
+	}
+
+	// Update status
+	err = mf.srv.sqlRepo.GetMoneyFlowCalcRepository().UpdateActivationStatus(ctx, summaryID, isActive)
+	if err != nil {
+		xlog.Error(ctx, constants.LogPrefixMoneyFlowUpdate+" Failed to update status",
+			xlog.String("summary_id", summaryID),
+			xlog.Bool("is_active", isActive),
+			xlog.Err(err))
+		return fmt.Errorf("failed to update money flow summary status: %w", err)
+	}
+
+	status := "inactive"
+	if isActive {
+		status = "active"
+	}
+
+	xlog.Info(ctx, constants.LogPrefixMoneyFlowUpdate+" Successfully updated money flow summary activation status",
+		xlog.String("summary_id", summaryID),
+		xlog.String("is_active", status))
+
+	return nil
 }
