@@ -31,3 +31,7 @@ func (r *Repository) extractTxRead(ctx context.Context) sqlTx {
 	}
 	return r.dbRead
 }
+
+func (r *Repository) mustWithRead(ctx context.Context) sqlTx {
+	return r.dbRead
+}

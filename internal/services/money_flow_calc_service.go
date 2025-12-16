@@ -191,14 +191,6 @@ func (mf *moneyFlowCalc) GetSummariesList(ctx context.Context, opts models.Money
 		return nil, 0, fmt.Errorf("failed to get money flow summaries: %w", err)
 	}
 
-	// CRITICAL: Untuk backward ASC, reverse ke DESC SEBELUM kirim ke rest_response
-	// Karena rest_response assume data selalu DESC dan trim last
-	if opts.Cursor != nil && opts.Cursor.IsBackward {
-		for i, j := 0, len(summaries)-1; i < j; i, j = i+1, j-1 {
-			summaries[i], summaries[j] = summaries[j], summaries[i]
-		}
-	}
-
 	// Count total
 	total, err := mfsRepo.CountSummaryAll(ctx, opts)
 	if err != nil {
@@ -370,10 +362,11 @@ func (v *UpdateValidator) ValidateTransition(
 		return err
 	}
 
+	// commented until uat with user
 	// Validate no pending transactions before
-	if err := v.validateNoPendingBefore(ctx, req, currentSummary); err != nil {
-		return err
-	}
+	//if err := v.validateNoPendingBefore(ctx, req, currentSummary); err != nil {
+	//	return err
+	//}
 
 	return nil
 }

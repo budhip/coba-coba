@@ -189,7 +189,7 @@ func (tr *transactionRepository) GetList(ctx context.Context, opts models.Transa
 	monitor := monitoring.New(ctx)
 	defer monitor.Finish(monitoring.WithFinishCheckError(err))
 
-	db := tr.r.extractTxWrite(ctx)
+	db := tr.r.mustWithRead(ctx)
 
 	query, args, err := buildListTransactionQuery(opts)
 	if err != nil {

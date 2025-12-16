@@ -433,11 +433,6 @@ func (mfr *moneyFlowRepository) GetSummariesList(ctx context.Context, opts model
 		for i, j := 0, len(result)-1; i < j; i, j = i+1, j-1 {
 			result[i], result[j] = result[j], result[i]
 		}
-
-		// Trim last (oldest) jika over-fetch
-		if len(result) > opts.Limit-1 {
-			result = result[:opts.Limit-1]
-		}
 	}
 
 	return result, nil

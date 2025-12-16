@@ -75,15 +75,15 @@ func (h *moneyFlowSummariesHandler) getSummariesList(c echo.Context) error {
 	}
 
 	// opts.Limit sudah = requestLimit + 1 dari BuildCursorAndLimit()
-	// Untuk backward: repository sudah trim first, jadi kirim requestLimit = opts.Limit
-	// agar rest_response TIDAK trim lagi (hasMore = len(5) > (6-1) = false)
-	// Untuk forward: kirim requestLimit = opts.Limit - 1
-	// agar rest_response trim last (hasMore = len(6) > (5-1) = true)
+	// Untuk backward:
+	//   - Repository sudah reverse dari ASC ke DESC
+	//   - Kirim requestLimit = opts.Limit - 1
+	//   - rest_response akan: cek hasMore, trim last, reverse lagi
+	//   - Hasil akhir: data urut DESC, prevCursor dan nextCursor correct
+	// Untuk forward:
+	//   - Kirim requestLimit = opts.Limit - 1
+	//   - rest_response akan: cek hasMore, trim last
 	requestLimit := opts.Limit - 1
-	if c.QueryParam("prevCursor") != "" {
-		// Backward: repository sudah trim, kirim opts.Limit agar no trim di rest_response
-		requestLimit = opts.Limit
-	}
 
 	return http.RestSuccessResponseCursorPagination[models.MoneyFlowSummaryResponse](c, summaries, requestLimit, total)
 }
