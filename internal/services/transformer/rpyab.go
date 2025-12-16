@@ -33,13 +33,27 @@ func (t rpyabTransformer) Transform(ctx context.Context, amount models.Amount, p
 	metadata := parentWalletTransaction.Metadata
 	metadata = t.MutateMetadataByAccountEntity(entityCode, metadata)
 
+	finalAmount := amount.ValueDecimal.Decimal
+
+	// Check feature flag for RPYAB + RPYAC adjustment
+	isNeedJogressRpyabRpyac := t.config.FeatureFlag.EnableRpyabRpyacAdjustment
+	if isNeedJogressRpyabRpyac {
+		// If feature flag is ON, add RPYAC amount to RPYAB
+		for _, amt := range parentWalletTransaction.Amounts {
+			if amt.Type == "RPYAC" && amt.Amount != nil {
+				finalAmount = finalAmount.Add(amt.Amount.ValueDecimal.Decimal)
+				break
+			}
+		}
+	}
+
 	return []models.TransactionReq{
 		{
 			TransactionID:   uuid.New().String(),
 			FromAccount:     t.config.AccountConfig.SystemAccountNumber,
 			ToAccount:       parentWalletTransaction.AccountNumber,
 			TransactionDate: common.FormatDatetimeToStringInLocalTime(parentWalletTransaction.TransactionTime, common.DateFormatYYYYMMDD),
-			Amount:          decimal.NewNullDecimal(amount.ValueDecimal.Decimal),
+			Amount:          decimal.NewNullDecimal(finalAmount),
 			Status:          string(status),
 			TypeTransaction: "RPYAB",
 			OrderType:       "RPY",

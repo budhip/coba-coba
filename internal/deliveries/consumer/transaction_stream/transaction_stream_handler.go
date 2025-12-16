@@ -24,6 +24,7 @@ import (
 var validStatuses = map[string]bool{
 	"SUCCESSFUL": true,
 	"REJECTED":   true,
+	"FAILED":     true,
 }
 
 type TransactionStreamHandler struct {

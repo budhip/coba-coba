@@ -234,6 +234,7 @@ type MoneyFlowSummaryBySummaryIDOut struct {
 	Status                       string          `json:"status"`
 	SourceBankAccountNumber      string          `json:"sourceBankAccountNumber"`
 	SourceBankAccountName        string          `json:"sourceBankAccountName"`
+	SourceAccountNumber          string          `json:"sourceAccountNumber"`
 	SourceBankName               string          `json:"sourceBankName"`
 	DestinationBankAccountNumber string          `json:"destinationBankAccountNumber"`
 	DestinationBankAccountName   string          `json:"destinationBankAccountName"`
@@ -253,6 +254,7 @@ type MoneyFlowSummaryDetailBySummaryIDOut struct {
 	Status                           string          `json:"status"`
 	SourceBankAccountNumber          string          `json:"sourceBankAccountNumber"`
 	SourceBankAccountName            string          `json:"sourceBankAccountName"`
+	SourceAccountNumber              string          `json:"sourceAccountNumber"`
 	SourceBankName                   string          `json:"sourceBankName"`
 	DestinationBankAccountNumber     string          `json:"destinationBankAccountNumber"`
 	DestinationBankAccountName       string          `json:"destinationBankAccountName"`
@@ -281,6 +283,7 @@ func (m MoneyFlowSummaryDetailBySummaryIDOut) ToModelResponse() MoneyFlowSummary
 		Status:                       m.Status,
 		SourceBankAccountNumber:      m.SourceBankAccountNumber,
 		SourceBankAccountName:        m.SourceBankAccountName,
+		SourceAccountNumber:          m.SourceAccountNumber,
 		SourceBankName:               m.SourceBankName,
 		DestinationBankAccountNumber: m.DestinationBankAccountNumber,
 		DestinationBankAccountName:   m.DestinationBankAccountName,

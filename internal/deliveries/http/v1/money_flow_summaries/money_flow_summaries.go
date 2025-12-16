@@ -276,6 +276,12 @@ func (h *moneyFlowSummariesHandler) updateActivationStatus(c echo.Context) error
 	// Update status
 	err := h.moneyFlowService.UpdateActivationStatus(c.Request().Context(), summaryID, req.IsActive)
 	if err != nil {
+		// Check if it's a validation error
+		errMsg := err.Error()
+		if strings.Contains(errMsg, "only summaries with PENDING status") ||
+			strings.Contains(errMsg, "cannot update activation status") {
+			return http.RestErrorResponse(c, nethttp.StatusBadRequest, err)
+		}
 		return http.HandleRepositoryError(c, err)
 	}
 

@@ -1,6 +1,6 @@
 ---
 image:
-  name: asia.gcr.io/amartha-dev/amartha/go-base:1.21-alpine
+  name: asia-southeast2-docker.pkg.dev/amartha-dev/docker/go-base:1.25.0-alpine
   username: _json_key
   password: "$GCR_DEV_JSON_KEY"
 

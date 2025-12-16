@@ -660,10 +660,15 @@ func (mf *moneyFlowCalc) UpdateActivationStatus(ctx context.Context, summaryID s
 	monitor := monitoring.New(ctx)
 	defer monitor.Finish(monitoring.WithFinishCheckError(err))
 
-	// Check if summary exists
-	_, err = mf.srv.sqlRepo.GetMoneyFlowCalcRepository().GetSummaryDetailBySummaryIDAllStatus(ctx, summaryID)
+	// Check if summary exists and get its details
+	summary, err := mf.srv.sqlRepo.GetMoneyFlowCalcRepository().GetSummaryDetailBySummaryIDAllStatus(ctx, summaryID)
 	if err != nil {
 		return checkDatabaseError(err, models.ErrKeySummaryIdnotFound)
+	}
+
+	// Validate that only PENDING status can be updated
+	if summary.Status != constants.MoneyFlowStatusPending {
+		return fmt.Errorf("cannot update activation status: only summaries with PENDING status can be updated, current status is %s", summary.Status)
 	}
 
 	// Update status

@@ -196,31 +196,30 @@ var (
 )
 
 func buildAccountsEntityQuery(accountNumbers []string) (string, []interface{}, error) {
-    queryBuilder := sq.
-        Select(
-            `"accountNumber"`,
-            `"name"`,
-            `"ownerId"`,
-            `"productTypeName"`,
-            `"categoryCode"`,
-            `"subCategoryCode"`,
-            `"entityCode"`,
-            `"altId"`,
-            `"legacyId"`,
-            `"isHvt"`,
-            `"status"`,
-            `"metadata"`,
-        ).
-        From("account").
-        Where(sq.Eq{`"accountNumber"`: accountNumbers}).
+	queryBuilder := sq.
+		Select(
+			`"accountNumber"`,
+			`COALESCE("name", '') AS "name"`,
+			`"ownerId"`,
+			`COALESCE("productTypeName", '') AS "productTypeName"`,
+			`"categoryCode"`,
+			`COALESCE("subCategoryCode", '') AS "subCategoryCode"`,
+			`"entityCode"`,
+			`COALESCE("altId", '') AS "altId"`,
+			`COALESCE("legacyId", '{}') AS "legacyId"`,
+			`"isHvt"`,
+			`"status"`,
+			`"metadata"`,
+		).
+		From("account").
+		Where(sq.Eq{`"accountNumber"`: accountNumbers}).
 		PlaceholderFormat(sq.Dollar)
 
-
-    sql, args, err := queryBuilder.ToSql()
-    if err != nil {
-        return "", nil, err
-    }
-    return sql, args, nil
+	sql, args, err := queryBuilder.ToSql()
+	if err != nil {
+		return "", nil, err
+	}
+	return sql, args, nil
 
 }
 

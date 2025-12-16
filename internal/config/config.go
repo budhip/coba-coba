@@ -76,6 +76,7 @@ type (
 		EnablePreventSameAccountMutationActing bool `json:"enable_prevent_same_account_mutation_acting"`
 		EnableDelayBalanceUpdateOnHVTAccount   bool `json:"enable_delay_balance_update_on_hvt_account"`
 		EnablePublishHvtBalanceDLQ             bool `json:"enable_publish_hvt_balance_dlq"`
+		EnableRpyabRpyacAdjustment             bool `json:"enable_rpyab_rpyac_adjustment"`
 	}
 
 	// TransactionValidationConfig is used to configure validation when creating transaction
@@ -177,6 +178,7 @@ type (
 		AccountNumberBankTUPVIForADMFE                    map[string]string `json:"account_number_bank_tupvi_for_admfe"`
 		AccountNumberBankCOTLRForADMFEByEntity            map[string]string `json:"account_number_bank_cotlr_for_admfe_by_entity"`
 		AccountNumberInsurancePremiumDisbursementByEntity map[string]string `json:"account_number_insurance_premium_disbursement_by_entity"`
+		AccountNumberBankForADMFA                         string            `json:"account_number_bank_for_admfa"`
 	}
 
 	MessageBroker struct {

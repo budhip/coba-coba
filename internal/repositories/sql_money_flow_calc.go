@@ -88,6 +88,7 @@ const (
 		    mfs.transaction_source_creation_date,
 		    mfs.requested_date, 
 		    mfs.actual_date,
+			mfs.source_account,
 			mfs.total_transfer, 
 			mfs.money_flow_status, 
 			mfs.source_bank_account_number, 
@@ -144,6 +145,7 @@ const (
 		  AND payment_type = $2
 		  AND money_flow_status = 'PENDING'
 		  AND transaction_source_creation_date < $3
+		  AND is_active = TRUE
 	)
 `
 	queryUpdateActivationStatus = `
@@ -453,6 +455,7 @@ func (mfr *moneyFlowRepository) GetSummaryDetailBySummaryID(ctx context.Context,
 		&result.TransactionSourceCreationDate,
 		&result.RequestedDate,
 		&result.ActualDate,
+		&result.SourceAccountNumber,
 		&result.TotalAmount,
 		&result.Status,
 		&result.SourceBankAccountNumber,

@@ -52,10 +52,19 @@ func (t rpyacTransformer) Transform(ctx context.Context, amount models.Amount, p
 	metadata := parentWalletTransaction.Metadata
 	metadata = t.MutateMetadataByAccountEntity(entityCode, metadata)
 
+	fromAccount := t.config.AccountConfig.SystemAccountNumber
+
+	// Check feature flag for RPYAB + RPYAC adjustment
+	isNeedJogressRpyabRpyac := t.config.FeatureFlag.EnableRpyabRpyacAdjustment
+	if isNeedJogressRpyabRpyac {
+		// If feature flag is ON, switch fromAccount to account number
+		fromAccount = parentWalletTransaction.AccountNumber
+	}
+
 	return []models.TransactionReq{
 		{
 			TransactionID:   uuid.New().String(),
-			FromAccount:     t.config.AccountConfig.SystemAccountNumber,
+			FromAccount:     fromAccount,
 			ToAccount:       wht2326,
 			TransactionDate: common.FormatDatetimeToStringInLocalTime(parentWalletTransaction.TransactionTime, common.DateFormatYYYYMMDD),
 			Amount:          decimal.NewNullDecimal(amount.ValueDecimal.Decimal),

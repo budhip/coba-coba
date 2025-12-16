@@ -219,23 +219,23 @@ func (ar *accountRepository) GetAccountNumberEntity(ctx context.Context, account
 
 	queryStr, args, err := buildAccountsEntityQuery(accountNumbers)
 	if err != nil {
-		return 
+		return
 	}
 	rows, err := db.QueryContext(ctx, queryStr, args...)
 	if err != nil {
-		return 
+		return
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var entity models.AccountUpsert
 		err = rows.Scan(&entity.AccountNumber, &entity.Name, &entity.OwnerID, &entity.ProductTypeName, &entity.CategoryCode, &entity.SubCategoryCode, &entity.EntityCode, &entity.Currency, &entity.Status, &entity.IsHVT, &entity.Status, &entity.Metadata)
 		if err != nil {
-			return 
+			return
 		}
 		result[entity.AccountNumber] = entity.EntityCode
 	}
 	if rows.Err() != nil {
-		return 
+		return
 	}
 
 	return result, nil

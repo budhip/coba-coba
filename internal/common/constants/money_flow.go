@@ -4,7 +4,7 @@ package constants
 const (
 	MoneyFlowStatusPending    = "PENDING"
 	MoneyFlowStatusInProgress = "IN_PROGRESS"
-	MoneyFlowStatusSuccess    = "SUCCESS"
+	MoneyFlowStatusSuccess    = "SUCCESSFUL"
 	MoneyFlowStatusFailed     = "FAILED"
 	MoneyFlowStatusRejected   = "REJECTED"
 )

@@ -500,6 +500,10 @@ func (ts *walletTrx) insertChildTransactions(ctx context.Context, acuanRepo repo
 	var payloadCreateBulk []*models.Transaction
 	var errs *multierror.Error
 
+	if len(childTransactions) == 0 {
+		return res, nil
+	}
+
 	for _, ct := range childTransactions {
 		en, errToRequest := ct.ToRequest()
 		if errToRequest != nil {

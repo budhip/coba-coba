@@ -95,7 +95,7 @@ func (t rpyafTransformer) Transform(ctx context.Context, amount models.Amount, p
 		},
 	}
 
-	if entity != "AWF" {
+	if entity != "AWF" && rpyagAmount.GreaterThan(decimal.Zero) {
 		transactions = append(transactions, models.TransactionReq{
 			TransactionID:   uuid.New().String(),
 			FromAccount:     t.config.AccountConfig.SystemAccountNumber,

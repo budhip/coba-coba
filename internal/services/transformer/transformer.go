@@ -69,6 +69,7 @@ func NewMapTransformer(
 	// register all transformer here
 	return MapTransformer{
 		"ADJAF": &adjafTransformer{baseTransformer},
+		"ADMAF": &admafTransformer{baseTransformer},
 		"ADMBI": &admbiTransformer{baseTransformer},
 		"ADMBT": &admbtTransformer{baseTransformer},
 		"ADMCB": &admcbTransformer{baseTransformer},
@@ -78,8 +79,11 @@ func NewMapTransformer(
 		"ADMDE": &admdeTransformer{baseTransformer},
 		"ADMDU": &admduTransformer{baseTransformer},
 		"ADMDV": &admdvTransformer{baseTransformer},
+		"ADMFA": &admfaTransformer{baseTransformer},
 		"ADMFE": &admfeTransformer{baseTransformer},
 		"ADMFM": &admfmTransformer{baseTransformer},
+		"ADMFP": &admfpTransformer{baseTransformer},
+		"ADMFU": &admfuTransformer{baseTransformer},
 		"ADMMD": &admmdTransformer{baseTransformer},
 		"ADMME": &admmeTransformer{baseTransformer},
 		"ADMMV": &admmvTransformer{baseTransformer},
@@ -116,6 +120,7 @@ func NewMapTransformer(
 		"COTAM": &cotamTransformer{baseTransformer},
 		"COTBM": &cotbmTransformer{baseTransformer},
 		"COTDA": &cotdaTransformer{baseTransformer},
+		"COTFP": &cotfpTransformer{baseTransformer},
 		"COTGC": &cotgcTransformer{baseTransformer},
 		"DBFAA": &dbfaaTransformer{baseTransformer},
 		"DBFAB": &dbfabTransformer{baseTransformer},
@@ -290,6 +295,8 @@ func NewMapTransformer(
 		"DSBPI": &dsbpiTransformer{baseTransformer},
 		"MMWPI": &mmwpiTransformer{baseTransformer},
 		"MWMPI": &mwmpiTransformer{baseTransformer},
+		"RFDPI": &rfdpiTransformer{baseTransformer},
+		"MFGPI": &mfgpiTransformer{baseTransformer},
 	}
 }
 

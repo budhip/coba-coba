@@ -932,7 +932,7 @@ func (suite *accountTestSuite) TestRepository_GetAccountNumberEntity() {
 					)
 
 					suite.mock.
-						ExpectQuery(regexp.QuoteMeta(`SELECT "accountNumber", "name", "ownerId", "productTypeName", "categoryCode", "subCategoryCode", "entityCode", "altId", "legacyId", "isHvt", "status", "metadata" FROM account`)).
+						ExpectQuery(regexp.QuoteMeta(`SELECT "accountNumber", COALESCE("name", '') AS "name", "ownerId", COALESCE("productTypeName", '') AS "productTypeName", "categoryCode", COALESCE("subCategoryCode", '') AS "subCategoryCode", "entityCode", COALESCE("altId", '') AS "altId", COALESCE("legacyId", '{}') AS "legacyId", "isHvt", "status", "metadata" FROM account`)).
 						WillReturnRows(rows)
 				},
 			},
@@ -945,7 +945,7 @@ func (suite *accountTestSuite) TestRepository_GetAccountNumberEntity() {
 				accountNumbers: []string{"failed"},
 				setupMock: func() {
 					suite.mock.
-						ExpectQuery(regexp.QuoteMeta(`SELECT "accountNumber", "name", "ownerId", "productTypeName", "categoryCode", "subCategoryCode", "entityCode", "altId", "legacyId", "isHvt", "status", "metadata" FROM account`)).
+						ExpectQuery(regexp.QuoteMeta(`SELECT "accountNumber", COALESCE("name", '') AS "name", "ownerId", COALESCE("productTypeName", '') AS "productTypeName", "categoryCode", COALESCE("subCategoryCode", '') AS "subCategoryCode", "entityCode", COALESCE("altId", '') AS "altId", COALESCE("legacyId", '{}') AS "legacyId", "isHvt", "status", "metadata" FROM account`)).
 						WillReturnError(assert.AnError)
 				},
 			},
