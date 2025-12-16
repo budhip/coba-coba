@@ -185,10 +185,18 @@ func (mf *moneyFlowCalc) GetSummariesList(ctx context.Context, opts models.Money
 
 	mfsRepo := mf.srv.sqlRepo.GetMoneyFlowCalcRepository()
 
-	// Get list
+	// Get list (opts.Limit sudah over-fetched dari BuildCursorAndLimit)
 	summaries, err := mfsRepo.GetSummariesList(ctx, opts)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to get money flow summaries: %w", err)
+	}
+
+	// CRITICAL: Untuk backward ASC, reverse ke DESC SEBELUM kirim ke rest_response
+	// Karena rest_response assume data selalu DESC dan trim last
+	if opts.Cursor != nil && opts.Cursor.IsBackward {
+		for i, j := 0, len(summaries)-1; i < j; i, j = i+1, j-1 {
+			summaries[i], summaries[j] = summaries[j], summaries[i]
+		}
 	}
 
 	// Count total

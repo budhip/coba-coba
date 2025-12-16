@@ -54,29 +54,21 @@ func (qb *MoneyFlowQueryBuilder) applyCommonFilters(query sq.SelectBuilder, opts
 
 // applyCursorPagination applies cursor-based pagination using transaction_source_creation_date and ID
 func (qb *MoneyFlowQueryBuilder) applyCursorPagination(query sq.SelectBuilder, cursor *models.MoneyFlowSummaryCursor, limit int) sq.SelectBuilder {
-	// Always order by transaction_source_creation_date DESC, then by ID DESC for consistency
-	query = query.OrderBy(`mfs."transaction_source_creation_date" DESC`, `mfs."id" DESC`)
-
 	if cursor != nil {
 		if cursor.IsBackward {
-			// Backward pagination: get records with (date > cursor.date) OR (date = cursor.date AND id > cursor.id)
-			query = query.Where(sq.Or{
-				sq.Gt{`mfs."transaction_source_creation_date"`: cursor.TransactionSourceCreationDate},
-				sq.And{
-					sq.Eq{`mfs."transaction_source_creation_date"`: cursor.TransactionSourceCreationDate},
-					sq.Gt{`mfs."id"`: cursor.ID},
-				},
-			})
+			// Backward: ORDER BY created_at ASC
+			query = query.OrderBy(`mfs."created_at" ASC`)
+			// Get records dengan created_at > cursor
+			query = query.Where(sq.Gt{`mfs."created_at"`: cursor.CreatedAt})
 		} else {
-			// Forward pagination: get records with (date < cursor.date) OR (date = cursor.date AND id < cursor.id)
-			query = query.Where(sq.Or{
-				sq.Lt{`mfs."transaction_source_creation_date"`: cursor.TransactionSourceCreationDate},
-				sq.And{
-					sq.Eq{`mfs."transaction_source_creation_date"`: cursor.TransactionSourceCreationDate},
-					sq.Lt{`mfs."id"`: cursor.ID},
-				},
-			})
+			// Forward: ORDER BY created_at DESC
+			query = query.OrderBy(`mfs."created_at" DESC`)
+			// Get records dengan created_at < cursor
+			query = query.Where(sq.Lt{`mfs."created_at"`: cursor.CreatedAt})
 		}
+	} else {
+		// No cursor: default DESC
+		query = query.OrderBy(`mfs."created_at" DESC`)
 	}
 
 	if limit > 0 {

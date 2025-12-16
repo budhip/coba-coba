@@ -418,6 +418,28 @@ func (mfr *moneyFlowRepository) GetSummariesList(ctx context.Context, opts model
 		return nil, rows.Err()
 	}
 
+	//// CRITICAL: Untuk backward, reverse dari ASC ke DESC
+	//// Sehingga rest_response trim LAST = trim oldest (benar!)
+	//// JANGAN trim di sini, biar rest_response yang trim
+	//if opts.Cursor != nil && opts.Cursor.IsBackward {
+	//	for i, j := 0, len(result)-1; i < j; i, j = i+1, j-1 {
+	//		result[i], result[j] = result[j], result[i]
+	//	}
+	//}
+	// Untuk backward ASC: reverse DULU, BARU trim
+	// Sehingga data sudah DESC dan rest_response tidak perlu reverse lagi
+	if opts.Cursor != nil && opts.Cursor.IsBackward {
+		// Reverse dari ASC ke DESC
+		for i, j := 0, len(result)-1; i < j; i, j = i+1, j-1 {
+			result[i], result[j] = result[j], result[i]
+		}
+
+		// Trim last (oldest) jika over-fetch
+		if len(result) > opts.Limit-1 {
+			result = result[:opts.Limit-1]
+		}
+	}
+
 	return result, nil
 }
 

@@ -3,7 +3,6 @@ package models
 import (
 	"encoding/base64"
 	"fmt"
-	"strings"
 	"time"
 
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common"
@@ -53,14 +52,10 @@ func (req GetMoneyFlowSummaryRequest) ToFilterOpts() (*MoneyFlowSummaryFilterOpt
 		cursorStr := cursor.GetID()
 
 		var decodedStr string
-
-		// Try to decode from base64 first
 		decodedBytes, err := base64.StdEncoding.DecodeString(cursorStr)
 		if err != nil {
-			// Try URL encoding
 			decodedBytes, err = base64.URLEncoding.DecodeString(cursorStr)
 			if err != nil {
-				// If decode fails, assume it's already plain text
 				decodedStr = cursorStr
 			} else {
 				decodedStr = string(decodedBytes)
@@ -69,22 +64,15 @@ func (req GetMoneyFlowSummaryRequest) ToFilterOpts() (*MoneyFlowSummaryFilterOpt
 			decodedStr = string(decodedBytes)
 		}
 
-		// Parse format: "timestamp|id"
-		parts := strings.SplitN(decodedStr, "|", 2)
-		if len(parts) != 2 {
-			return nil, fmt.Errorf("invalid cursor format: expected timestamp|id, got: %s", decodedStr)
-		}
-
-		// Parse the date
-		cursorDate, err := time.Parse(time.RFC3339, parts[0])
+		// Parse format: hanya "created_at"
+		createdAt, err := time.Parse(time.RFC3339, decodedStr)
 		if err != nil {
-			return nil, fmt.Errorf("invalid cursor date format: %w (timestamp: %s)", err, parts[0])
+			return nil, fmt.Errorf("invalid cursor created_at format: %w", err)
 		}
 
 		opts.Cursor = &MoneyFlowSummaryCursor{
-			TransactionSourceCreationDate: cursorDate,
-			ID:                            parts[1],
-			IsBackward:                    cursor.IsBackward(),
+			CreatedAt:  createdAt,
+			IsBackward: cursor.IsBackward(),
 		}
 	}
 

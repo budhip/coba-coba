@@ -74,7 +74,18 @@ func (h *moneyFlowSummariesHandler) getSummariesList(c echo.Context) error {
 		return http.RestErrorResponse(c, nethttp.StatusInternalServerError, err)
 	}
 
-	return http.RestSuccessResponseCursorPagination[models.MoneyFlowSummaryResponse](c, summaries, opts.Limit, total)
+	// opts.Limit sudah = requestLimit + 1 dari BuildCursorAndLimit()
+	// Untuk backward: repository sudah trim first, jadi kirim requestLimit = opts.Limit
+	// agar rest_response TIDAK trim lagi (hasMore = len(5) > (6-1) = false)
+	// Untuk forward: kirim requestLimit = opts.Limit - 1
+	// agar rest_response trim last (hasMore = len(6) > (5-1) = true)
+	requestLimit := opts.Limit - 1
+	if c.QueryParam("prevCursor") != "" {
+		// Backward: repository sudah trim, kirim opts.Limit agar no trim di rest_response
+		requestLimit = opts.Limit
+	}
+
+	return http.RestSuccessResponseCursorPagination[models.MoneyFlowSummaryResponse](c, summaries, requestLimit, total)
 }
 
 // @Summary 	Get summary detail by summary id
