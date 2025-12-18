@@ -3,6 +3,7 @@ package models
 import (
 	"encoding/base64"
 	"fmt"
+	"strings"
 	"time"
 
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common"
@@ -64,15 +65,41 @@ func (req GetMoneyFlowSummaryRequest) ToFilterOpts() (*MoneyFlowSummaryFilterOpt
 			decodedStr = string(decodedBytes)
 		}
 
-		// Parse format: hanya "created_at"
-		createdAt, err := time.Parse(time.RFC3339, decodedStr)
-		if err != nil {
-			return nil, fmt.Errorf("invalid cursor created_at format: %w", err)
-		}
+		// Parse format: "created_at|id"
+		parts := strings.Split(decodedStr, "|")
+		if len(parts) == 2 {
+			// New format with ID
+			// Try RFC3339Nano first (with microseconds), fallback to RFC3339
+			createdAt, err := time.Parse(time.RFC3339Nano, parts[0])
+			if err != nil {
+				// Fallback for old cursors without microseconds
+				createdAt, err = time.Parse(time.RFC3339, parts[0])
+				if err != nil {
+					return nil, fmt.Errorf("invalid cursor created_at format: %w", err)
+				}
+			}
 
-		opts.Cursor = &MoneyFlowSummaryCursor{
-			CreatedAt:  createdAt,
-			IsBackward: cursor.IsBackward(),
+			opts.Cursor = &MoneyFlowSummaryCursor{
+				CreatedAt:  createdAt,
+				ID:         parts[1],
+				IsBackward: cursor.IsBackward(),
+			}
+		} else {
+			// Old format (backward compatibility) - only created_at
+			// Try RFC3339Nano first, fallback to RFC3339
+			createdAt, err := time.Parse(time.RFC3339Nano, decodedStr)
+			if err != nil {
+				createdAt, err = time.Parse(time.RFC3339, decodedStr)
+				if err != nil {
+					return nil, fmt.Errorf("invalid cursor format: %w", err)
+				}
+			}
+
+			opts.Cursor = &MoneyFlowSummaryCursor{
+				CreatedAt:  createdAt,
+				ID:         "",
+				IsBackward: cursor.IsBackward(),
+			}
 		}
 	}
 

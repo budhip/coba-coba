@@ -52,23 +52,51 @@ func (qb *MoneyFlowQueryBuilder) applyCommonFilters(query sq.SelectBuilder, opts
 	return query
 }
 
-// applyCursorPagination applies cursor-based pagination using transaction_source_creation_date and ID
+// applyCursorPagination applies cursor-based pagination using created_at and ID as composite cursor
 func (qb *MoneyFlowQueryBuilder) applyCursorPagination(query sq.SelectBuilder, cursor *models.MoneyFlowSummaryCursor, limit int) sq.SelectBuilder {
 	if cursor != nil {
-		if cursor.IsBackward {
-			// Backward: ORDER BY created_at ASC
-			query = query.OrderBy(`mfs."created_at" ASC`)
-			// Get records dengan created_at > cursor
-			query = query.Where(sq.Gt{`mfs."created_at"`: cursor.CreatedAt})
+		if cursor.ID != "" {
+			// Composite cursor (created_at + ID)
+			if cursor.IsBackward {
+				// Backward: ORDER BY created_at ASC, id ASC
+				query = query.OrderBy(`mfs."created_at" ASC`, `mfs."id" ASC`)
+
+				// CAST UUID to TEXT for consistent comparison
+				// Get records AFTER cursor
+				query = query.Where(sq.Or{
+					sq.Gt{`mfs."created_at"`: cursor.CreatedAt},
+					sq.And{
+						sq.Eq{`mfs."created_at"`: cursor.CreatedAt},
+						sq.Expr(`mfs."id"::text > ?`, cursor.ID), // ← CAST ke TEXT
+					},
+				})
+			} else {
+				// Forward: ORDER BY created_at DESC, id DESC
+				query = query.OrderBy(`mfs."created_at" DESC`, `mfs."id" DESC`)
+
+				// CAST UUID to TEXT for consistent comparison
+				// Get records BEFORE cursor
+				query = query.Where(sq.Or{
+					sq.Lt{`mfs."created_at"`: cursor.CreatedAt},
+					sq.And{
+						sq.Eq{`mfs."created_at"`: cursor.CreatedAt},
+						sq.Expr(`mfs."id"::text < ?`, cursor.ID), // ← CAST ke TEXT
+					},
+				})
+			}
 		} else {
-			// Forward: ORDER BY created_at DESC
-			query = query.OrderBy(`mfs."created_at" DESC`)
-			// Get records dengan created_at < cursor
-			query = query.Where(sq.Lt{`mfs."created_at"`: cursor.CreatedAt})
+			// Old cursor format (backward compatibility) - only created_at
+			if cursor.IsBackward {
+				query = query.OrderBy(`mfs."created_at" ASC`)
+				query = query.Where(sq.Gt{`mfs."created_at"`: cursor.CreatedAt})
+			} else {
+				query = query.OrderBy(`mfs."created_at" DESC`)
+				query = query.Where(sq.Lt{`mfs."created_at"`: cursor.CreatedAt})
+			}
 		}
 	} else {
-		// No cursor: default DESC
-		query = query.OrderBy(`mfs."created_at" DESC`)
+		// No cursor: default DESC with ID as secondary sort
+		query = query.OrderBy(`mfs."created_at" DESC`, `mfs."id" DESC`)
 	}
 
 	if limit > 0 {

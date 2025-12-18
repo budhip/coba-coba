@@ -8,6 +8,8 @@ import (
 
 	nethttp "net/http"
 
+	xlog "bitbucket.org/Amartha/go-x/log"
+
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common/constants"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common/http"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common/validation"
@@ -74,18 +76,13 @@ func (h *moneyFlowSummariesHandler) getSummariesList(c echo.Context) error {
 		return http.RestErrorResponse(c, nethttp.StatusInternalServerError, err)
 	}
 
-	// opts.Limit sudah = requestLimit + 1 dari BuildCursorAndLimit()
-	// Untuk backward:
-	//   - Repository sudah reverse dari ASC ke DESC
-	//   - Kirim requestLimit = opts.Limit - 1
-	//   - rest_response akan: cek hasMore, trim last, reverse lagi
-	//   - Hasil akhir: data urut DESC, prevCursor dan nextCursor correct
-	// Untuk forward:
-	//   - Kirim requestLimit = opts.Limit - 1
-	//   - rest_response akan: cek hasMore, trim last
-	requestLimit := opts.Limit - 1
+	if len(summaries) > 0 {
+		xlog.Info(c.Request().Context(), "[PAGINATION-DEBUG-DATA]",
+			xlog.String("first_id", summaries[0].ID[:8]),
+			xlog.String("last_id", summaries[len(summaries)-1].ID[:8]))
+	}
 
-	return http.RestSuccessResponseCursorPagination[models.MoneyFlowSummaryResponse](c, summaries, requestLimit, total)
+	return http.RestSuccessResponseCursorPagination[models.MoneyFlowSummaryResponse](c, summaries, opts.Limit, total)
 }
 
 // @Summary 	Get summary detail by summary id

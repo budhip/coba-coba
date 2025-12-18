@@ -208,12 +208,13 @@ type MoneyFlowSummaryFilterOptions struct {
 // MoneyFlowSummaryCursor represents cursor for pagination based on transaction_source_creation_date and ID
 type MoneyFlowSummaryCursor struct {
 	CreatedAt  time.Time
+	ID         string
 	IsBackward bool
 }
 
 func (c MoneyFlowSummaryCursor) String() string {
-	// Format: "created_at"
-	cursorStr := c.CreatedAt.Format(time.RFC3339)
+	// Format with microseconds precision
+	cursorStr := c.CreatedAt.Format(time.RFC3339Nano) + "|" + c.ID
 	return base64.StdEncoding.EncodeToString([]byte(cursorStr))
 }
 
@@ -556,9 +557,10 @@ type PendingTransactionAfterFailed struct {
 	TotalTransfer                 decimal.Decimal `db:"total_transfer"`
 }
 
-// GetCursor returns cursor based on transaction_source_creation_date and ID (base64 encoded)
+// GetCursor returns cursor based on created_at and ID (base64 encoded)
 func (m MoneyFlowSummaryOut) GetCursor() string {
-	cursorStr := m.CreatedAt.Format(time.RFC3339)
+	// Format with microseconds precision
+	cursorStr := m.CreatedAt.Format(time.RFC3339Nano) + "|" + m.ID
 	return base64.StdEncoding.EncodeToString([]byte(cursorStr))
 }
 

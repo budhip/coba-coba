@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	xlog "bitbucket.org/Amartha/go-x/log"
+
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/models"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/monitoring"
@@ -418,21 +420,14 @@ func (mfr *moneyFlowRepository) GetSummariesList(ctx context.Context, opts model
 		return nil, rows.Err()
 	}
 
-	//// CRITICAL: Untuk backward, reverse dari ASC ke DESC
-	//// Sehingga rest_response trim LAST = trim oldest (benar!)
-	//// JANGAN trim di sini, biar rest_response yang trim
-	//if opts.Cursor != nil && opts.Cursor.IsBackward {
-	//	for i, j := 0, len(result)-1; i < j; i, j = i+1, j-1 {
-	//		result[i], result[j] = result[j], result[i]
-	//	}
-	//}
-	// Untuk backward ASC: reverse DULU, BARU trim
-	// Sehingga data sudah DESC dan rest_response tidak perlu reverse lagi
-	if opts.Cursor != nil && opts.Cursor.IsBackward {
-		// Reverse dari ASC ke DESC
-		for i, j := 0, len(result)-1; i < j; i, j = i+1, j-1 {
-			result[i], result[j] = result[j], result[i]
-		}
+	// DEBUG LOG RESULT
+	if len(result) > 0 {
+		xlog.Info(ctx, "[PAGINATION-DEBUG-RESULT]",
+			xlog.Int("count", len(result)),
+			xlog.String("first_id", result[0].ID[:8]),
+			xlog.String("first_created_at", result[0].CreatedAt.Format(time.RFC3339)),
+			xlog.String("last_id", result[len(result)-1].ID[:8]),
+			xlog.String("last_created_at", result[len(result)-1].CreatedAt.Format(time.RFC3339)))
 	}
 
 	return result, nil
