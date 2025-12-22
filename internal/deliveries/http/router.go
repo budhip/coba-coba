@@ -105,6 +105,7 @@ func NewHTTPServer(
 	walletTrxService services.WalletTrxService,
 	metrics metrics.Metrics,
 	moneyFlowService services.MoneyFlowService,
+	healthCheck *health.HealthCheck,
 ) *svc {
 	app := echo.New()
 
@@ -154,8 +155,8 @@ func NewHTTPServer(
 	// apiGroup
 	apiGroup := app.Group("/api")
 
-	// health check
-	health.New(apiGroup)
+	// health healthCheck
+	healthCheck.Route(apiGroup.Group("/health"))
 
 	// v1Group
 	v1Group := apiGroup.Group("/v1")

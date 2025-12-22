@@ -4,12 +4,12 @@ import (
 	"context"
 	"log"
 	"os"
-	"time"
 
 	"bitbucket.org/Amartha/go-fp-transaction/cmd/setup"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/common/graceful"
 	"bitbucket.org/Amartha/go-fp-transaction/internal/deliveries/consumer"
 	kafkaconsumer "bitbucket.org/Amartha/go-fp-transaction/internal/deliveries/consumer/kafka"
+	"bitbucket.org/Amartha/go-fp-transaction/internal/deliveries/http/health"
 
 	xlog "bitbucket.org/Amartha/go-x/log"
 
@@ -62,11 +62,6 @@ func runConsumer(ccmd *cobra.Command, args []string) {
 	// Step 1: Initialize setup
 	s, stopperContract, err := setup.Init("consumer-" + consumerName)
 	if err != nil {
-		timeout := 5 * time.Second
-		if s != nil && s.Config.App.GracefulTimeout != 0 {
-			timeout = s.Config.App.GracefulTimeout
-		}
-		graceful.StopProcess(timeout, stopperContract...)
 		log.Fatalf("failed to setup app: %v", err)
 	}
 
@@ -74,12 +69,12 @@ func runConsumer(ccmd *cobra.Command, args []string) {
 	consumerProcess, consumerStopper, err := consumer.NewKafkaConsumer(ctx, consumerName, s.Config, s.Service, s.RepoCache, s)
 	if err != nil {
 		// Only stop setup resources, not consumer resources (they don't exist yet)
-		graceful.StopProcess(s.Config.App.GracefulTimeout, stopperContract...)
 		xlog.Fatalf(ctx, "failed to setup consumer: %v", err)
 	}
 
 	// Step 3: Create health check server
-	healthCheckProcess := kafkaconsumer.NewHTTPServer(ctx, s.Config, s.Metrics)
+	check := health.NewHealthCheck()
+	healthCheckProcess := kafkaconsumer.NewHTTPServer(ctx, s.Config, s.Metrics, check)
 
 	// Step 4: Collect all starters and stoppers
 	starters = append(starters, consumerProcess.Start(), healthCheckProcess.Start())
@@ -95,7 +90,9 @@ func runConsumer(ccmd *cobra.Command, args []string) {
 	xlog.Infof(ctx, "consumer %s started, waiting for shutdown signal...", consumerName)
 
 	// Block until shutdown signal is received (includes 10 second sleep)
-	graceful.StopProcessAtBackground(s.Config.App.GracefulTimeout, stoppers...)
+	graceful.StopProcessAtBackground(ctx)
+	check.Shutdown()
+	graceful.StopProcess(ctx, s.Config.App.GracefulTimeout, stoppers...)
 
 	xlog.Infof(ctx, "consumer %s stopped successfully!", consumerName)
 }

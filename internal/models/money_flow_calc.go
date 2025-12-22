@@ -439,8 +439,10 @@ func (req UpdateMoneyFlowSummaryRequest) ValidateStatusTransition(currentStatus 
 			constants.MoneyFlowStatusFailed,
 			constants.MoneyFlowStatusRejected,
 		},
-		constants.MoneyFlowStatusSuccess:  {}, // Cannot transition from SUCCESS
-		constants.MoneyFlowStatusFailed:   {}, // Cannot transition from FAILED
+		constants.MoneyFlowStatusSuccess: {}, // Cannot transition from SUCCESS
+		constants.MoneyFlowStatusFailed: {
+			constants.MoneyFlowStatusInProgress, // allow transition to IN_PROGRESS
+		},
 		constants.MoneyFlowStatusRejected: {}, // Cannot transition from REJECTED
 	}
 
@@ -504,20 +506,14 @@ func (req UpdateMoneyFlowSummaryRequest) ToUpdateModelWithAutoFill(currentReques
 			constants.MoneyFlowStatusRejected:   true,
 		}
 		if !validStatuses[*req.MoneyFlowStatus] {
-			return nil, fmt.Errorf("invalid moneyFlowStatus: must be PENDING, SUCCESS, IN_PROGRESS, REJECTED or FAILED")
+			return nil, fmt.Errorf("invalid moneyFlowStatus: must be PENDING, SUCCESSFUL, IN_PROGRESS, REJECTED or FAILED")
 		}
 		update.MoneyFlowStatus = req.MoneyFlowStatus
 
-		// Auto-fill requestedDate when status changes to IN_PROGRESS
+		// Autofill requestedDate when status changes to IN_PROGRESS
 		if *req.MoneyFlowStatus == constants.MoneyFlowStatusInProgress {
-			// Only set if not already set
-			if currentRequestedDate == nil {
-				now := time.Now()
-				update.RequestedDate = &now
-			} else {
-				// Keep existing requestedDate
-				update.RequestedDate = currentRequestedDate
-			}
+			now := time.Now()
+			update.RequestedDate = &now
 		}
 	}
 

@@ -28,7 +28,7 @@ func toolTestHealthCheckHelper(t *testing.T) testHealthCheckHelper {
 
 	app := echo.New()
 	apiGroup := app.Group("/api")
-	New(apiGroup)
+	NewHealthCheck().Route(apiGroup.Group("/health"))
 
 	return testHealthCheckHelper{
 		mockCtrl: mockCtrl,

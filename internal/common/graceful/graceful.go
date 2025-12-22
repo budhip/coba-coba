@@ -30,54 +30,41 @@ func StartProcessAtBackground(ps ...ProcessStarter) {
 	}
 }
 
-func StopProcessAtBackground(duration time.Duration, ps ...ProcessStopper) {
-	ctx := context.Background()
-
-	sigusr1 := make(chan os.Signal, 1)
-	signal.Notify(sigusr1, syscall.SIGUSR1)
-
+func StopProcessAtBackground(ctx context.Context) {
 	sigterm := make(chan os.Signal, 1)
-	signal.Notify(sigterm, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(sigterm, syscall.SIGUSR1, syscall.SIGINT, syscall.SIGTERM)
 
-	select {
-	case sig := <-sigterm:
-		xlog.Infof(ctx, "received signal: %v, initiating graceful shutdown...", sig)
-		time.Sleep(10 * time.Second)
-
-		StopProcess(duration, ps...)
-
-	case sig := <-sigusr1:
-		xlog.Infof(ctx, "received signal: %v, initiating graceful shutdown...", sig)
-		time.Sleep(10 * time.Second)
-
-		StopProcess(duration, ps...)
-	}
+	defer signal.Stop(sigterm)
+	sig := <-sigterm
+	xlog.Infof(ctx, "received signal %v, starting graceful shutdown", sig)
 }
 
-func StopProcess(duration time.Duration, ps ...ProcessStopper) {
-	ctx := context.Background()
-	slices.Reverse(ps)
-
-	xlog.Infof(ctx, "stopping %d services (timeout: %v)...", len(ps), duration)
-
-	for i, p := range ps {
-		func() {
-			if p == nil {
-				return
-			}
-
-			stopCtx, cancel := context.WithTimeout(context.Background(), duration)
-			defer cancel()
-
-			xlog.Infof(ctx, "stopping service %d/%d...", i+1, len(ps))
-
-			if err := p(stopCtx); err != nil {
-				xlog.Errorf(ctx, "error stopping service %d: %v", i+1, err)
-			} else {
-				xlog.Infof(ctx, "service %d stopped successfully", i+1)
-			}
-		}()
+func StopProcess(ctx context.Context, gracePeriod time.Duration, ps ...ProcessStopper) {
+	if gracePeriod <= 0 {
+		gracePeriod = 10 * time.Second
 	}
 
-	xlog.Info(ctx, "all services shutdown complete")
+	xlog.Infof(ctx, "waiting %v before stopping services", gracePeriod)
+	time.Sleep(gracePeriod)
+
+	slices.Reverse(ps)
+
+	xlog.Infof(ctx, "stopping %d services...", len(ps))
+
+	for i, p := range ps {
+		if p == nil {
+			xlog.Warnf(ctx, "service %d is nil, skipping", i+1)
+			continue
+		}
+
+		xlog.Infof(ctx, "stopping service %d/%d", i+1, len(ps))
+
+		if err := p(ctx); err != nil {
+			xlog.Errorf(ctx, "service %d shutdown error: %v", i+1, err)
+		} else {
+			xlog.Infof(ctx, "service %d stopped gracefully", i+1)
+		}
+	}
+
+	xlog.Info(ctx, "shutdown completed, waiting for container exit")
 }

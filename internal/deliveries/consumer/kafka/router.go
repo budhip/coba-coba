@@ -40,6 +40,7 @@ func NewHTTPServer(
 	ctx context.Context,
 	conf config.Config,
 	metrics metrics.Metrics,
+	check *health.HealthCheck,
 ) *svc {
 	app := echo.New()
 	svc := &svc{e: app, addr: fmt.Sprintf(":%d", conf.MessageBroker.HTTPPort), gracefulTimeout: conf.App.GracefulTimeout}
@@ -64,7 +65,7 @@ func NewHTTPServer(
 	apiGroup := app.Group("/api")
 
 	// health check
-	health.New(apiGroup)
+	check.Route(apiGroup.Group("/health"))
 
 	return svc
 }
