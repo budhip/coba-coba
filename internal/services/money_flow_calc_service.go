@@ -1,6 +1,7 @@
 package services
 
 import (
+	"bitbucket.org/Amartha/go-fp-transaction/internal/common/chunkhelper"
 	"context"
 	"encoding/csv"
 	"encoding/json"
@@ -66,13 +67,13 @@ func (mf *moneyFlowCalc) processSingleTransaction(
 	trx goacuanlib.Transaction,
 	paymentType string,
 	brd *models.BusinessRuleConfig,
-	creationDate time.Time,
 ) (string, error) {
 	transactionType := string(trx.TransactionType)
 	amount, _ := trx.Amount.Float64()
 
 	summaryID := uuid.New().String()
-	refNumber := constants.MoneyFlowReferencePrefix + creationDate.Format(constants.DateFormatYYYYMMDD) + "-" + summaryID
+	timeNow := time.Now()
+	refNumber := constants.MoneyFlowReferencePrefix + timeNow.Format(constants.DateFormatYYYYMMDD) + "-" + summaryID
 
 	var resultSummaryID string
 	err := mf.srv.sqlRepo.Atomic(ctx, func(ctx context.Context, r repositories.SQLRepository) error {
@@ -80,7 +81,7 @@ func (mf *moneyFlowCalc) processSingleTransaction(
 
 		summaryData := models.CreateMoneyFlowSummary{
 			ID:                            summaryID,
-			TransactionSourceCreationDate: creationDate,
+			TransactionSourceCreationDate: timeNow,
 			TransactionType:               transactionType,
 			PaymentType:                   paymentType,
 			ReferenceNumber:               refNumber,
@@ -437,7 +438,7 @@ func (v *UpdateValidator) isTransitioningToInProgress(
 		*req.MoneyFlowStatus == constants.MoneyFlowStatusInProgress
 }
 
-// DownloadDetailedTransactionsBySummaryID downloads detailed transactions as CSV
+// DownloadDetailedTransactionsBySummaryID downloads detailed transactions as CSV with chunked streaming
 func (mf *moneyFlowCalc) DownloadDetailedTransactionsBySummaryID(
 	ctx context.Context,
 	req models.DownloadDetailedTransactionsRequest,
@@ -447,25 +448,119 @@ func (mf *moneyFlowCalc) DownloadDetailedTransactionsBySummaryID(
 	monitor := monitoring.New(ctx)
 	defer monitor.Finish(monitoring.WithFinishCheckError(err))
 
+	// Add timeout protection - 10 minutes for large downloads
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+	defer cancel()
+
 	// Prepare download request
 	downloadReq, err := mf.prepareDownloadRequest(ctx, req)
 	if err != nil {
 		return err
 	}
 
-	// Get transactions
-	transactions, err := mf.srv.sqlRepo.GetMoneyFlowCalcRepository().GetAllDetailedTransactionsBySummaryID(
-		ctx,
-		downloadReq.SummaryID,
-		downloadReq.RelatedFailedOrRejectedSummaryID,
-		downloadReq.RefNumber,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to get detailed transactions: %w", err)
+	xlog.Info(ctx, "[DOWNLOAD-CSV] Starting chunked download",
+		xlog.String("summary_id", downloadReq.SummaryID),
+		xlog.String("ref_number", downloadReq.RefNumber))
+
+	// Initialize CSV writer
+	csvWriter := csv.NewWriter(req.Writer)
+	defer csvWriter.Flush()
+
+	// Write header
+	if err := csvWriter.Write(constants.CSVHeaders); err != nil {
+		return fmt.Errorf("failed to write CSV header: %w", err)
 	}
 
-	// Write CSV
-	return mf.writeTransactionsToCSV(req.Writer, transactions)
+	// Stream data in chunks
+	const chunkSize = 3000 // 3000 rows per chunk
+	lastID := ""
+	totalWritten := 0
+	chunkCount := 0
+
+	progress := &chunkhelper.DownloadProgress{
+		SummaryID: downloadReq.SummaryID,
+		StartTime: time.Now(),
+	}
+
+	for {
+		chunkCount++
+
+		xlog.Info(ctx, "[DOWNLOAD-CSV] Fetching chunk",
+			xlog.String("summary_id", downloadReq.SummaryID),
+			xlog.Int("chunk_number", chunkCount),
+			xlog.String("last_id", lastID))
+
+		// Get chunk of transactions
+		transactions, err := mf.srv.sqlRepo.GetMoneyFlowCalcRepository().
+			GetDetailedTransactionsChunk(
+				ctx,
+				downloadReq.SummaryID,
+				downloadReq.RelatedFailedOrRejectedSummaryID,
+				downloadReq.RefNumber,
+				lastID,
+				chunkSize,
+			)
+		if err != nil {
+			return fmt.Errorf("failed to get transactions chunk %d: %w", chunkCount, err)
+		}
+
+		// Update progress
+		progress.TotalChunks = chunkCount
+		progress.TotalRows = totalWritten
+		progress.LastChunkAt = time.Now()
+
+		// No more data
+		if len(transactions) == 0 {
+			xlog.Info(ctx, "[DOWNLOAD-CSV] No more data, stopping",
+				xlog.Int("chunk_number", chunkCount),
+				xlog.Int("total_written", totalWritten))
+			break
+		}
+
+		// Write chunk to CSV
+		for _, trx := range transactions {
+			record := mf.transactionToCSVRecord(trx)
+			if err := csvWriter.Write(record); err != nil {
+				return fmt.Errorf("failed to write CSV row at chunk %d: %w", chunkCount, err)
+			}
+		}
+
+		totalWritten += len(transactions)
+		lastID = transactions[len(transactions)-1].ID // Last dmfs.id for next cursor
+
+		xlog.Info(ctx, "[DOWNLOAD-CSV] Wrote chunk",
+			xlog.Int("chunk_number", chunkCount),
+			xlog.Int("chunk_size", len(transactions)),
+			xlog.Int("total_written", totalWritten),
+			xlog.String("last_id", lastID))
+
+		// Flush CSV writer periodically to stream data
+		csvWriter.Flush()
+		if err := csvWriter.Error(); err != nil {
+			return fmt.Errorf("failed to flush CSV at chunk %d: %w", chunkCount, err)
+		}
+
+		// Break if we got less than chunkSize (last chunk)
+		if len(transactions) < chunkSize {
+			xlog.Info(ctx, "[DOWNLOAD-CSV] Last chunk detected",
+				xlog.Int("chunk_number", chunkCount),
+				xlog.Int("chunk_size", len(transactions)))
+			break
+		}
+
+		// Log every 10 chunks
+		if chunkCount%10 == 0 {
+			progress.LogProgress(ctx, chunkCount, len(transactions))
+		}
+
+	}
+
+	xlog.Info(ctx, "[DOWNLOAD-CSV] Download completed successfully",
+		xlog.String("summary_id", downloadReq.SummaryID),
+		xlog.Int("total_chunks", chunkCount),
+		xlog.Int("total_rows", totalWritten))
+
+	return nil
 }
 
 // prepareDownloadRequest prepares the download request with related summary info
@@ -485,7 +580,7 @@ func (mf *moneyFlowCalc) prepareDownloadRequest(
 // writeTransactionsToCSV writes transactions to CSV writer
 func (mf *moneyFlowCalc) writeTransactionsToCSV(
 	writer io.Writer,
-	transactions []models.DetailedTransactionOut,
+	transactions []models.DetailedTransactionCSVOut,
 ) error {
 	csvWriter := csv.NewWriter(writer)
 	defer csvWriter.Flush()
@@ -507,7 +602,8 @@ func (mf *moneyFlowCalc) writeTransactionsToCSV(
 }
 
 // transactionToCSVRecord converts transaction to CSV record
-func (mf *moneyFlowCalc) transactionToCSVRecord(trx models.DetailedTransactionOut) []string {
+func (mf *moneyFlowCalc) transactionToCSVRecord(trx models.DetailedTransactionCSVOut) []string {
+	fmt.Println("TRX.createdAt: ", trx.CreatedAt)
 	return []string{
 		trx.TransactionDate.Format(constants.DateFormatYYYYMMDD),
 		trx.TransactionID,
@@ -518,6 +614,7 @@ func (mf *moneyFlowCalc) transactionToCSVRecord(trx models.DetailedTransactionOu
 		trx.Amount.String(),
 		trx.Description,
 		trx.Metadata,
+		trx.CreatedAt,
 	}
 }
 
@@ -537,26 +634,26 @@ func (mf *moneyFlowCalc) ProcessTransactionNotification(
 		return err
 	}
 
-	// Get order time
-	orderTime, err := validator.GetOrderTime(notification)
-	if err != nil {
-		return err
-	}
-
-	creationDate := getCreationDate(orderTime)
+	//// Get order time
+	//orderTime, err := validator.GetOrderTime(notification)
+	//if err != nil {
+	//	return err
+	//}
+	//
+	//creationDate := getCreationDate(orderTime)
 
 	// Process each transaction
-	return mf.processTransactions(ctx, notification, creationDate)
+	//return mf.processTransactions(ctx, notification, creationDate)
+	return mf.processTransactions(ctx, notification)
 }
 
 // processTransactions processes all transactions in notification
 func (mf *moneyFlowCalc) processTransactions(
 	ctx context.Context,
 	notification goacuanlib.Payload[goacuanlib.DataOrder],
-	creationDate time.Time,
 ) error {
 	for _, trx := range notification.Body.Data.Order.Transactions {
-		if err := mf.processEligibleTransaction(ctx, trx, notification.Body.Data.Order.RefNumber, creationDate); err != nil {
+		if err := mf.processEligibleTransaction(ctx, trx, notification.Body.Data.Order.RefNumber); err != nil {
 			return err
 		}
 	}
@@ -568,7 +665,6 @@ func (mf *moneyFlowCalc) processEligibleTransaction(
 	ctx context.Context,
 	trx goacuanlib.Transaction,
 	refNumber string,
-	creationDate time.Time,
 ) error {
 	transactionType := string(trx.TransactionType)
 
@@ -586,7 +682,7 @@ func (mf *moneyFlowCalc) processEligibleTransaction(
 	}
 
 	// Process transaction
-	_, err = mf.processSingleTransaction(ctx, trx, paymentType, businessRulesData, creationDate)
+	_, err = mf.processSingleTransaction(ctx, trx, paymentType, businessRulesData)
 	if err != nil {
 		xlog.Error(ctx, constants.LogPrefixMoneyFlowCalc+" Failed to process transaction",
 			xlog.String("acuan_transaction_id", trx.Id.String()),

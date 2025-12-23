@@ -41,6 +41,7 @@ type MoneyFlowRepository interface {
 	GetSummaryDetailBySummaryIDAllStatus(ctx context.Context, summaryID string) (result models.MoneyFlowSummaryDetailBySummaryIDOut, err error)
 	GetDetailedTransactionIDsWithMapping(ctx context.Context, opts models.DetailedTransactionFilterOptions) (map[string]string, []string, error)
 	GetTransactionsByIDs(ctx context.Context, transactionIDs []string, refNumber string) ([]models.DetailedTransactionOut, error)
+	GetDetailedTransactionsChunk(ctx context.Context, summaryID string, relatedSummaryID *string, refNumber string, lastID string, limit int) ([]models.DetailedTransactionCSVOut, error)
 }
 
 type moneyFlowRepository sqlRepo
@@ -1020,6 +1021,175 @@ func (mfr *moneyFlowRepository) GetTransactionsByIDs(ctx context.Context, transa
 
 	// Return in original order (preserve dmfs.id order from first query)
 	var result []models.DetailedTransactionOut
+	for _, txID := range transactionIDs {
+		if tx, exists := transactionMap[txID]; exists {
+			result = append(result, tx)
+		}
+	}
+
+	return result, nil
+}
+
+// GetDetailedTransactionsChunk - Get transactions in chunks for streaming download
+func (mfr *moneyFlowRepository) GetDetailedTransactionsChunk(
+	ctx context.Context,
+	summaryID string,
+	relatedSummaryID *string,
+	refNumber string,
+	lastID string,
+	limit int,
+) ([]models.DetailedTransactionCSVOut, error) {
+	var err error
+
+	monitor := monitoring.New(ctx)
+	defer monitor.Finish(monitoring.WithFinishCheckError(err))
+
+	db := mfr.r.extractTxRead(ctx)
+
+	// STEP 1: Get chunk of transaction IDs from small table
+	summaryIDs := []string{summaryID}
+	if relatedSummaryID != nil && *relatedSummaryID != "" {
+		summaryIDs = append(summaryIDs, *relatedSummaryID)
+	}
+
+	query := sq.StatementBuilder.PlaceholderFormat(sq.Dollar).
+		Select(`dmfs."id"`, `dmfs."acuan_transaction_id"`).
+		From("detailed_money_flow_summaries as dmfs").
+		InnerJoin(`money_flow_summaries mfs ON mfs."id" = dmfs."summary_id"`).
+		Where(sq.Eq{`mfs."is_active"`: true}).
+		Where(sq.Eq{`dmfs."summary_id"`: summaryIDs}).
+		OrderBy(`dmfs."id" ASC`). // Consistent ordering untuk cursor
+		Limit(uint64(limit))
+
+	// Cursor pagination untuk chunking
+	if lastID != "" {
+		query = query.Where(sq.Gt{`dmfs."id"`: lastID})
+	}
+
+	sql, args, err := query.ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build chunk query: %w", err)
+	}
+
+	rows, err := db.QueryContext(ctx, sql, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	// Collect IDs and mapping
+	var transactionIDs []string
+	idMapping := make(map[string]string) // transactionId -> dmfs.id
+
+	for rows.Next() {
+		var dmfsID, acuanTxID string
+		if err := rows.Scan(&dmfsID, &acuanTxID); err != nil {
+			return nil, err
+		}
+		transactionIDs = append(transactionIDs, acuanTxID)
+		idMapping[acuanTxID] = dmfsID
+	}
+
+	if rows.Err() != nil {
+		return nil, rows.Err()
+	}
+
+	if len(transactionIDs) == 0 {
+		return []models.DetailedTransactionCSVOut{}, nil
+	}
+
+	xlog.Info(ctx, "[DOWNLOAD-CHUNK] Retrieved chunk IDs",
+		xlog.String("summary_id", summaryID),
+		xlog.Int("chunk_size", len(transactionIDs)),
+		xlog.String("last_id", lastID))
+
+	// STEP 2: Fetch transactions for this chunk
+	transactions, err := mfr.getTransactionsBatchForDownload(ctx, transactionIDs, refNumber, idMapping)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch transactions batch: %w", err)
+	}
+
+	return transactions, nil
+}
+
+// getTransactionsBatchForDownload fetches transactions and preserves order
+func (mfr *moneyFlowRepository) getTransactionsBatchForDownload(
+	ctx context.Context,
+	transactionIDs []string,
+	refNumber string,
+	idMapping map[string]string,
+) ([]models.DetailedTransactionCSVOut, error) {
+	db := mfr.r.extractTxRead(ctx)
+
+	columns := []string{
+		`t."transactionId"`,
+		`t."transactionDate"`,
+		`t."refNumber"`,
+		`t."typeTransaction"`,
+		`t."fromAccount"`,
+		`t."toAccount"`,
+		`t."amount"`,
+		`t."description"`,
+		`COALESCE(t."metadata", '{}'::jsonb) as "metadata"`,
+		`t."createdAt"`,
+	}
+
+	query := sq.StatementBuilder.PlaceholderFormat(sq.Dollar).
+		Select(columns...).
+		From("transaction t").
+		Where(sq.Eq{`t."transactionId"`: transactionIDs})
+
+	// Add refNumber filter if provided
+	if refNumber != "" {
+		query = query.Where(sq.Eq{`t."refNumber"`: refNumber})
+	}
+
+	sql, args, err := query.ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build transaction query: %w", err)
+	}
+
+	rows, err := db.QueryContext(ctx, sql, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	// Store in map
+	transactionMap := make(map[string]models.DetailedTransactionCSVOut)
+
+	for rows.Next() {
+		var dt models.DetailedTransactionCSVOut
+		err = rows.Scan(
+			&dt.TransactionID,
+			&dt.TransactionDate,
+			&dt.RefNumber,
+			&dt.TypeTransaction,
+			&dt.SourceAccount,
+			&dt.DestinationAccount,
+			&dt.Amount,
+			&dt.Description,
+			&dt.Metadata,
+			&dt.CreatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		// Set dmfs.id from mapping for cursor
+		if dmfsID, exists := idMapping[dt.TransactionID]; exists {
+			dt.ID = dmfsID
+		}
+
+		transactionMap[dt.TransactionID] = dt
+	}
+
+	if rows.Err() != nil {
+		return nil, rows.Err()
+	}
+
+	// Return in original order (preserve dmfs.id ordering)
+	var result []models.DetailedTransactionCSVOut
 	for _, txID := range transactionIDs {
 		if tx, exists := transactionMap[txID]; exists {
 			result = append(result, tx)

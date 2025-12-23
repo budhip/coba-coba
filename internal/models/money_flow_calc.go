@@ -319,6 +319,21 @@ func (c DetailedTransactionCursor) String() string {
 	return c.ID
 }
 
+// DetailedTransactionCSVOut represents output from repository
+type DetailedTransactionCSVOut struct {
+	ID                 string
+	TransactionID      string
+	TransactionDate    time.Time
+	RefNumber          string
+	TypeTransaction    string
+	SourceAccount      string
+	DestinationAccount string
+	Amount             decimal.Decimal
+	Description        string
+	Metadata           string
+	CreatedAt          string
+}
+
 // DetailedTransactionOut represents output from repository
 type DetailedTransactionOut struct {
 	ID                 string
@@ -336,6 +351,45 @@ type DetailedTransactionOut struct {
 // GetCursor returns cursor for pagination
 func (d DetailedTransactionOut) GetCursor() string {
 	return base64.StdEncoding.EncodeToString([]byte(d.ID))
+}
+
+// DetailedTransactionCSVResponse represents API response for detailed transaction
+type DetailedTransactionCSVResponse struct {
+	TransactionID      string          `json:"transactionID" example:"b14431aa-b3bf-44d0-b287-f504dfb957fe"`
+	TransactionDate    string          `json:"transactionDate" example:"2025-10-17"`
+	RefNumber          string          `json:"refNumber" example:"423423423523523"`
+	TypeTransaction    string          `json:"typeTransaction" example:"SIVEP"`
+	SourceAccount      string          `json:"sourceAccount" example:"1310014234242342342"`
+	DestinationAccount string          `json:"destinationAccount" example:"42423523523523"`
+	Amount             decimal.Decimal `json:"amount" example:"10000"`
+	Description        string          `json:"description" example:"NORMAL"`
+	Metadata           map[string]any  `json:"metadata" swaggertype:"object"`
+	CreatedAt          string          `json:"createdAt" example:"2025-10-17T10:30:45Z"`
+}
+
+// ToModelResponse converts DetailedTransactionOut to DetailedTransactionResponse
+func (d DetailedTransactionCSVOut) ToModelResponse() DetailedTransactionCSVResponse {
+	var metadata map[string]interface{}
+	if d.Metadata != "" {
+		_ = json.Unmarshal([]byte(d.Metadata), &metadata)
+	}
+
+	if metadata == nil {
+		metadata = make(map[string]interface{})
+	}
+
+	return DetailedTransactionCSVResponse{
+		TransactionID:      d.TransactionID,
+		TransactionDate:    d.TransactionDate.Format(constants.DateFormatYYYYMMDD),
+		RefNumber:          d.RefNumber,
+		TypeTransaction:    d.TypeTransaction,
+		SourceAccount:      d.SourceAccount,
+		DestinationAccount: d.DestinationAccount,
+		Amount:             d.Amount,
+		Description:        d.Description,
+		Metadata:           metadata,
+		CreatedAt:          d.CreatedAt,
+	}
 }
 
 // DetailedTransactionResponse represents API response for detailed transaction

@@ -62,4 +62,5 @@ var CSVHeaders = []string{
 	"amount",
 	"description",
 	"metadata",
+	"createdAt",
 }

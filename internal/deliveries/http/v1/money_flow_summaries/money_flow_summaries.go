@@ -2,7 +2,6 @@ package money_flow_summaries
 
 import (
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -219,44 +218,61 @@ func (h *moneyFlowSummariesHandler) downloadDetailedTransactionsBySummaryID(c ec
 		return http.RestErrorResponse(c, nethttp.StatusBadRequest, err)
 	}
 
-	// Create temporary file
-	file, err := os.CreateTemp("", "detailed_transactions_*.csv")
+	// Optional: Get summary detail untuk nama file lebih deskriptif
+	summary, err := h.moneyFlowService.GetSummaryDetailBySummaryID(c.Request().Context(), summaryID)
 	if err != nil {
-		return http.RestErrorResponse(c, nethttp.StatusInternalServerError, err)
+		return http.HandleRepositoryError(c, err)
 	}
-	defer os.Remove(file.Name()) // Clean up temporary file
 
-	// Download to temporary file
+	// Generate filename dengan payment type
+	timestamp := time.Now().Format("20060102_150405")
+
+	// Sanitize payment type untuk filename (remove special chars)
+	paymentType := strings.ReplaceAll(summary.PaymentType, "_", "-")
+	paymentType = strings.ToLower(paymentType)
+
+	var filename string
+	if req.RefNumber != "" {
+		// Include refNumber jika ada filter
+		filename = fmt.Sprintf("transactions_%s_%s_ref-%s_%s.csv",
+			paymentType,
+			summaryID[:8], // Short summary ID
+			req.RefNumber,
+			timestamp)
+	} else {
+		filename = fmt.Sprintf("transactions_%s_%s_%s.csv",
+			paymentType,
+			summaryID[:8],
+			timestamp)
+	}
+
+	// Set response headers
+	c.Response().Header().Set(echo.HeaderContentType, "text/csv; charset=utf-8")
+	c.Response().Header().Set(echo.HeaderContentDisposition, fmt.Sprintf("attachment; filename=%q", filename))
+	c.Response().WriteHeader(nethttp.StatusOK)
+
+	// Stream CSV directly to response writer
 	err = h.moneyFlowService.DownloadDetailedTransactionsBySummaryID(
 		c.Request().Context(),
 		models.DownloadDetailedTransactionsRequest{
 			SummaryID: summaryID,
 			RefNumber: req.RefNumber,
-			Writer:    file,
+			Writer:    c.Response().Writer,
 		},
 	)
 	if err != nil {
-		file.Close()
+		xlog.Error(c.Request().Context(), "[DOWNLOAD-CSV-HANDLER] Failed to download CSV",
+			xlog.String("summary_id", summaryID),
+			xlog.String("ref_number", req.RefNumber),
+			xlog.Err(err))
 		return http.HandleRepositoryError(c, err)
 	}
 
-	// Close file before serving
-	err = file.Close()
-	if err != nil {
-		return http.RestErrorResponse(c, nethttp.StatusInternalServerError, err)
-	}
+	xlog.Info(c.Request().Context(), "[DOWNLOAD-CSV-HANDLER] CSV download completed successfully",
+		xlog.String("summary_id", summaryID),
+		xlog.String("filename", filename))
 
-	// Serve file
-	err = c.File(file.Name())
-	if err != nil {
-		return http.RestErrorResponse(c, nethttp.StatusInternalServerError, err)
-	}
-
-	// Generate filename
-	timestamp := time.Now().Format("20060102")
-	filename := fmt.Sprintf("detailed_transactions_%s_%s.csv", summaryID, timestamp)
-
-	return http.CSVSuccessResponse(c, filename)
+	return nil
 }
 
 // @Summary 	Update money flow summary activation status
