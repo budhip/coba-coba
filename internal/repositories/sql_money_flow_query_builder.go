@@ -1,6 +1,7 @@
 package repositories
 
 import (
+	"fmt"
 	"time"
 
 	"bitbucket.org/Amartha/go-fp-transaction/internal/models"
@@ -139,26 +140,6 @@ func (qb *MoneyFlowQueryBuilder) BuildCountQuery(opts models.MoneyFlowSummaryFil
 	return query.ToSql()
 }
 
-// applyDetailedTransactionFilters applies filters for detailed transactions
-func (qb *MoneyFlowQueryBuilder) applyDetailedTransactionFilters(query sq.SelectBuilder, opts models.DetailedTransactionFilterOptions) sq.SelectBuilder {
-	// Build WHERE condition to include both summaryID and relatedSummaryID if exists
-	if opts.RelatedFailedOrRejectedSummaryID != nil && *opts.RelatedFailedOrRejectedSummaryID != "" {
-		query = query.Where(sq.Or{
-			sq.Eq{`dmfs."summary_id"`: opts.SummaryID},
-			sq.Eq{`dmfs."summary_id"`: *opts.RelatedFailedOrRejectedSummaryID},
-		})
-	} else {
-		query = query.Where(sq.Eq{`dmfs."summary_id"`: opts.SummaryID})
-	}
-
-	// Add refNumber filter if provided
-	if opts.RefNumber != "" {
-		query = query.Where(sq.Eq{`t."refNumber"`: opts.RefNumber})
-	}
-
-	return query
-}
-
 // BuildDetailedTransactionsQuery builds query for detailed transactions with related summary support
 func (qb *MoneyFlowQueryBuilder) BuildDetailedTransactionsQuery(opts models.DetailedTransactionFilterOptions) (string, []interface{}, error) {
 	columns := []string{
@@ -176,41 +157,92 @@ func (qb *MoneyFlowQueryBuilder) BuildDetailedTransactionsQuery(opts models.Deta
 
 	query := qb.psql.Select(columns...).
 		From("detailed_money_flow_summaries as dmfs").
-		InnerJoin(`transaction t ON t."transactionId" = dmfs.acuan_transaction_id`).
-		InnerJoin(`money_flow_summaries mfs ON mfs."id" = dmfs."summary_id"`).
-		Where(sq.Eq{`mfs."is_active"`: true})
+		InnerJoin(`transaction t ON t."transactionId" = dmfs.acuan_transaction_id`)
 
-	query = qb.applyDetailedTransactionFilters(query, opts)
+	// Apply base filters (summary_id, refNumber)
+	query = qb.applyDetailedTransactionBaseFilters(query, opts)
 
-	// Apply cursor pagination for detailed transactions
-	if opts.Cursor != nil {
-		if opts.Cursor.IsBackward {
-			// Backward: get records GREATER than cursor, order ASC (then reverse in code)
-			query = query.Where(sq.Gt{`dmfs."id"`: opts.Cursor.ID}).OrderBy(`dmfs."id" ASC`)
-		} else {
-			// Forward: get records LESS than cursor, order DESC
-			query = query.Where(sq.Lt{`dmfs."id"`: opts.Cursor.ID}).OrderBy(`dmfs."id" DESC`)
-		}
-	} else {
-		query = query.OrderBy(`dmfs."id" DESC`)
-	}
-
-	if opts.Limit > 0 {
-		query = query.Limit(uint64(opts.Limit))
-	}
+	// Apply cursor pagination and limit
+	query = qb.applyCursorPaginationForDetailedTransactions(query, opts.Cursor, opts.Limit)
 
 	return query.ToSql()
 }
 
 // BuildCountDetailedTransactionsQuery builds query for counting detailed transactions with related summary support
 func (qb *MoneyFlowQueryBuilder) BuildCountDetailedTransactionsQuery(opts models.DetailedTransactionFilterOptions) (string, []interface{}, error) {
-	query := qb.psql.Select("COUNT(*)").
+	query := qb.psql.Select("COUNT(1)").
 		From("detailed_money_flow_summaries as dmfs").
-		InnerJoin(`transaction t ON t."transactionId" = dmfs.acuan_transaction_id`).
-		InnerJoin(`money_flow_summaries mfs ON mfs."id" = dmfs."summary_id"`).
-		Where(sq.Eq{`mfs."is_active"`: true})
+		LeftJoin(`transaction t ON t."transactionId" = dmfs.acuan_transaction_id`)
 
-	query = qb.applyDetailedTransactionFilters(query, opts)
+	// Apply same base filters as LIST query (but without cursor/limit)
+	query = qb.applyDetailedTransactionBaseFilters(query, opts)
 
 	return query.ToSql()
+}
+
+// applyDetailedTransactionBaseFilters applies base filters for detailed transactions
+// Used by both LIST and COUNT queries
+func (qb *MoneyFlowQueryBuilder) applyDetailedTransactionBaseFilters(query sq.SelectBuilder, opts models.DetailedTransactionFilterOptions) sq.SelectBuilder {
+	// Build summary IDs using IN clause
+	summaryIDs := []string{opts.SummaryID}
+	if opts.RelatedFailedOrRejectedSummaryID != nil && *opts.RelatedFailedOrRejectedSummaryID != "" {
+		summaryIDs = append(summaryIDs, *opts.RelatedFailedOrRejectedSummaryID)
+	}
+	query = query.Where(sq.Eq{`dmfs."summary_id"`: summaryIDs})
+
+	// Add refNumber filter if provided
+	if opts.RefNumber != "" {
+		query = query.Where(sq.Eq{`t."refNumber"`: opts.RefNumber})
+	}
+
+	return query
+}
+
+// applyCursorPaginationForDetailedTransactions applies cursor-based pagination
+func (qb *MoneyFlowQueryBuilder) applyCursorPaginationForDetailedTransactions(query sq.SelectBuilder, cursor *models.DetailedTransactionCursor, limit int) sq.SelectBuilder {
+	// Apply cursor filter
+	if cursor != nil {
+		if cursor.IsBackward {
+			// Backward: get records GREATER than cursor, order ASC (then reverse in code)
+			query = query.Where(sq.Gt{`dmfs."id"`: cursor.ID}).OrderBy(`dmfs."id" ASC`)
+		} else {
+			// Forward: get records LESS than cursor, order DESC
+			query = query.Where(sq.Lt{`dmfs."id"`: cursor.ID}).OrderBy(`dmfs."id" DESC`)
+		}
+	} else {
+		// No cursor: default DESC order
+		query = query.OrderBy(`dmfs."id" DESC`)
+	}
+
+	// Apply limit
+	if limit > 0 {
+		query = query.Limit(uint64(limit))
+	}
+
+	return query
+}
+
+// BuildEstimatedCountDetailedTransactionsQuery builds EXPLAIN query for count estimation
+// Much faster than actual COUNT for large datasets
+func (qb *MoneyFlowQueryBuilder) BuildEstimatedCountDetailedTransactionsQuery(opts models.DetailedTransactionFilterOptions) (string, []interface{}, error) {
+	// Build the same query as list query, but wrap with EXPLAIN
+	columns := []string{`dmfs."id"`} // Only select ID for estimation
+
+	query := qb.psql.Select(columns...).
+		From("detailed_money_flow_summaries as dmfs").
+		InnerJoin(`transaction t ON t."transactionId" = dmfs.acuan_transaction_id`)
+
+	// Apply same filters as actual query
+	query = qb.applyDetailedTransactionBaseFilters(query, opts)
+
+	// Get the SQL without cursor/limit (we want total estimation)
+	sql, args, err := query.ToSql()
+	if err != nil {
+		return "", nil, err
+	}
+
+	// Wrap with EXPLAIN to get row estimation
+	explainSQL := fmt.Sprintf("EXPLAIN (FORMAT JSON) %s", sql)
+
+	return explainSQL, args, nil
 }

@@ -231,17 +231,27 @@ func (mf *moneyFlowCalc) GetDetailedTransactionsBySummaryID(ctx context.Context,
 	opts.SummaryID = summaryID
 	opts.RelatedFailedOrRejectedSummaryID = summary.RelatedFailedOrRejectedSummaryID
 
-	// Get detailed transactions (now includes transactions from both summaries)
+	// Get detailed transactions
 	transactions, err := mfsRepo.GetDetailedTransactionsBySummaryID(ctx, opts)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to get detailed transactions: %w", err)
 	}
 
-	// Count total (now includes count from both summaries)
-	total, err := mfsRepo.CountDetailedTransactions(ctx, opts)
+	// Use ESTIMATED count instead of actual COUNT
+	// This is much faster for large datasets (milliseconds vs seconds)
+	total, err := mfsRepo.EstimateCountDetailedTransactions(ctx, opts)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to count detailed transactions: %w", err)
+		xlog.Warn(ctx, "[ESTIMATE-COUNT-ERROR] Failed to get estimated count, using 0",
+			xlog.String("summary_id", summaryID),
+			xlog.Err(err))
+		total = 0
 	}
+
+	// Optional: Add indicator that this is estimated
+	xlog.Info(ctx, "[GET-DETAILED-TRANSACTIONS] Retrieved transactions with estimated count",
+		xlog.String("summary_id", summaryID),
+		xlog.Int("transactions_count", len(transactions)),
+		xlog.Int("estimated_total", total))
 
 	return transactions, total, nil
 }

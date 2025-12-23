@@ -3,6 +3,7 @@ package repositories
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -30,6 +31,7 @@ type MoneyFlowRepository interface {
 	GetSummaryDetailBySummaryID(ctx context.Context, summaryID string) (result models.MoneyFlowSummaryDetailBySummaryIDOut, err error)
 	GetDetailedTransactionsBySummaryID(ctx context.Context, opts models.DetailedTransactionFilterOptions) ([]models.DetailedTransactionOut, error)
 	CountDetailedTransactions(ctx context.Context, opts models.DetailedTransactionFilterOptions) (total int, err error)
+	EstimateCountDetailedTransactions(ctx context.Context, opts models.DetailedTransactionFilterOptions) (total int, err error)
 	GetAllDetailedTransactionsBySummaryID(ctx context.Context, summaryID string, relatedSummaryID *string, refNumber string) ([]models.DetailedTransactionOut, error)
 	GetLastFailedOrRejectedTransaction(ctx context.Context, transactionType string, paymentType string) (*models.FailedOrRejectedTransaction, error)
 	HasPendingTransactionAfterFailedOrRejected(ctx context.Context, transactionType string, paymentType string, failedOrRejectedID string) (bool, error)
@@ -816,4 +818,64 @@ func (mfr *moneyFlowRepository) GetSummaryDetailBySummaryIDAllStatus(ctx context
 	}
 
 	return
+}
+
+// EstimateCountDetailedTransactions estimates total count using EXPLAIN query
+// Much faster than actual COUNT for large datasets (milliseconds vs seconds)
+func (mfr *moneyFlowRepository) EstimateCountDetailedTransactions(ctx context.Context, opts models.DetailedTransactionFilterOptions) (total int, err error) {
+	monitor := monitoring.New(ctx)
+	defer monitor.Finish(monitoring.WithFinishCheckError(err))
+
+	db := mfr.r.extractTxRead(ctx)
+
+	queryBuilder := NewMoneyFlowQueryBuilder()
+	explainSQL, args, err := queryBuilder.BuildEstimatedCountDetailedTransactionsQuery(opts)
+	if err != nil {
+		return 0, fmt.Errorf("failed to build explain query: %w", err)
+	}
+
+	var jsonResult string
+	err = db.QueryRowContext(ctx, explainSQL, args...).Scan(&jsonResult)
+	if err != nil {
+		return 0, err
+	}
+
+	// Parse EXPLAIN JSON result
+	estimated, err := parseExplainRows(jsonResult)
+	if err != nil {
+		xlog.Warn(ctx, "[ESTIMATE-COUNT] Failed to parse EXPLAIN result, falling back to 0",
+			xlog.Err(err))
+		return 0, nil
+	}
+
+	xlog.Info(ctx, "[ESTIMATE-COUNT] Got estimated count",
+		xlog.Int("estimated_total", estimated),
+		xlog.String("summary_id", opts.SummaryID))
+
+	return estimated, nil
+}
+
+// parseExplainRows parses PostgreSQL EXPLAIN JSON output to extract row estimation
+func parseExplainRows(jsonResult string) (int, error) {
+	var explain []map[string]interface{}
+	if err := json.Unmarshal([]byte(jsonResult), &explain); err != nil {
+		return 0, fmt.Errorf("failed to unmarshal EXPLAIN result: %w", err)
+	}
+
+	if len(explain) == 0 {
+		return 0, fmt.Errorf("empty EXPLAIN result")
+	}
+
+	plan, ok := explain[0]["Plan"].(map[string]interface{})
+	if !ok {
+		return 0, fmt.Errorf("invalid EXPLAIN structure: no Plan field")
+	}
+
+	// Get "Plan Rows" which is PostgreSQL's estimation
+	planRows, ok := plan["Plan Rows"].(float64)
+	if !ok {
+		return 0, fmt.Errorf("invalid EXPLAIN structure: no Plan Rows field")
+	}
+
+	return int(planRows), nil
 }
