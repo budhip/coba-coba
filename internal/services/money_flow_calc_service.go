@@ -221,24 +221,39 @@ func (mf *moneyFlowCalc) GetDetailedTransactionsBySummaryID(ctx context.Context,
 
 	mfsRepo := mf.srv.sqlRepo.GetMoneyFlowCalcRepository()
 
-	// First, get the summary to check if it has a related failed/rejected summary
+	// Get summary to check for related failed/rejected summary
 	summary, err := mfsRepo.GetSummaryDetailBySummaryID(ctx, summaryID)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to get summary detail: %w", err)
 	}
 
-	// Set the related summary ID in filter options
 	opts.SummaryID = summaryID
 	opts.RelatedFailedOrRejectedSummaryID = summary.RelatedFailedOrRejectedSummaryID
 
-	// Get detailed transactions
-	transactions, err := mfsRepo.GetDetailedTransactionsBySummaryID(ctx, opts)
+	// STEP 1: Get transaction IDs with dmfs.id mapping
+	idMapping, transactionIDs, err := mfsRepo.GetDetailedTransactionIDsWithMapping(ctx, opts)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to get detailed transactions: %w", err)
+		return nil, 0, fmt.Errorf("failed to get transaction IDs: %w", err)
 	}
 
-	// Use ESTIMATED count instead of actual COUNT
-	// This is much faster for large datasets (milliseconds vs seconds)
+	xlog.Info(ctx, "[GET-DETAILED-TRANSACTIONS] Retrieved transaction IDs",
+		xlog.String("summary_id", summaryID),
+		xlog.Int("ids_count", len(transactionIDs)))
+
+	// STEP 2: Batch fetch from transaction table
+	transactions, err := mfsRepo.GetTransactionsByIDs(ctx, transactionIDs, opts.RefNumber)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get transactions by IDs: %w", err)
+	}
+
+	// STEP 3: Populate dmfs.id for cursor
+	for i := range transactions {
+		if dmfsID, exists := idMapping[transactions[i].TransactionID]; exists {
+			transactions[i].ID = dmfsID // Set dmfs.id for cursor
+		}
+	}
+
+	// Use estimated count
 	total, err := mfsRepo.EstimateCountDetailedTransactions(ctx, opts)
 	if err != nil {
 		xlog.Warn(ctx, "[ESTIMATE-COUNT-ERROR] Failed to get estimated count, using 0",
@@ -247,7 +262,6 @@ func (mf *moneyFlowCalc) GetDetailedTransactionsBySummaryID(ctx context.Context,
 		total = 0
 	}
 
-	// Optional: Add indicator that this is estimated
 	xlog.Info(ctx, "[GET-DETAILED-TRANSACTIONS] Retrieved transactions with estimated count",
 		xlog.String("summary_id", summaryID),
 		xlog.Int("transactions_count", len(transactions)),

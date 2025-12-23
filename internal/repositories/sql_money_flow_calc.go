@@ -39,6 +39,8 @@ type MoneyFlowRepository interface {
 	HasPendingTransactionBefore(ctx context.Context, transactionType string, paymentType string, transactionDate time.Time) (bool, error)
 	UpdateActivationStatus(ctx context.Context, summaryID string, isActive bool) error
 	GetSummaryDetailBySummaryIDAllStatus(ctx context.Context, summaryID string) (result models.MoneyFlowSummaryDetailBySummaryIDOut, err error)
+	GetDetailedTransactionIDsWithMapping(ctx context.Context, opts models.DetailedTransactionFilterOptions) (map[string]string, []string, error)
+	GetTransactionsByIDs(ctx context.Context, transactionIDs []string, refNumber string) ([]models.DetailedTransactionOut, error)
 }
 
 type moneyFlowRepository sqlRepo
@@ -878,4 +880,151 @@ func parseExplainRows(jsonResult string) (int, error) {
 	}
 
 	return int(planRows), nil
+}
+
+// GetDetailedTransactionIDsWithMapping - Get IDs with dmfs.id mapping
+func (mfr *moneyFlowRepository) GetDetailedTransactionIDsWithMapping(ctx context.Context, opts models.DetailedTransactionFilterOptions) (map[string]string, []string, error) {
+	var err error
+
+	monitor := monitoring.New(ctx)
+	defer monitor.Finish(monitoring.WithFinishCheckError(err))
+
+	db := mfr.r.extractTxRead(ctx)
+
+	summaryIDs := []string{opts.SummaryID}
+	if opts.RelatedFailedOrRejectedSummaryID != nil && *opts.RelatedFailedOrRejectedSummaryID != "" {
+		summaryIDs = append(summaryIDs, *opts.RelatedFailedOrRejectedSummaryID)
+	}
+
+	query := sq.StatementBuilder.PlaceholderFormat(sq.Dollar).
+		Select(`dmfs."id"`, `dmfs."acuan_transaction_id"`).
+		From("detailed_money_flow_summaries as dmfs").
+		Where(sq.Eq{`dmfs."summary_id"`: summaryIDs})
+
+	// Apply cursor pagination
+	if opts.Cursor != nil {
+		if opts.Cursor.IsBackward {
+			query = query.Where(sq.Gt{`dmfs."id"`: opts.Cursor.ID}).OrderBy(`dmfs."id" ASC`)
+		} else {
+			query = query.Where(sq.Lt{`dmfs."id"`: opts.Cursor.ID}).OrderBy(`dmfs."id" DESC`)
+		}
+	} else {
+		query = query.OrderBy(`dmfs."id" DESC`)
+	}
+
+	if opts.Limit > 0 {
+		query = query.Limit(uint64(opts.Limit))
+	}
+
+	sql, args, err := query.ToSql()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to build query: %w", err)
+	}
+
+	rows, err := db.QueryContext(ctx, sql, args...)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+
+	// Map: transactionId -> dmfs.id (for cursor)
+	idMapping := make(map[string]string)
+	var transactionIDs []string
+
+	for rows.Next() {
+		var dmfsID, acuanTxID string
+		if err := rows.Scan(&dmfsID, &acuanTxID); err != nil {
+			return nil, nil, err
+		}
+		idMapping[acuanTxID] = dmfsID // mapping transaction_id -> dmfs.id
+		transactionIDs = append(transactionIDs, acuanTxID)
+	}
+
+	if rows.Err() != nil {
+		return nil, nil, rows.Err()
+	}
+
+	return idMapping, transactionIDs, nil
+}
+
+// GetTransactionsByIDs
+func (mfr *moneyFlowRepository) GetTransactionsByIDs(ctx context.Context, transactionIDs []string, refNumber string) ([]models.DetailedTransactionOut, error) {
+	var err error
+
+	monitor := monitoring.New(ctx)
+	defer monitor.Finish(monitoring.WithFinishCheckError(err))
+
+	db := mfr.r.extractTxRead(ctx)
+
+	if len(transactionIDs) == 0 {
+		return []models.DetailedTransactionOut{}, nil
+	}
+
+	columns := []string{
+		`t."transactionId"`,
+		`t."transactionDate"`,
+		`t."refNumber"`,
+		`t."typeTransaction"`,
+		`t."fromAccount"`,
+		`t."toAccount"`,
+		`t."amount"`,
+		`t."description"`,
+		`COALESCE(t."metadata", '{}'::jsonb) as "metadata"`,
+	}
+
+	query := sq.StatementBuilder.PlaceholderFormat(sq.Dollar).
+		Select(columns...).
+		From("transaction t").
+		Where(sq.Eq{`t."transactionId"`: transactionIDs})
+
+	if refNumber != "" {
+		query = query.Where(sq.Eq{`t."refNumber"`: refNumber})
+	}
+
+	sql, args, err := query.ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build query: %w", err)
+	}
+
+	rows, err := db.QueryContext(ctx, sql, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	// Store in map first
+	transactionMap := make(map[string]models.DetailedTransactionOut)
+
+	for rows.Next() {
+		var dt models.DetailedTransactionOut
+		err = rows.Scan(
+			&dt.TransactionID,
+			&dt.TransactionDate,
+			&dt.RefNumber,
+			&dt.TypeTransaction,
+			&dt.SourceAccount,
+			&dt.DestinationAccount,
+			&dt.Amount,
+			&dt.Description,
+			&dt.Metadata,
+		)
+		if err != nil {
+			return nil, err
+		}
+		transactionMap[dt.TransactionID] = dt
+	}
+
+	if rows.Err() != nil {
+		return nil, rows.Err()
+	}
+
+	// Return in original order (preserve dmfs.id order from first query)
+	var result []models.DetailedTransactionOut
+	for _, txID := range transactionIDs {
+		if tx, exists := transactionMap[txID]; exists {
+			result = append(result, tx)
+		}
+	}
+
+	return result, nil
 }
