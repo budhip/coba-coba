@@ -42,6 +42,7 @@ type MoneyFlowRepository interface {
 	GetDetailedTransactionIDsWithMapping(ctx context.Context, opts models.DetailedTransactionFilterOptions) (map[string]string, []string, error)
 	GetTransactionsByIDs(ctx context.Context, transactionIDs []string, refNumber string) ([]models.DetailedTransactionOut, error)
 	GetDetailedTransactionsChunk(ctx context.Context, summaryID string, relatedSummaryID *string, refNumber string, lastID string, limit int) ([]models.DetailedTransactionCSVOut, error)
+	GetAllDetailedTransactionsForDownloadOptimized(ctx context.Context, summaryID string, relatedSummaryID *string, refNumber string) ([]models.DetailedTransactionCSVOut, error)
 }
 
 type moneyFlowRepository sqlRepo
@@ -60,7 +61,7 @@ const (
 		related_failed_or_rejected_summary_id,
 		created_at, updated_at
 	)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, NOW(), NOW())
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, NOW())
 	RETURNING id
 `
 
@@ -215,6 +216,7 @@ func (mfr *moneyFlowRepository) CreateSummary(ctx context.Context, in models.Cre
 		in.DestinationBankAccountName,
 		in.DestinationBankName,
 		in.RelatedFailedOrRejectedSummaryID,
+		in.CreatedAt,
 	).Scan(&in.ID)
 
 	if err != nil {
@@ -1139,7 +1141,6 @@ func (mfr *moneyFlowRepository) getTransactionsBatchForDownload(
 		From("transaction t").
 		Where(sq.Eq{`t."transactionId"`: transactionIDs})
 
-	// Add refNumber filter if provided
 	if refNumber != "" {
 		query = query.Where(sq.Eq{`t."refNumber"`: refNumber})
 	}
@@ -1155,7 +1156,6 @@ func (mfr *moneyFlowRepository) getTransactionsBatchForDownload(
 	}
 	defer rows.Close()
 
-	// Store in map
 	transactionMap := make(map[string]models.DetailedTransactionCSVOut)
 
 	for rows.Next() {
@@ -1176,7 +1176,6 @@ func (mfr *moneyFlowRepository) getTransactionsBatchForDownload(
 			return nil, err
 		}
 
-		// Set dmfs.id from mapping for cursor
 		if dmfsID, exists := idMapping[dt.TransactionID]; exists {
 			dt.ID = dmfsID
 		}
@@ -1188,13 +1187,161 @@ func (mfr *moneyFlowRepository) getTransactionsBatchForDownload(
 		return nil, rows.Err()
 	}
 
-	// Return in original order (preserve dmfs.id ordering)
+	// Return in original order
 	var result []models.DetailedTransactionCSVOut
 	for _, txID := range transactionIDs {
 		if tx, exists := transactionMap[txID]; exists {
 			result = append(result, tx)
 		}
 	}
+
+	return result, nil
+}
+
+// GetAllDetailedTransactionsForDownloadOptimized - Optimized single query with safety limits
+func (mfr *moneyFlowRepository) GetAllDetailedTransactionsForDownloadOptimized(
+	ctx context.Context,
+	summaryID string,
+	relatedSummaryID *string,
+	refNumber string,
+) ([]models.DetailedTransactionCSVOut, error) {
+	var err error
+
+	monitor := monitoring.New(ctx)
+	defer monitor.Finish(monitoring.WithFinishCheckError(err))
+
+	db := mfr.r.extractTxRead(ctx)
+
+	// Build summary IDs
+	summaryIDs := []string{summaryID}
+	if relatedSummaryID != nil && *relatedSummaryID != "" {
+		summaryIDs = append(summaryIDs, *relatedSummaryID)
+	}
+
+	// Optimized columns - only what we need
+	columns := []string{
+		`dmfs."id"`,
+		`t."transactionId"`,
+		`t."transactionDate"`,
+		`t."refNumber"`,
+		`t."typeTransaction"`,
+		`t."fromAccount"`,
+		`t."toAccount"`,
+		`t."amount"`,
+		`t."description"`,
+		`COALESCE(t."metadata", '{}') as "metadata"`,
+		`t."createdAt"`,
+	}
+
+	query := sq.StatementBuilder.PlaceholderFormat(sq.Dollar).
+		Select(columns...).
+		From("detailed_money_flow_summaries as dmfs").
+		Join(`transaction t ON t."transactionId" = dmfs."acuan_transaction_id"`).
+		Where(sq.Eq{`dmfs."summary_id"`: summaryIDs}).
+		OrderBy(`dmfs."id" ASC`)
+
+	if refNumber != "" {
+		query = query.Where(sq.Eq{`t."refNumber"`: refNumber})
+	}
+
+	sql, args, err := query.ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build query: %w", err)
+	}
+
+	xlog.Info(ctx, "[DOWNLOAD-QUERY] Executing query",
+		xlog.String("summary_id", summaryID),
+		xlog.String("ref_number", refNumber))
+
+	startTime := time.Now()
+	rows, err := db.QueryContext(ctx, sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query execution failed: %w", err)
+	}
+	defer rows.Close()
+
+	// Pre-allocate with reasonable estimate
+	const estimatedRows = 100000
+	const maxRows = 500000 // Safety limit
+	result := make([]models.DetailedTransactionCSVOut, 0, estimatedRows)
+
+	rowCount := 0
+	lastLogTime := startTime
+
+	for rows.Next() {
+		// Safety check: max rows limit
+		if rowCount >= maxRows {
+			xlog.Error(ctx, "[DOWNLOAD-QUERY] Exceeded maximum row limit",
+				xlog.String("summary_id", summaryID),
+				xlog.Int("max_rows", maxRows))
+			return nil, fmt.Errorf("data too large: exceeded maximum %d rows", maxRows)
+		}
+
+		var dt models.DetailedTransactionCSVOut
+		err = rows.Scan(
+			&dt.ID,
+			&dt.TransactionID,
+			&dt.TransactionDate,
+			&dt.RefNumber,
+			&dt.TypeTransaction,
+			&dt.SourceAccount,
+			&dt.DestinationAccount,
+			&dt.Amount,
+			&dt.Description,
+			&dt.Metadata,
+			&dt.CreatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan row %d: %w", rowCount, err)
+		}
+
+		result = append(result, dt)
+		rowCount++
+
+		// Check context cancellation every 10K rows
+		if rowCount%10000 == 0 {
+			// Check for timeout
+			elapsed := time.Since(startTime)
+			if elapsed > 14*time.Second {
+				xlog.Warn(ctx, "[DOWNLOAD-QUERY] Query taking too long",
+					xlog.String("summary_id", summaryID),
+					xlog.Int("rows_fetched", rowCount),
+					xlog.Duration("elapsed", elapsed))
+				return nil, fmt.Errorf("query timeout: fetched %d rows in %v (limit: 14s)", rowCount, elapsed)
+			}
+
+			// Check context
+			select {
+			case <-ctx.Done():
+				xlog.Warn(ctx, "[DOWNLOAD-QUERY] Context cancelled",
+					xlog.String("summary_id", summaryID),
+					xlog.Int("rows_fetched", rowCount))
+				return nil, fmt.Errorf("query cancelled: %w", ctx.Err())
+			default:
+				// Continue
+			}
+
+			// Log progress every 5 seconds
+			if time.Since(lastLogTime) > 5*time.Second {
+				xlog.Info(ctx, "[DOWNLOAD-QUERY] Progress",
+					xlog.String("summary_id", summaryID),
+					xlog.Int("rows_fetched", rowCount),
+					xlog.Duration("elapsed", elapsed))
+				lastLogTime = time.Now()
+			}
+		}
+	}
+
+	if rows.Err() != nil {
+		return nil, fmt.Errorf("row iteration error: %w", rows.Err())
+	}
+
+	queryDuration := time.Since(startTime)
+	xlog.Info(ctx, "[DOWNLOAD-QUERY] Query completed",
+		xlog.String("summary_id", summaryID),
+		xlog.Int("total_rows", rowCount),
+		xlog.Duration("query_duration", queryDuration),
+		xlog.Float64("rows_per_second", float64(rowCount)/queryDuration.Seconds()))
 
 	return result, nil
 }

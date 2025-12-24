@@ -1,6 +1,8 @@
 package money_flow_summaries
 
 import (
+	"bytes"
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -218,54 +220,77 @@ func (h *moneyFlowSummariesHandler) downloadDetailedTransactionsBySummaryID(c ec
 		return http.RestErrorResponse(c, nethttp.StatusBadRequest, err)
 	}
 
-	// Optional: Get summary detail untuk nama file lebih deskriptif
+	// Get summary detail
 	summary, err := h.moneyFlowService.GetSummaryDetailBySummaryID(c.Request().Context(), summaryID)
 	if err != nil {
 		return http.HandleRepositoryError(c, err)
 	}
 
-	// Generate filename dengan payment type
+	// Generate filename
 	timestamp := time.Now().Format("20060102_150405")
-
-	// Sanitize payment type untuk filename (remove special chars)
 	paymentType := strings.ReplaceAll(summary.PaymentType, "_", "-")
 	paymentType = strings.ToLower(paymentType)
 
 	var filename string
 	if req.RefNumber != "" {
-		// Include refNumber jika ada filter
 		filename = fmt.Sprintf("transactions_%s_%s_ref-%s_%s.csv",
-			paymentType,
-			summaryID[:8], // Short summary ID
-			req.RefNumber,
-			timestamp)
+			paymentType, summaryID[:8], req.RefNumber, timestamp)
 	} else {
 		filename = fmt.Sprintf("transactions_%s_%s_%s.csv",
-			paymentType,
-			summaryID[:8],
-			timestamp)
+			paymentType, summaryID[:8], timestamp)
 	}
 
-	// Set response headers
-	c.Response().Header().Set(echo.HeaderContentType, "text/csv; charset=utf-8")
-	c.Response().Header().Set(echo.HeaderContentDisposition, fmt.Sprintf("attachment; filename=%q", filename))
-	c.Response().WriteHeader(nethttp.StatusOK)
+	// Use bytes.Buffer to buffer entire response
+	// DON'T write directly to c.Response().Writer yet
+	var buffer bytes.Buffer
 
-	// Stream CSV directly to response writer
+	// Execute download to buffer
 	err = h.moneyFlowService.DownloadDetailedTransactionsBySummaryID(
 		c.Request().Context(),
 		models.DownloadDetailedTransactionsRequest{
 			SummaryID: summaryID,
 			RefNumber: req.RefNumber,
-			Writer:    c.Response().Writer,
+			Writer:    &buffer,
 		},
 	)
+
 	if err != nil {
-		xlog.Error(c.Request().Context(), "[DOWNLOAD-CSV-HANDLER] Failed to download CSV",
+		// Error occurred - return proper error response
+		// Client gets JSON error, NOT a corrupt CSV file
+		xlog.Error(c.Request().Context(), "[DOWNLOAD-CSV-HANDLER] Failed to generate CSV",
 			xlog.String("summary_id", summaryID),
 			xlog.String("ref_number", req.RefNumber),
 			xlog.Err(err))
+
+		// Check specific error types
+		if err == context.DeadlineExceeded || err == context.Canceled {
+			return http.RestErrorResponse(c, nethttp.StatusRequestTimeout,
+				fmt.Errorf("download timeout: request took too long, please try with refNumber filter or smaller date range"))
+		}
+
 		return http.HandleRepositoryError(c, err)
+	}
+
+	// SUCCESS: All data is ready in buffer
+	// NOW we can safely set headers and send response
+	xlog.Info(c.Request().Context(), "[DOWNLOAD-CSV-HANDLER] CSV generated successfully, sending to client",
+		xlog.String("summary_id", summaryID),
+		xlog.String("filename", filename),
+		xlog.Int("buffer_size_bytes", buffer.Len()))
+
+	c.Response().Header().Set(echo.HeaderContentType, "text/csv; charset=utf-8")
+	c.Response().Header().Set(echo.HeaderContentDisposition, fmt.Sprintf("attachment; filename=%q", filename))
+	c.Response().Header().Set("Content-Length", fmt.Sprintf("%d", buffer.Len())) // Set content length
+	c.Response().WriteHeader(nethttp.StatusOK)
+
+	// Write buffer to response in one shot
+	_, err = buffer.WriteTo(c.Response().Writer)
+	if err != nil {
+		xlog.Error(c.Request().Context(), "[DOWNLOAD-CSV-HANDLER] Failed to write buffer to response",
+			xlog.String("summary_id", summaryID),
+			xlog.Err(err))
+		// At this point headers already sent, but log the error
+		return nil
 	}
 
 	xlog.Info(c.Request().Context(), "[DOWNLOAD-CSV-HANDLER] CSV download completed successfully",

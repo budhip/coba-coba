@@ -297,6 +297,8 @@ func NewMapTransformer(
 		"MWMPI": &mwmpiTransformer{baseTransformer},
 		"RFDPI": &rfdpiTransformer{baseTransformer},
 		"MFGPI": &mfgpiTransformer{baseTransformer},
+		"ADMCV": &admcvTransformer{baseTransformer},
+		"PAYVI": &payviTransformer{baseTransformer},
 	}
 }
 

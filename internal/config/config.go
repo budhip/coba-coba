@@ -123,6 +123,7 @@ type (
 		OperationalPayableGeneralCashback    string `json:"operational_payable_general_cashback"`
 		DepositDiscountPPOB                  string `json:"deposit_discount_ppob"`
 		DepositVoucher                       string `json:"deposit_voucher"`
+		DepositVoucherCelengan               string `json:"deposit_voucher_celengan"`
 		RemittanceAdminFeeBudget             string `json:"remittance_admin_fee_budget"`
 		RemittanceAdminFeeRevenue            string `json:"remittance_admin_fee_revenue"`
 		OtherReceivableRepayment             string `json:"other_receivable_repayment"`

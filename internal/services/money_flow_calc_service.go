@@ -1,7 +1,6 @@
 package services
 
 import (
-	"bitbucket.org/Amartha/go-fp-transaction/internal/common/chunkhelper"
 	"context"
 	"encoding/csv"
 	"encoding/json"
@@ -99,6 +98,7 @@ func (mf *moneyFlowCalc) processSingleTransaction(
 			DestinationBankAccountNumber:  brd.Destination.BankAccountNumber,
 			DestinationBankAccountName:    brd.Destination.BankAccountName,
 			DestinationBankName:           brd.Destination.BankName,
+			CreatedAt:                     timeNow,
 		}
 
 		var err error
@@ -448,9 +448,7 @@ func (mf *moneyFlowCalc) DownloadDetailedTransactionsBySummaryID(
 	monitor := monitoring.New(ctx)
 	defer monitor.Finish(monitoring.WithFinishCheckError(err))
 
-	// Add timeout protection - 10 minutes for large downloads
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
-	defer cancel()
+	startTime := time.Now()
 
 	// Prepare download request
 	downloadReq, err := mf.prepareDownloadRequest(ctx, req)
@@ -458,107 +456,101 @@ func (mf *moneyFlowCalc) DownloadDetailedTransactionsBySummaryID(
 		return err
 	}
 
-	xlog.Info(ctx, "[DOWNLOAD-CSV] Starting chunked download",
+	xlog.Info(ctx, "[DOWNLOAD-CSV] Starting optimized download",
 		xlog.String("summary_id", downloadReq.SummaryID),
 		xlog.String("ref_number", downloadReq.RefNumber))
+
+	// STEP 1: Fetch ALL data first (fail fast if query fails)
+	queryStartTime := time.Now()
+	transactions, err := mf.srv.sqlRepo.GetMoneyFlowCalcRepository().
+		GetAllDetailedTransactionsForDownloadOptimized(
+			ctx,
+			downloadReq.SummaryID,
+			downloadReq.RelatedFailedOrRejectedSummaryID,
+			downloadReq.RefNumber,
+		)
+	if err != nil {
+		xlog.Error(ctx, "[DOWNLOAD-CSV] Failed to fetch data",
+			xlog.String("summary_id", downloadReq.SummaryID),
+			xlog.Duration("elapsed", time.Since(startTime)),
+			xlog.Err(err))
+		return fmt.Errorf("failed to fetch transactions: %w", err)
+	}
+
+	queryDuration := time.Since(queryStartTime)
+
+	// Check if query took too long
+	if queryDuration > 15*time.Second {
+		xlog.Warn(ctx, "[DOWNLOAD-CSV] Query exceeded safe time limit",
+			xlog.String("summary_id", downloadReq.SummaryID),
+			xlog.Int("rows_fetched", len(transactions)),
+			xlog.Duration("query_duration", queryDuration))
+		return fmt.Errorf("query timeout: fetched %d rows in %v (limit: 15s)", len(transactions), queryDuration)
+	}
+
+	xlog.Info(ctx, "[DOWNLOAD-CSV] Data fetched successfully",
+		xlog.String("summary_id", downloadReq.SummaryID),
+		xlog.Int("total_rows", len(transactions)),
+		xlog.Duration("query_duration", queryDuration))
+
+	// STEP 2: Generate complete CSV (fail if any error)
+	writeStartTime := time.Now()
 
 	// Initialize CSV writer
 	csvWriter := csv.NewWriter(req.Writer)
 	defer csvWriter.Flush()
+
+	// Add UTF-8 BOM
+	if _, err := req.Writer.Write([]byte{0xEF, 0xBB, 0xBF}); err != nil {
+		return fmt.Errorf("failed to write BOM: %w", err)
+	}
 
 	// Write header
 	if err := csvWriter.Write(constants.CSVHeaders); err != nil {
 		return fmt.Errorf("failed to write CSV header: %w", err)
 	}
 
-	// Stream data in chunks
-	const chunkSize = 3000 // 3000 rows per chunk
-	lastID := ""
-	totalWritten := 0
-	chunkCount := 0
-
-	progress := &chunkhelper.DownloadProgress{
-		SummaryID: downloadReq.SummaryID,
-		StartTime: time.Now(),
-	}
-
-	for {
-		chunkCount++
-
-		xlog.Info(ctx, "[DOWNLOAD-CSV] Fetching chunk",
-			xlog.String("summary_id", downloadReq.SummaryID),
-			xlog.Int("chunk_number", chunkCount),
-			xlog.String("last_id", lastID))
-
-		// Get chunk of transactions
-		transactions, err := mf.srv.sqlRepo.GetMoneyFlowCalcRepository().
-			GetDetailedTransactionsChunk(
-				ctx,
-				downloadReq.SummaryID,
-				downloadReq.RelatedFailedOrRejectedSummaryID,
-				downloadReq.RefNumber,
-				lastID,
-				chunkSize,
-			)
-		if err != nil {
-			return fmt.Errorf("failed to get transactions chunk %d: %w", chunkCount, err)
-		}
-
-		// Update progress
-		progress.TotalChunks = chunkCount
-		progress.TotalRows = totalWritten
-		progress.LastChunkAt = time.Now()
-
-		// No more data
-		if len(transactions) == 0 {
-			xlog.Info(ctx, "[DOWNLOAD-CSV] No more data, stopping",
-				xlog.Int("chunk_number", chunkCount),
-				xlog.Int("total_written", totalWritten))
-			break
-		}
-
-		// Write chunk to CSV
-		for _, trx := range transactions {
-			record := mf.transactionToCSVRecord(trx)
-			if err := csvWriter.Write(record); err != nil {
-				return fmt.Errorf("failed to write CSV row at chunk %d: %w", chunkCount, err)
+	// Write all rows
+	for i, trx := range transactions {
+		// Check context periodically (every 5000 rows)
+		if i%5000 == 0 {
+			select {
+			case <-ctx.Done():
+				return fmt.Errorf("context cancelled after writing %d/%d rows: %w", i, len(transactions), ctx.Err())
+			default:
+				// Continue
 			}
 		}
 
-		totalWritten += len(transactions)
-		lastID = transactions[len(transactions)-1].ID // Last dmfs.id for next cursor
-
-		xlog.Info(ctx, "[DOWNLOAD-CSV] Wrote chunk",
-			xlog.Int("chunk_number", chunkCount),
-			xlog.Int("chunk_size", len(transactions)),
-			xlog.Int("total_written", totalWritten),
-			xlog.String("last_id", lastID))
-
-		// Flush CSV writer periodically to stream data
-		csvWriter.Flush()
-		if err := csvWriter.Error(); err != nil {
-			return fmt.Errorf("failed to flush CSV at chunk %d: %w", chunkCount, err)
+		record := mf.transactionToCSVRecord(trx)
+		if err := csvWriter.Write(record); err != nil {
+			return fmt.Errorf("failed to write CSV row %d (transaction_id: %s): %w", i, trx.TransactionID, err)
 		}
-
-		// Break if we got less than chunkSize (last chunk)
-		if len(transactions) < chunkSize {
-			xlog.Info(ctx, "[DOWNLOAD-CSV] Last chunk detected",
-				xlog.Int("chunk_number", chunkCount),
-				xlog.Int("chunk_size", len(transactions)))
-			break
-		}
-
-		// Log every 10 chunks
-		if chunkCount%10 == 0 {
-			progress.LogProgress(ctx, chunkCount, len(transactions))
-		}
-
 	}
 
-	xlog.Info(ctx, "[DOWNLOAD-CSV] Download completed successfully",
+	// STEP 3: Flush and check for errors
+	csvWriter.Flush()
+	if err := csvWriter.Error(); err != nil {
+		return fmt.Errorf("CSV writer error: %w", err)
+	}
+
+	writeDuration := time.Since(writeStartTime)
+	totalDuration := time.Since(startTime)
+
+	// ✅ Final validation
+	if totalDuration > 18*time.Second {
+		xlog.Warn(ctx, "[DOWNLOAD-CSV] Total duration exceeded safe limit",
+			xlog.String("summary_id", downloadReq.SummaryID),
+			xlog.Duration("total_duration", totalDuration))
+		return fmt.Errorf("operation timeout: total duration %v exceeded 18s limit", totalDuration)
+	}
+
+	xlog.Info(ctx, "[DOWNLOAD-CSV] CSV generation completed successfully",
 		xlog.String("summary_id", downloadReq.SummaryID),
-		xlog.Int("total_chunks", chunkCount),
-		xlog.Int("total_rows", totalWritten))
+		xlog.Int("total_rows", len(transactions)),
+		xlog.Duration("query_duration", queryDuration),
+		xlog.Duration("write_duration", writeDuration),
+		xlog.Duration("total_duration", totalDuration))
 
 	return nil
 }
@@ -603,7 +595,19 @@ func (mf *moneyFlowCalc) writeTransactionsToCSV(
 
 // transactionToCSVRecord converts transaction to CSV record
 func (mf *moneyFlowCalc) transactionToCSVRecord(trx models.DetailedTransactionCSVOut) []string {
-	fmt.Println("TRX.createdAt: ", trx.CreatedAt)
+	// Load Jakarta timezone (UTC+7)
+	jakartaLoc, err := time.LoadLocation("Asia/Jakarta")
+	if err != nil {
+		// Fallback to manual UTC+7 if timezone load fails
+		jakartaLoc = time.FixedZone("WIB", 7*60*60)
+	}
+
+	// Convert createdAt to Jakarta timezone
+	createdAtJakarta := trx.CreatedAt.In(jakartaLoc)
+
+	// Format: "2025-12-21 17:53:11" (tanpa timezone indicator)
+	formattedCreatedAt := createdAtJakarta.Format("2006-01-02 15:04:05")
+
 	return []string{
 		trx.TransactionDate.Format(constants.DateFormatYYYYMMDD),
 		trx.TransactionID,
@@ -614,7 +618,7 @@ func (mf *moneyFlowCalc) transactionToCSVRecord(trx models.DetailedTransactionCS
 		trx.Amount.String(),
 		trx.Description,
 		trx.Metadata,
-		trx.CreatedAt,
+		formattedCreatedAt,
 	}
 }
 

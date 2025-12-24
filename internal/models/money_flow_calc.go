@@ -71,6 +71,7 @@ type CreateMoneyFlowSummary struct {
 	DestinationBankAccountName       string
 	DestinationBankName              string
 	RelatedFailedOrRejectedSummaryID *string
+	CreatedAt                        time.Time
 }
 
 // MoneyFlowTransactionProcessed represents the transaction still processed in money_flow_summaries table
@@ -331,7 +332,7 @@ type DetailedTransactionCSVOut struct {
 	Amount             decimal.Decimal
 	Description        string
 	Metadata           string
-	CreatedAt          string
+	CreatedAt          time.Time
 }
 
 // DetailedTransactionOut represents output from repository
@@ -378,6 +379,13 @@ func (d DetailedTransactionCSVOut) ToModelResponse() DetailedTransactionCSVRespo
 		metadata = make(map[string]interface{})
 	}
 
+	// Convert to Jakarta timezone
+	jakartaLoc, err := time.LoadLocation("Asia/Jakarta")
+	if err != nil {
+		jakartaLoc = time.FixedZone("WIB", 7*60*60)
+	}
+	createdAtJakarta := d.CreatedAt.In(jakartaLoc)
+
 	return DetailedTransactionCSVResponse{
 		TransactionID:      d.TransactionID,
 		TransactionDate:    d.TransactionDate.Format(constants.DateFormatYYYYMMDD),
@@ -388,7 +396,7 @@ func (d DetailedTransactionCSVOut) ToModelResponse() DetailedTransactionCSVRespo
 		Amount:             d.Amount,
 		Description:        d.Description,
 		Metadata:           metadata,
-		CreatedAt:          d.CreatedAt,
+		CreatedAt:          createdAtJakarta.Format("2006-01-02 15:04:05"), // UTC+7 format
 	}
 }
 
