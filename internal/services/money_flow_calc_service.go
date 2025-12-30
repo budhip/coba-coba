@@ -71,8 +71,12 @@ func (mf *moneyFlowCalc) processSingleTransaction(
 	amount, _ := trx.Amount.Float64()
 
 	summaryID := uuid.New().String()
-	timeNow := time.Now()
-	refNumber := constants.MoneyFlowReferencePrefix + timeNow.Format(constants.DateFormatYYYYMMDD) + "-" + summaryID
+	timeNow := time.Now() // UTC time for created_at
+
+	// Convert UTC to Jakarta timezone date for transaction_source_creation_date
+	jakartaDate := mf.convertToJakartaDate(timeNow)
+
+	refNumber := constants.MoneyFlowReferencePrefix + jakartaDate.Format(constants.DateFormatYYYYMMDD) + "-" + summaryID
 
 	var resultSummaryID string
 	err := mf.srv.sqlRepo.Atomic(ctx, func(ctx context.Context, r repositories.SQLRepository) error {
@@ -80,7 +84,7 @@ func (mf *moneyFlowCalc) processSingleTransaction(
 
 		summaryData := models.CreateMoneyFlowSummary{
 			ID:                            summaryID,
-			TransactionSourceCreationDate: timeNow,
+			TransactionSourceCreationDate: jakartaDate, // Use Jakarta timezone date
 			TransactionType:               transactionType,
 			PaymentType:                   paymentType,
 			ReferenceNumber:               refNumber,
@@ -98,7 +102,7 @@ func (mf *moneyFlowCalc) processSingleTransaction(
 			DestinationBankAccountNumber:  brd.Destination.BankAccountNumber,
 			DestinationBankAccountName:    brd.Destination.BankAccountName,
 			DestinationBankName:           brd.Destination.BankName,
-			CreatedAt:                     timeNow,
+			CreatedAt:                     timeNow, // Keep UTC for created_at
 		}
 
 		var err error
@@ -107,6 +111,29 @@ func (mf *moneyFlowCalc) processSingleTransaction(
 	})
 
 	return resultSummaryID, err
+}
+
+// convertToJakartaDate converts UTC time to Jakarta date (truncated to start of day)
+// Example: 2025-12-24 19:48:23 UTC -> 2025-12-25 00:00:00 WIB
+func (mf *moneyFlowCalc) convertToJakartaDate(utcTime time.Time) time.Time {
+	// Load Jakarta timezone (UTC+7)
+	jakartaLoc, err := time.LoadLocation("Asia/Jakarta")
+	if err != nil {
+		// Fallback to manual UTC+7 if timezone load fails
+		jakartaLoc = time.FixedZone("WIB", 7*60*60)
+	}
+
+	// Convert to Jakarta timezone
+	jakartaTime := utcTime.In(jakartaLoc)
+
+	// Truncate to start of day in Jakarta timezone
+	return time.Date(
+		jakartaTime.Year(),
+		jakartaTime.Month(),
+		jakartaTime.Day(),
+		0, 0, 0, 0,
+		jakartaLoc,
+	)
 }
 
 func (mf *moneyFlowCalc) ProcessTransactionStream(ctx context.Context, event gopaymentlib.Event) error {
@@ -537,7 +564,7 @@ func (mf *moneyFlowCalc) DownloadDetailedTransactionsBySummaryID(
 	writeDuration := time.Since(writeStartTime)
 	totalDuration := time.Since(startTime)
 
-	// ✅ Final validation
+	// Final validation
 	if totalDuration > 18*time.Second {
 		xlog.Warn(ctx, "[DOWNLOAD-CSV] Total duration exceeded safe limit",
 			xlog.String("summary_id", downloadReq.SummaryID),

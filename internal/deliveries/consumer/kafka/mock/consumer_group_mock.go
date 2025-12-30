@@ -21,6 +21,7 @@ import (
 type MockConsumerGroupSession struct {
 	ctrl     *gomock.Controller
 	recorder *MockConsumerGroupSessionMockRecorder
+	isgomock struct{}
 }
 
 // MockConsumerGroupSessionMockRecorder is the mock recorder for MockConsumerGroupSession.
@@ -95,27 +96,27 @@ func (mr *MockConsumerGroupSessionMockRecorder) GenerationID() *gomock.Call {
 }
 
 // MarkMessage mocks base method.
-func (m *MockConsumerGroupSession) MarkMessage(arg0 *sarama.ConsumerMessage, arg1 string) {
+func (m *MockConsumerGroupSession) MarkMessage(msg *sarama.ConsumerMessage, metadata string) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "MarkMessage", arg0, arg1)
+	m.ctrl.Call(m, "MarkMessage", msg, metadata)
 }
 
 // MarkMessage indicates an expected call of MarkMessage.
-func (mr *MockConsumerGroupSessionMockRecorder) MarkMessage(arg0, arg1 any) *gomock.Call {
+func (mr *MockConsumerGroupSessionMockRecorder) MarkMessage(msg, metadata any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkMessage", reflect.TypeOf((*MockConsumerGroupSession)(nil).MarkMessage), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkMessage", reflect.TypeOf((*MockConsumerGroupSession)(nil).MarkMessage), msg, metadata)
 }
 
 // MarkOffset mocks base method.
-func (m *MockConsumerGroupSession) MarkOffset(arg0 string, arg1 int32, arg2 int64, arg3 string) {
+func (m *MockConsumerGroupSession) MarkOffset(topic string, partition int32, offset int64, metadata string) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "MarkOffset", arg0, arg1, arg2, arg3)
+	m.ctrl.Call(m, "MarkOffset", topic, partition, offset, metadata)
 }
 
 // MarkOffset indicates an expected call of MarkOffset.
-func (mr *MockConsumerGroupSessionMockRecorder) MarkOffset(arg0, arg1, arg2, arg3 any) *gomock.Call {
+func (mr *MockConsumerGroupSessionMockRecorder) MarkOffset(topic, partition, offset, metadata any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkOffset", reflect.TypeOf((*MockConsumerGroupSession)(nil).MarkOffset), arg0, arg1, arg2, arg3)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkOffset", reflect.TypeOf((*MockConsumerGroupSession)(nil).MarkOffset), topic, partition, offset, metadata)
 }
 
 // MemberID mocks base method.
@@ -133,21 +134,22 @@ func (mr *MockConsumerGroupSessionMockRecorder) MemberID() *gomock.Call {
 }
 
 // ResetOffset mocks base method.
-func (m *MockConsumerGroupSession) ResetOffset(arg0 string, arg1 int32, arg2 int64, arg3 string) {
+func (m *MockConsumerGroupSession) ResetOffset(topic string, partition int32, offset int64, metadata string) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "ResetOffset", arg0, arg1, arg2, arg3)
+	m.ctrl.Call(m, "ResetOffset", topic, partition, offset, metadata)
 }
 
 // ResetOffset indicates an expected call of ResetOffset.
-func (mr *MockConsumerGroupSessionMockRecorder) ResetOffset(arg0, arg1, arg2, arg3 any) *gomock.Call {
+func (mr *MockConsumerGroupSessionMockRecorder) ResetOffset(topic, partition, offset, metadata any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResetOffset", reflect.TypeOf((*MockConsumerGroupSession)(nil).ResetOffset), arg0, arg1, arg2, arg3)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResetOffset", reflect.TypeOf((*MockConsumerGroupSession)(nil).ResetOffset), topic, partition, offset, metadata)
 }
 
 // MockConsumerGroup is a mock of ConsumerGroup interface.
 type MockConsumerGroup struct {
 	ctrl     *gomock.Controller
 	recorder *MockConsumerGroupMockRecorder
+	isgomock struct{}
 }
 
 // MockConsumerGroupMockRecorder is the mock recorder for MockConsumerGroup.
@@ -182,17 +184,17 @@ func (mr *MockConsumerGroupMockRecorder) Close() *gomock.Call {
 }
 
 // Consume mocks base method.
-func (m *MockConsumerGroup) Consume(arg0 context.Context, arg1 []string, arg2 sarama.ConsumerGroupHandler) error {
+func (m *MockConsumerGroup) Consume(ctx context.Context, topics []string, handler sarama.ConsumerGroupHandler) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Consume", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "Consume", ctx, topics, handler)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Consume indicates an expected call of Consume.
-func (mr *MockConsumerGroupMockRecorder) Consume(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockConsumerGroupMockRecorder) Consume(ctx, topics, handler any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Consume", reflect.TypeOf((*MockConsumerGroup)(nil).Consume), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Consume", reflect.TypeOf((*MockConsumerGroup)(nil).Consume), ctx, topics, handler)
 }
 
 // Errors mocks base method.
@@ -210,15 +212,15 @@ func (mr *MockConsumerGroupMockRecorder) Errors() *gomock.Call {
 }
 
 // Pause mocks base method.
-func (m *MockConsumerGroup) Pause(arg0 map[string][]int32) {
+func (m *MockConsumerGroup) Pause(partitions map[string][]int32) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Pause", arg0)
+	m.ctrl.Call(m, "Pause", partitions)
 }
 
 // Pause indicates an expected call of Pause.
-func (mr *MockConsumerGroupMockRecorder) Pause(arg0 any) *gomock.Call {
+func (mr *MockConsumerGroupMockRecorder) Pause(partitions any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Pause", reflect.TypeOf((*MockConsumerGroup)(nil).Pause), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Pause", reflect.TypeOf((*MockConsumerGroup)(nil).Pause), partitions)
 }
 
 // PauseAll mocks base method.
@@ -234,15 +236,15 @@ func (mr *MockConsumerGroupMockRecorder) PauseAll() *gomock.Call {
 }
 
 // Resume mocks base method.
-func (m *MockConsumerGroup) Resume(arg0 map[string][]int32) {
+func (m *MockConsumerGroup) Resume(partitions map[string][]int32) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Resume", arg0)
+	m.ctrl.Call(m, "Resume", partitions)
 }
 
 // Resume indicates an expected call of Resume.
-func (mr *MockConsumerGroupMockRecorder) Resume(arg0 any) *gomock.Call {
+func (mr *MockConsumerGroupMockRecorder) Resume(partitions any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Resume", reflect.TypeOf((*MockConsumerGroup)(nil).Resume), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Resume", reflect.TypeOf((*MockConsumerGroup)(nil).Resume), partitions)
 }
 
 // ResumeAll mocks base method.
@@ -261,6 +263,7 @@ func (mr *MockConsumerGroupMockRecorder) ResumeAll() *gomock.Call {
 type MockConsumerGroupClaim struct {
 	ctrl     *gomock.Controller
 	recorder *MockConsumerGroupClaimMockRecorder
+	isgomock struct{}
 }
 
 // MockConsumerGroupClaimMockRecorder is the mock recorder for MockConsumerGroupClaim.

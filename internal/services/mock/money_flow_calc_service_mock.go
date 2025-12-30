@@ -23,6 +23,7 @@ import (
 type MockMoneyFlowService struct {
 	ctrl     *gomock.Controller
 	recorder *MockMoneyFlowServiceMockRecorder
+	isgomock struct{}
 }
 
 // MockMoneyFlowServiceMockRecorder is the mock recorder for MockMoneyFlowService.
@@ -134,17 +135,31 @@ func (mr *MockMoneyFlowServiceMockRecorder) ProcessTransactionNotification(ctx, 
 }
 
 // ProcessTransactionStream mocks base method.
-func (m *MockMoneyFlowService) ProcessTransactionStream(ctx context.Context, event event.Event) error {
+func (m *MockMoneyFlowService) ProcessTransactionStream(ctx context.Context, arg1 event.Event) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ProcessTransactionStream", ctx, event)
+	ret := m.ctrl.Call(m, "ProcessTransactionStream", ctx, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // ProcessTransactionStream indicates an expected call of ProcessTransactionStream.
-func (mr *MockMoneyFlowServiceMockRecorder) ProcessTransactionStream(ctx, event any) *gomock.Call {
+func (mr *MockMoneyFlowServiceMockRecorder) ProcessTransactionStream(ctx, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProcessTransactionStream", reflect.TypeOf((*MockMoneyFlowService)(nil).ProcessTransactionStream), ctx, event)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProcessTransactionStream", reflect.TypeOf((*MockMoneyFlowService)(nil).ProcessTransactionStream), ctx, arg1)
+}
+
+// UpdateActivationStatus mocks base method.
+func (m *MockMoneyFlowService) UpdateActivationStatus(ctx context.Context, summaryID string, isActive bool) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateActivationStatus", ctx, summaryID, isActive)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateActivationStatus indicates an expected call of UpdateActivationStatus.
+func (mr *MockMoneyFlowServiceMockRecorder) UpdateActivationStatus(ctx, summaryID, isActive any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateActivationStatus", reflect.TypeOf((*MockMoneyFlowService)(nil).UpdateActivationStatus), ctx, summaryID, isActive)
 }
 
 // UpdateSummary mocks base method.

@@ -21,6 +21,7 @@ import (
 type MockWalletTrxService struct {
 	ctrl     *gomock.Controller
 	recorder *MockWalletTrxServiceMockRecorder
+	isgomock struct{}
 }
 
 // MockWalletTrxServiceMockRecorder is the mock recorder for MockWalletTrxService.

@@ -22,6 +22,7 @@ import (
 type MockMoneyFlowRepository struct {
 	ctrl     *gomock.Controller
 	recorder *MockMoneyFlowRepositoryMockRecorder
+	isgomock struct{}
 }
 
 // MockMoneyFlowRepositoryMockRecorder is the mock recorder for MockMoneyFlowRepository.
@@ -42,18 +43,18 @@ func (m *MockMoneyFlowRepository) EXPECT() *MockMoneyFlowRepositoryMockRecorder 
 }
 
 // CountDetailedTransactions mocks base method.
-func (m *MockMoneyFlowRepository) CountDetailedTransactions(ctx context.Context, summaryID string) (int, error) {
+func (m *MockMoneyFlowRepository) CountDetailedTransactions(ctx context.Context, opts models.DetailedTransactionFilterOptions) (int, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CountDetailedTransactions", ctx, summaryID)
+	ret := m.ctrl.Call(m, "CountDetailedTransactions", ctx, opts)
 	ret0, _ := ret[0].(int)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CountDetailedTransactions indicates an expected call of CountDetailedTransactions.
-func (mr *MockMoneyFlowRepositoryMockRecorder) CountDetailedTransactions(ctx, summaryID any) *gomock.Call {
+func (mr *MockMoneyFlowRepositoryMockRecorder) CountDetailedTransactions(ctx, opts any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountDetailedTransactions", reflect.TypeOf((*MockMoneyFlowRepository)(nil).CountDetailedTransactions), ctx, summaryID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountDetailedTransactions", reflect.TypeOf((*MockMoneyFlowRepository)(nil).CountDetailedTransactions), ctx, opts)
 }
 
 // CountSummaryAll mocks base method.
@@ -100,19 +101,65 @@ func (mr *MockMoneyFlowRepositoryMockRecorder) CreateSummary(ctx, in any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateSummary", reflect.TypeOf((*MockMoneyFlowRepository)(nil).CreateSummary), ctx, in)
 }
 
-// GetAllDetailedTransactionsBySummaryID mocks base method.
-func (m *MockMoneyFlowRepository) GetAllDetailedTransactionsBySummaryID(ctx context.Context, summaryID, refNumber string) ([]models.DetailedTransactionOut, error) {
+// EstimateCountDetailedTransactions mocks base method.
+func (m *MockMoneyFlowRepository) EstimateCountDetailedTransactions(ctx context.Context, opts models.DetailedTransactionFilterOptions) (int, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAllDetailedTransactionsBySummaryID", ctx, summaryID, refNumber)
+	ret := m.ctrl.Call(m, "EstimateCountDetailedTransactions", ctx, opts)
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// EstimateCountDetailedTransactions indicates an expected call of EstimateCountDetailedTransactions.
+func (mr *MockMoneyFlowRepositoryMockRecorder) EstimateCountDetailedTransactions(ctx, opts any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EstimateCountDetailedTransactions", reflect.TypeOf((*MockMoneyFlowRepository)(nil).EstimateCountDetailedTransactions), ctx, opts)
+}
+
+// GetAllDetailedTransactionsBySummaryID mocks base method.
+func (m *MockMoneyFlowRepository) GetAllDetailedTransactionsBySummaryID(ctx context.Context, summaryID string, relatedSummaryID *string, refNumber string) ([]models.DetailedTransactionOut, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAllDetailedTransactionsBySummaryID", ctx, summaryID, relatedSummaryID, refNumber)
 	ret0, _ := ret[0].([]models.DetailedTransactionOut)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetAllDetailedTransactionsBySummaryID indicates an expected call of GetAllDetailedTransactionsBySummaryID.
-func (mr *MockMoneyFlowRepositoryMockRecorder) GetAllDetailedTransactionsBySummaryID(ctx, summaryID, refNumber any) *gomock.Call {
+func (mr *MockMoneyFlowRepositoryMockRecorder) GetAllDetailedTransactionsBySummaryID(ctx, summaryID, relatedSummaryID, refNumber any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllDetailedTransactionsBySummaryID", reflect.TypeOf((*MockMoneyFlowRepository)(nil).GetAllDetailedTransactionsBySummaryID), ctx, summaryID, refNumber)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllDetailedTransactionsBySummaryID", reflect.TypeOf((*MockMoneyFlowRepository)(nil).GetAllDetailedTransactionsBySummaryID), ctx, summaryID, relatedSummaryID, refNumber)
+}
+
+// GetAllDetailedTransactionsForDownloadOptimized mocks base method.
+func (m *MockMoneyFlowRepository) GetAllDetailedTransactionsForDownloadOptimized(ctx context.Context, summaryID string, relatedSummaryID *string, refNumber string) ([]models.DetailedTransactionCSVOut, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAllDetailedTransactionsForDownloadOptimized", ctx, summaryID, relatedSummaryID, refNumber)
+	ret0, _ := ret[0].([]models.DetailedTransactionCSVOut)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAllDetailedTransactionsForDownloadOptimized indicates an expected call of GetAllDetailedTransactionsForDownloadOptimized.
+func (mr *MockMoneyFlowRepositoryMockRecorder) GetAllDetailedTransactionsForDownloadOptimized(ctx, summaryID, relatedSummaryID, refNumber any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllDetailedTransactionsForDownloadOptimized", reflect.TypeOf((*MockMoneyFlowRepository)(nil).GetAllDetailedTransactionsForDownloadOptimized), ctx, summaryID, relatedSummaryID, refNumber)
+}
+
+// GetDetailedTransactionIDsWithMapping mocks base method.
+func (m *MockMoneyFlowRepository) GetDetailedTransactionIDsWithMapping(ctx context.Context, opts models.DetailedTransactionFilterOptions) (map[string]string, []string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetDetailedTransactionIDsWithMapping", ctx, opts)
+	ret0, _ := ret[0].(map[string]string)
+	ret1, _ := ret[1].([]string)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// GetDetailedTransactionIDsWithMapping indicates an expected call of GetDetailedTransactionIDsWithMapping.
+func (mr *MockMoneyFlowRepositoryMockRecorder) GetDetailedTransactionIDsWithMapping(ctx, opts any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDetailedTransactionIDsWithMapping", reflect.TypeOf((*MockMoneyFlowRepository)(nil).GetDetailedTransactionIDsWithMapping), ctx, opts)
 }
 
 // GetDetailedTransactionsBySummaryID mocks base method.
@@ -128,6 +175,36 @@ func (m *MockMoneyFlowRepository) GetDetailedTransactionsBySummaryID(ctx context
 func (mr *MockMoneyFlowRepositoryMockRecorder) GetDetailedTransactionsBySummaryID(ctx, opts any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDetailedTransactionsBySummaryID", reflect.TypeOf((*MockMoneyFlowRepository)(nil).GetDetailedTransactionsBySummaryID), ctx, opts)
+}
+
+// GetDetailedTransactionsChunk mocks base method.
+func (m *MockMoneyFlowRepository) GetDetailedTransactionsChunk(ctx context.Context, summaryID string, relatedSummaryID *string, refNumber, lastID string, limit int) ([]models.DetailedTransactionCSVOut, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetDetailedTransactionsChunk", ctx, summaryID, relatedSummaryID, refNumber, lastID, limit)
+	ret0, _ := ret[0].([]models.DetailedTransactionCSVOut)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetDetailedTransactionsChunk indicates an expected call of GetDetailedTransactionsChunk.
+func (mr *MockMoneyFlowRepositoryMockRecorder) GetDetailedTransactionsChunk(ctx, summaryID, relatedSummaryID, refNumber, lastID, limit any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDetailedTransactionsChunk", reflect.TypeOf((*MockMoneyFlowRepository)(nil).GetDetailedTransactionsChunk), ctx, summaryID, relatedSummaryID, refNumber, lastID, limit)
+}
+
+// GetLastFailedOrRejectedTransaction mocks base method.
+func (m *MockMoneyFlowRepository) GetLastFailedOrRejectedTransaction(ctx context.Context, transactionType, paymentType string) (*models.FailedOrRejectedTransaction, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLastFailedOrRejectedTransaction", ctx, transactionType, paymentType)
+	ret0, _ := ret[0].(*models.FailedOrRejectedTransaction)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetLastFailedOrRejectedTransaction indicates an expected call of GetLastFailedOrRejectedTransaction.
+func (mr *MockMoneyFlowRepositoryMockRecorder) GetLastFailedOrRejectedTransaction(ctx, transactionType, paymentType any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLastFailedOrRejectedTransaction", reflect.TypeOf((*MockMoneyFlowRepository)(nil).GetLastFailedOrRejectedTransaction), ctx, transactionType, paymentType)
 }
 
 // GetSummariesList mocks base method.
@@ -160,6 +237,21 @@ func (mr *MockMoneyFlowRepositoryMockRecorder) GetSummaryDetailBySummaryID(ctx, 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSummaryDetailBySummaryID", reflect.TypeOf((*MockMoneyFlowRepository)(nil).GetSummaryDetailBySummaryID), ctx, summaryID)
 }
 
+// GetSummaryDetailBySummaryIDAllStatus mocks base method.
+func (m *MockMoneyFlowRepository) GetSummaryDetailBySummaryIDAllStatus(ctx context.Context, summaryID string) (models.MoneyFlowSummaryDetailBySummaryIDOut, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSummaryDetailBySummaryIDAllStatus", ctx, summaryID)
+	ret0, _ := ret[0].(models.MoneyFlowSummaryDetailBySummaryIDOut)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetSummaryDetailBySummaryIDAllStatus indicates an expected call of GetSummaryDetailBySummaryIDAllStatus.
+func (mr *MockMoneyFlowRepositoryMockRecorder) GetSummaryDetailBySummaryIDAllStatus(ctx, summaryID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSummaryDetailBySummaryIDAllStatus", reflect.TypeOf((*MockMoneyFlowRepository)(nil).GetSummaryDetailBySummaryIDAllStatus), ctx, summaryID)
+}
+
 // GetSummaryIDByPapaTransactionID mocks base method.
 func (m *MockMoneyFlowRepository) GetSummaryIDByPapaTransactionID(ctx context.Context, papaTransactionID string) (string, error) {
 	m.ctrl.T.Helper()
@@ -188,6 +280,80 @@ func (m *MockMoneyFlowRepository) GetTransactionProcessed(ctx context.Context, b
 func (mr *MockMoneyFlowRepositoryMockRecorder) GetTransactionProcessed(ctx, breakdownTransactionsFrom, transactionSourceDate any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTransactionProcessed", reflect.TypeOf((*MockMoneyFlowRepository)(nil).GetTransactionProcessed), ctx, breakdownTransactionsFrom, transactionSourceDate)
+}
+
+// GetTransactionsByIDs mocks base method.
+func (m *MockMoneyFlowRepository) GetTransactionsByIDs(ctx context.Context, transactionIDs []string, refNumber string) ([]models.DetailedTransactionOut, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTransactionsByIDs", ctx, transactionIDs, refNumber)
+	ret0, _ := ret[0].([]models.DetailedTransactionOut)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTransactionsByIDs indicates an expected call of GetTransactionsByIDs.
+func (mr *MockMoneyFlowRepositoryMockRecorder) GetTransactionsByIDs(ctx, transactionIDs, refNumber any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTransactionsByIDs", reflect.TypeOf((*MockMoneyFlowRepository)(nil).GetTransactionsByIDs), ctx, transactionIDs, refNumber)
+}
+
+// HasInProgressTransaction mocks base method.
+func (m *MockMoneyFlowRepository) HasInProgressTransaction(ctx context.Context, transactionType, paymentType string) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HasInProgressTransaction", ctx, transactionType, paymentType)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// HasInProgressTransaction indicates an expected call of HasInProgressTransaction.
+func (mr *MockMoneyFlowRepositoryMockRecorder) HasInProgressTransaction(ctx, transactionType, paymentType any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasInProgressTransaction", reflect.TypeOf((*MockMoneyFlowRepository)(nil).HasInProgressTransaction), ctx, transactionType, paymentType)
+}
+
+// HasPendingTransactionAfterFailedOrRejected mocks base method.
+func (m *MockMoneyFlowRepository) HasPendingTransactionAfterFailedOrRejected(ctx context.Context, transactionType, paymentType, failedOrRejectedID string) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HasPendingTransactionAfterFailedOrRejected", ctx, transactionType, paymentType, failedOrRejectedID)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// HasPendingTransactionAfterFailedOrRejected indicates an expected call of HasPendingTransactionAfterFailedOrRejected.
+func (mr *MockMoneyFlowRepositoryMockRecorder) HasPendingTransactionAfterFailedOrRejected(ctx, transactionType, paymentType, failedOrRejectedID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasPendingTransactionAfterFailedOrRejected", reflect.TypeOf((*MockMoneyFlowRepository)(nil).HasPendingTransactionAfterFailedOrRejected), ctx, transactionType, paymentType, failedOrRejectedID)
+}
+
+// HasPendingTransactionBefore mocks base method.
+func (m *MockMoneyFlowRepository) HasPendingTransactionBefore(ctx context.Context, transactionType, paymentType string, transactionDate time.Time) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HasPendingTransactionBefore", ctx, transactionType, paymentType, transactionDate)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// HasPendingTransactionBefore indicates an expected call of HasPendingTransactionBefore.
+func (mr *MockMoneyFlowRepositoryMockRecorder) HasPendingTransactionBefore(ctx, transactionType, paymentType, transactionDate any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasPendingTransactionBefore", reflect.TypeOf((*MockMoneyFlowRepository)(nil).HasPendingTransactionBefore), ctx, transactionType, paymentType, transactionDate)
+}
+
+// UpdateActivationStatus mocks base method.
+func (m *MockMoneyFlowRepository) UpdateActivationStatus(ctx context.Context, summaryID string, isActive bool) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateActivationStatus", ctx, summaryID, isActive)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateActivationStatus indicates an expected call of UpdateActivationStatus.
+func (mr *MockMoneyFlowRepositoryMockRecorder) UpdateActivationStatus(ctx, summaryID, isActive any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateActivationStatus", reflect.TypeOf((*MockMoneyFlowRepository)(nil).UpdateActivationStatus), ctx, summaryID, isActive)
 }
 
 // UpdateSummary mocks base method.

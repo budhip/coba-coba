@@ -30,7 +30,7 @@ func NewTransactionProcessor(repo repositories.MoneyFlowRepository) *Transaction
 	}
 }
 
-// ProcessOrUpdate processes new transaction or updates existing one
+// ProcessOrUpdate processes transaction using UPSERT
 func (tp *TransactionProcessor) ProcessOrUpdate(
 	ctx context.Context,
 	summaryData models.CreateMoneyFlowSummary,
@@ -39,84 +39,8 @@ func (tp *TransactionProcessor) ProcessOrUpdate(
 ) (string, error) {
 	currentDate := summaryData.TransactionSourceCreationDate.Truncate(24 * time.Hour)
 
-	// Check if transaction already exists for current date
-	if existingSummaryID, err := tp.updateExistingIfPresent(ctx, summaryData, acuanTransactionID, amount, currentDate); err != nil {
-		return "", err
-	} else if existingSummaryID != "" {
-		return existingSummaryID, nil
-	}
-
-	// Create new transaction with appropriate relationships
-	return tp.createNewTransaction(ctx, summaryData, acuanTransactionID, amount, currentDate)
-}
-
-// updateExistingIfPresent updates existing transaction if it exists for current date
-func (tp *TransactionProcessor) updateExistingIfPresent(
-	ctx context.Context,
-	summaryData models.CreateMoneyFlowSummary,
-	acuanTransactionID string,
-	amount decimal.Decimal,
-	currentDate time.Time,
-) (string, error) {
-	processed, err := tp.repo.GetTransactionProcessed(
-		ctx,
-		summaryData.TransactionType,
-		summaryData.TransactionSourceCreationDate,
-	)
-	if err != nil {
-		return "", fmt.Errorf("failed to check transaction: %w", err)
-	}
-
-	if processed == nil {
-		return "", nil // No existing transaction
-	}
-
-	xlog.Info(ctx, constants.LogPrefixMoneyFlowProcessor+" Found existing transaction for current date",
-		xlog.String("summary_id", processed.ID),
-		xlog.Time("transaction_date", currentDate))
-
-	return tp.updateExistingSummary(ctx, processed, acuanTransactionID, amount)
-}
-
-// updateExistingSummary updates an existing summary with new amount
-func (tp *TransactionProcessor) updateExistingSummary(
-	ctx context.Context,
-	processed *models.MoneyFlowTransactionProcessed,
-	acuanTransactionID string,
-	amount decimal.Decimal,
-) (string, error) {
-	// Update total amount
-	totalAmount := amount.Add(processed.TotalTransfer)
-	updateReq := models.MoneyFlowSummaryUpdate{
-		TotalTransfer: &totalAmount,
-	}
-
-	if err := tp.repo.UpdateSummary(ctx, processed.ID, updateReq); err != nil {
-		return "", fmt.Errorf("failed to update summary: %w", err)
-	}
-
-	xlog.Info(ctx, constants.LogPrefixMoneyFlowProcessor+" Updated existing summary",
-		xlog.String("summary_id", processed.ID),
-		xlog.String("previous_total", processed.TotalTransfer.String()),
-		xlog.String("new_total", totalAmount.String()))
-
-	// Create detailed summary
-	if err := tp.transactionRepository.CreateDetailedSummary(ctx, processed.ID, acuanTransactionID); err != nil {
-		return "", err
-	}
-
-	return processed.ID, nil
-}
-
-// createNewTransaction creates a new transaction with relationship checking
-func (tp *TransactionProcessor) createNewTransaction(
-	ctx context.Context,
-	summaryData models.CreateMoneyFlowSummary,
-	acuanTransactionID string,
-	amount decimal.Decimal,
-	currentDate time.Time,
-) (string, error) {
 	// Determine relationship to failed/rejected transactions
+	// Note: This is only used for NEW records, ignored on UPDATE
 	relatedID, err := tp.relationshipManager.DetermineRelationship(ctx, summaryData, currentDate)
 	if err != nil {
 		return "", err
@@ -124,18 +48,54 @@ func (tp *TransactionProcessor) createNewTransaction(
 
 	summaryData.RelatedFailedOrRejectedSummaryID = relatedID
 
-	// Create new summary
-	summaryID, err := tp.transactionRepository.CreateNewSummary(ctx, summaryData, acuanTransactionID, amount)
+	// UPSERT: Atomic create or update
+	summaryID, isNewRecord, err := tp.repo.UpsertSummary(ctx, summaryData)
 	if err != nil {
+		return "", fmt.Errorf("failed to upsert summary: %w", err)
+	}
+
+	// Create detailed summary entry (links to transaction table)
+	if err := tp.transactionRepository.CreateDetailedSummary(ctx, summaryID, acuanTransactionID); err != nil {
 		return "", err
 	}
 
-	tp.logNewSummaryCreation(ctx, summaryID, summaryData, amount, relatedID, currentDate)
+	// Metrics and logging
+	tp.recordMetrics(ctx, summaryData.PaymentType, isNewRecord)
+	tp.logOperation(ctx, summaryID, summaryData, amount, relatedID, currentDate, isNewRecord)
 
 	return summaryID, nil
 }
 
-// logNewSummaryCreation logs the creation of a new summary
+// recordMetrics records operation metrics
+func (tp *TransactionProcessor) recordMetrics(ctx context.Context, paymentType string, isNewRecord bool) {
+	operation := "update"
+	if isNewRecord {
+		operation = "create"
+	}
+
+	xlog.Debug(ctx, "[PROCESSOR-METRICS]",
+		xlog.String("operation", operation),
+		xlog.String("payment_type", paymentType))
+}
+
+// logOperation logs the operation details
+func (tp *TransactionProcessor) logOperation(
+	ctx context.Context,
+	summaryID string,
+	summaryData models.CreateMoneyFlowSummary,
+	amount decimal.Decimal,
+	relatedID *string,
+	currentDate time.Time,
+	isNewRecord bool,
+) {
+	if isNewRecord {
+		tp.logNewSummaryCreation(ctx, summaryID, summaryData, amount, relatedID, currentDate)
+	} else {
+		tp.logSummaryUpdate(ctx, summaryID, summaryData, amount, currentDate)
+	}
+}
+
+// logNewSummaryCreation logs creation of new summary
 func (tp *TransactionProcessor) logNewSummaryCreation(
 	ctx context.Context,
 	summaryID string,
@@ -145,17 +105,33 @@ func (tp *TransactionProcessor) logNewSummaryCreation(
 	currentDate time.Time,
 ) {
 	relatedIDStr := "none"
-	if relatedID != nil {
+	if relatedID != nil && *relatedID != "" {
 		relatedIDStr = *relatedID
 	}
 
-	xlog.Info(ctx, constants.LogPrefixMoneyFlowProcessor+" Created new summary",
+	xlog.Info(ctx, constants.LogPrefixMoneyFlowProcessor+" Created new summary via UPSERT",
 		xlog.String("summary_id", summaryID),
 		xlog.Time("transaction_date", currentDate),
 		xlog.String("transaction_type", summaryData.TransactionType),
 		xlog.String("payment_type", summaryData.PaymentType),
 		xlog.String("amount", amount.String()),
 		xlog.String("related_failed_rejected_id", relatedIDStr))
+}
+
+// logSummaryUpdate logs update to existing summary
+func (tp *TransactionProcessor) logSummaryUpdate(
+	ctx context.Context,
+	summaryID string,
+	summaryData models.CreateMoneyFlowSummary,
+	amount decimal.Decimal,
+	currentDate time.Time,
+) {
+	xlog.Info(ctx, constants.LogPrefixMoneyFlowProcessor+" Updated existing summary via UPSERT",
+		xlog.String("summary_id", summaryID),
+		xlog.Time("transaction_date", currentDate),
+		xlog.String("transaction_type", summaryData.TransactionType),
+		xlog.String("payment_type", summaryData.PaymentType),
+		xlog.String("added_amount", amount.String()))
 }
 
 // RelationshipManager manages relationships between transactions
@@ -169,15 +145,18 @@ func NewRelationshipManager(repo repositories.MoneyFlowRepository) *Relationship
 }
 
 // DetermineRelationship determines if there should be a relationship to a failed/rejected transaction
+// Note: This relationship is only set for NEW records, not updates
 func (rm *RelationshipManager) DetermineRelationship(
 	ctx context.Context,
 	summaryData models.CreateMoneyFlowSummary,
 	currentDate time.Time,
 ) (*string, error) {
 	// Check for IN_PROGRESS transactions first
-	if hasInProgress, err := rm.checkInProgressTransaction(ctx, summaryData); err != nil {
+	hasInProgress, err := rm.checkInProgressTransaction(ctx, summaryData)
+	if err != nil {
 		return nil, err
-	} else if hasInProgress {
+	}
+	if hasInProgress {
 		return nil, nil // No relationship if IN_PROGRESS exists
 	}
 
@@ -261,12 +240,12 @@ func (rm *RelationshipManager) evaluateRelationship(
 		return nil, nil
 	}
 
-	// Set the relationship - this is the first transaction after this specific failure
+	// Set the relationship
 	rm.logRelationshipEstablished(ctx, failedOrRejected, failedDate, currentDate)
 	return &failedOrRejected.ID, nil
 }
 
-// Logging methods for better observability
+// Logging methods for observability
 func (rm *RelationshipManager) logSameDateScenario(ctx context.Context, failedID string, failedDate, currentDate time.Time) {
 	xlog.Info(ctx, constants.LogPrefixMoneyFlowProcessor+" Found failed/rejected but same date, not setting relation",
 		xlog.String("failed_rejected_id", failedID),
@@ -303,27 +282,6 @@ type TransactionRepository struct {
 // NewTransactionRepository creates a new transaction repository
 func NewTransactionRepository(repo repositories.MoneyFlowRepository) *TransactionRepository {
 	return &TransactionRepository{repo: repo}
-}
-
-// CreateNewSummary creates a new summary with detailed summary
-func (tr *TransactionRepository) CreateNewSummary(
-	ctx context.Context,
-	summaryData models.CreateMoneyFlowSummary,
-	acuanTransactionID string,
-	amount decimal.Decimal,
-) (string, error) {
-	// Create summary
-	summaryID, err := tr.repo.CreateSummary(ctx, summaryData)
-	if err != nil {
-		return "", fmt.Errorf("failed to create summary: %w", err)
-	}
-
-	// Create detailed summary
-	if err := tr.CreateDetailedSummary(ctx, summaryID, acuanTransactionID); err != nil {
-		return "", err
-	}
-
-	return summaryID, nil
 }
 
 // CreateDetailedSummary creates a detailed summary entry

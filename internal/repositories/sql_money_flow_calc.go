@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/shopspring/decimal"
 	"strings"
 	"time"
 
@@ -23,6 +24,7 @@ import (
 type MoneyFlowRepository interface {
 	CreateSummary(ctx context.Context, in models.CreateMoneyFlowSummary) (string, error)
 	CreateDetailedSummary(ctx context.Context, in models.CreateDetailedMoneyFlowSummary) error
+	UpsertSummary(ctx context.Context, in models.CreateMoneyFlowSummary) (string, bool, error)
 	GetTransactionProcessed(ctx context.Context, breakdownTransactionsFrom string, transactionSourceDate time.Time) (*models.MoneyFlowTransactionProcessed, error)
 	UpdateSummary(ctx context.Context, summaryID string, update models.MoneyFlowSummaryUpdate) error
 	GetSummaryIDByPapaTransactionID(ctx context.Context, papaTransactionID string) (string, error)
@@ -64,6 +66,29 @@ const (
 	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, NOW())
 	RETURNING id
 `
+
+	queryUpsertSummary = `
+    INSERT INTO money_flow_summaries (
+        id, transaction_source_creation_date, transaction_type, payment_type, 
+        reference_number, description, source_account, destination_account, 
+        total_transfer, papa_transaction_id, money_flow_status, 
+        requested_date, actual_date, 
+        source_bank_account_number, source_bank_account_name, source_bank_name,
+        destination_bank_account_number, destination_bank_account_name, destination_bank_name,
+        related_failed_or_rejected_summary_id,
+        is_active, created_at, updated_at
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, TRUE, $21, NOW())
+    ON CONFLICT (transaction_source_creation_date, payment_type) 
+    WHERE is_active = TRUE
+    DO UPDATE SET
+        total_transfer = money_flow_summaries.total_transfer + EXCLUDED.total_transfer,
+        updated_at = NOW()
+    RETURNING 
+        id, 
+        total_transfer,
+        (xmax = 0) as is_new_record
+    `
 
 	queryCreateDetailedSummary = `
 		INSERT INTO detailed_money_flow_summaries (
@@ -224,6 +249,85 @@ func (mfr *moneyFlowRepository) CreateSummary(ctx context.Context, in models.Cre
 	}
 
 	return in.ID, nil
+}
+
+// UpsertSummary performs atomic INSERT or UPDATE based on unique constraint
+// Returns (summaryID, isNewRecord, error)
+func (mfr *moneyFlowRepository) UpsertSummary(
+	ctx context.Context,
+	in models.CreateMoneyFlowSummary,
+) (string, bool, error) {
+	var err error
+
+	monitor := monitoring.New(ctx)
+	defer monitor.Finish(monitoring.WithFinishCheckError(err))
+
+	db := mfr.r.extractTxWrite(ctx)
+
+	var summaryID string
+	var totalTransfer decimal.Decimal
+	var isNewRecord bool
+
+	err = db.QueryRowContext(ctx, queryUpsertSummary,
+		in.ID,
+		in.TransactionSourceCreationDate,
+		in.TransactionType,
+		in.PaymentType,
+		in.ReferenceNumber,
+		in.Description,
+		in.SourceAccount,
+		in.DestinationAccount,
+		in.TotalTransfer,
+		in.PapaTransactionID,
+		in.MoneyFlowStatus,
+		in.RequestedDate,
+		in.ActualDate,
+		in.SourceBankAccountNumber,
+		in.SourceBankAccountName,
+		in.SourceBankName,
+		in.DestinationBankAccountNumber,
+		in.DestinationBankAccountName,
+		in.DestinationBankName,
+		in.RelatedFailedOrRejectedSummaryID,
+		in.CreatedAt,
+	).Scan(&summaryID, &totalTransfer, &isNewRecord)
+
+	if err != nil {
+		xlog.Error(ctx, "[UPSERT-SUMMARY] Failed to upsert",
+			xlog.String("payment_type", in.PaymentType),
+			xlog.Time("transaction_date", in.TransactionSourceCreationDate),
+			xlog.Err(err))
+		return "", false, fmt.Errorf("failed to upsert summary: %w", err)
+	}
+
+	// Log based on operation type
+	if isNewRecord {
+		xlog.Info(ctx, "[UPSERT-SUMMARY] Created new summary",
+			xlog.String("summary_id", summaryID),
+			xlog.String("payment_type", in.PaymentType),
+			xlog.String("transaction_type", in.TransactionType),
+			xlog.Time("transaction_date", in.TransactionSourceCreationDate),
+			xlog.String("amount", decimal.NewFromFloat(in.TotalTransfer).String()),
+			xlog.String("related_failed_rejected_id", getRelatedIDString(in.RelatedFailedOrRejectedSummaryID)))
+	} else {
+		xlog.Info(ctx, "[UPSERT-SUMMARY] Updated existing summary",
+			xlog.String("summary_id", summaryID),
+			xlog.String("payment_type", in.PaymentType),
+			xlog.String("transaction_type", in.TransactionType),
+			xlog.Time("transaction_date", in.TransactionSourceCreationDate),
+			xlog.String("added_amount", decimal.NewFromFloat(in.TotalTransfer).String()),
+			xlog.String("new_total", totalTransfer.String()))
+	}
+
+	return summaryID, isNewRecord, nil
+}
+
+// Helper function for logging
+func getRelatedIDString(relatedID *string) string {
+	if relatedID == nil || *relatedID == "" {
+		return "none"
+	}
+	return *relatedID
 }
 
 func (mfr *moneyFlowRepository) CreateDetailedSummary(ctx context.Context, in models.CreateDetailedMoneyFlowSummary) error {
