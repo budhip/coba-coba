@@ -8,7 +8,7 @@ docker-start:
 docker-stop:
 	docker-compose down
 
-run-api: tidy swag-gen 
+run-api: tidy swag-gen
 	CGO_ENABLED=0 go run ./cmd/api/main.go
 .PHONY: run-api
 

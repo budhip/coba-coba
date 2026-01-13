@@ -90,36 +90,36 @@ func (ts *walletTrx) CreateTransactionAtomic(ctx context.Context, nwt models.New
 	var acuanTransactions []models.Transaction
 	var updatedBalances map[string]models.Balance
 	var currentBalances map[string]models.Balance
+	var hvtPayloadsToPublish []models.UpdateBalanceHVTPayload
+
+	mapTransformer := transformer.NewMapTransformer(
+		ts.srv.conf,
+		ts.srv.masterDataRepo,
+		ts.srv.accountingClient,
+		ts.srv.sqlRepo.GetAccountRepository(),
+		ts.srv.sqlRepo.GetTransactionRepository(),
+		ts.getAccountConfigRepository(),
+		ts.srv.sqlRepo.GetWalletTransactionRepository(),
+		ts.srv.flag,
+	)
+	childTransactions, err := mapTransformer.Transform(ctx, nwt.ToWalletTransaction())
+	if err != nil {
+		return nil, fmt.Errorf("unable to transform wallet transaction: %w", err)
+	}
 
 	calculateBalance := getWalletBalanceCalculator(nwt.TransactionFlow, isReserved)
 	created := &models.WalletTransaction{}
-	err := ts.srv.sqlRepo.Atomic(dbCtx, func(atomicCtx context.Context, r repositories.SQLRepository) error {
+	err = ts.srv.sqlRepo.Atomic(dbCtx, func(atomicCtx context.Context, r repositories.SQLRepository) error {
 		accRepo := r.GetAccountRepository()
 		balanceRepo := r.GetBalanceRepository()
 		walletTrxRepo := r.GetWalletTransactionRepository()
 		acuanTrxRepo := r.GetTransactionRepository()
 
-		mapTransformer := transformer.NewMapTransformer(
-			ts.srv.conf,
-			ts.srv.masterDataRepo,
-			ts.srv.accountingClient,
-			ts.srv.sqlRepo.GetAccountRepository(),
-			ts.srv.sqlRepo.GetTransactionRepository(),
-			ts.getAccountConfigRepository(),
-			ts.srv.sqlRepo.GetWalletTransactionRepository(),
-			ts.srv.flag,
-		)
-
-		childTransactions, errAtomic := mapTransformer.Transform(atomicCtx, nwt.ToWalletTransaction())
-		if errAtomic != nil {
-			return fmt.Errorf("unable to transform wallet transaction: %w", errAtomic)
-		}
-
 		accountNumbers := getAccountNumbersForUpdateBalance(childTransactions)
 		abs, errAtomic := balanceRepo.GetMany(atomicCtx,
 			models.GetAccountBalanceRequest{
 				AccountNumbers:               accountNumbers,
-				ForUpdate:                    true,
+				ForUpdate:                    true, // Kunci baris untuk konsistensi
 				AccountNumbersExcludedFromDB: ts.srv.conf.AccountConfig.ExcludedBalanceUpdateAccountNumbers,
 			},
 		)
@@ -159,20 +159,20 @@ func (ts *walletTrx) CreateTransactionAtomic(ctx context.Context, nwt models.New
 			toAccounts = append(toAccounts, ct.ToAccount)
 		}
 
-		for accountNumber, balance := range updatedBalances {
-			if balance.IsSkipBalanceUpdateOnDB() {
+		for accountNumber, balanceItem := range updatedBalances {
+			if balanceItem.IsSkipBalanceUpdateOnDB() {
 				continue
 			}
 
-			isEligibleForHVT := !slices.Contains(fromAccounts, accountNumber) && balance.IsHVT() && !isReserved
+			isEligibleForHVT := !slices.Contains(fromAccounts, accountNumber) && balanceItem.IsHVT() && !isReserved
 			if isEligibleForHVT {
 				prevBalance, ok := currentBalances[accountNumber]
 				if !ok {
 					return fmt.Errorf("unable to get previous balance for account number %s", accountNumber)
 				}
 
-				diffAmount := balance.Available().Sub(prevBalance.Available())
-				errAtomic = ts.srv.balanceHVTPub.Publish(atomicCtx, models.UpdateBalanceHVTPayload{
+				diffAmount := balanceItem.Available().Sub(prevBalance.Available())
+				hvtPayloadsToPublish = append(hvtPayloadsToPublish, models.UpdateBalanceHVTPayload{
 					Kind:                "balanceUpdateHVT",
 					WalletTransactionId: nwt.ID,
 					RefNumber:           nwt.RefNumber,
@@ -181,15 +181,11 @@ func (ts *walletTrx) CreateTransactionAtomic(ctx context.Context, nwt models.New
 						ValueDecimal: models.NewDecimalFromExternal(diffAmount),
 						Currency:     "IDR",
 					},
-				}, publisher.WithKey(accountNumber))
-				if errAtomic != nil {
-					return fmt.Errorf("unable to publish balance hvt: %w", errAtomic)
-				}
-
+				})
 				continue
 			}
 
-			ub, errUpdateBalance := accRepo.UpdateAccountBalance(atomicCtx, accountNumber, balance)
+			ub, errUpdateBalance := accRepo.UpdateAccountBalance(atomicCtx, accountNumber, balanceItem)
 			if errUpdateBalance != nil {
 				return fmt.Errorf("unable to update balance: %w", errUpdateBalance)
 			}
@@ -208,10 +204,6 @@ func (ts *walletTrx) CreateTransactionAtomic(ctx context.Context, nwt models.New
 			if errAtomic != nil {
 				return fmt.Errorf("unable to store acuan transaction: %w", errAtomic)
 			}
-			errAtomic = ts.enrichTransactionsWithEntityData(atomicCtx, acuanTransactions)
-			if errAtomic != nil {
-				return fmt.Errorf("unable to put entity to acuan transaction: %w", errAtomic)
-			}
 		}
 
 		return nil
@@ -224,9 +216,22 @@ func (ts *walletTrx) CreateTransactionAtomic(ctx context.Context, nwt models.New
 	// so we set the max waiting time to be longer than that
 	// please be aware that this timeout is associated with the kafka client timeout
 	// if the kafka client timeout is changed, this timeout should be changed too
+	var postCommitErrors *multierror.Error
+	if !isReserved {
+		postCommitErrors = multierror.Append(postCommitErrors, ts.enrichTransactionsWithEntityData(ctx, acuanTransactions))
+	}
+
 	maxWaitingTimeKafka := 7 * time.Second
 	kafkaCtx, cancelKafka := context.WithTimeout(context.Background(), maxWaitingTimeKafka)
 	defer cancelKafka()
+
+	for _, payload := range hvtPayloadsToPublish {
+		if errPub := ts.srv.balanceHVTPub.Publish(kafkaCtx, payload, publisher.WithKey(payload.AccountNumber)); errPub != nil {
+			postCommitErrors = multierror.Append(postCommitErrors, fmt.Errorf("unable to publish balance hvt post-commit: %w", errPub))
+
+		}
+	}
+
 	if !isReserved && isPublish {
 		err := ts.publishNotificationCreateWalletTransactionSuccess(
 			kafkaCtx,
@@ -237,11 +242,10 @@ func (ts *walletTrx) CreateTransactionAtomic(ctx context.Context, nwt models.New
 			clientID,
 		)
 		if err != nil {
-			return created, err
+			postCommitErrors = multierror.Append(postCommitErrors, err)
 		}
 	}
-
-	return created, nil
+	return created, postCommitErrors.ErrorOrNil()
 }
 
 func (ts *walletTrx) enrichTransactionsWithEntityData(ctx context.Context, transactions []models.Transaction) error {

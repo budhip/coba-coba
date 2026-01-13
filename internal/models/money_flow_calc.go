@@ -138,6 +138,7 @@ type GetMoneyFlowSummaryRequest struct {
 	Limit                              int    `query:"limit" example:"10"`
 	NextCursor                         string `query:"nextCursor" example:"2"`
 	PrevCursor                         string `query:"prevCursor" example:"1"`
+	SummaryID                          string `query:"summaryID" example:"a232dd33-a036-44c7-8de5-0e8268f23267"`
 }
 
 // MoneyFlowSummaryResponse represents the response for money flow summary detail
@@ -204,6 +205,7 @@ type MoneyFlowSummaryFilterOptions struct {
 	Status                             string
 	Limit                              int
 	Cursor                             *MoneyFlowSummaryCursor
+	SummaryID                          string
 }
 
 // MoneyFlowSummaryCursor represents cursor for pagination based on transaction_source_creation_date and ID

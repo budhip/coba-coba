@@ -1487,7 +1487,7 @@ func (suite *accountTestSuite) TestRepository_GetOneByAccountNumberOrLegacyId() 
 				ctx:           context.TODO(),
 				accountNumber: accountNumberTest,
 				setupMocks: func() {
-					suite.mock.ExpectQuery(regexp.QuoteMeta(queryGetOneByAccountNumberOrLegacyId)).
+					suite.mock.ExpectQuery(regexp.QuoteMeta(newQueryGetOneByAccountNumber)).
 						WithArgs(accountNumberTest).
 						WillReturnError(assert.AnError)
 					suite.mockFlag.EXPECT().
@@ -1508,7 +1508,7 @@ func (suite *accountTestSuite) TestRepository_GetOneByAccountNumberOrLegacyId() 
 						NewRows([]string{"id", "accountNumber", "ownerId", "categoryName", "subCategoryName", "entityName", "currency", "status", "isHvt", "actualBalance", "pendingBalance", "createdAt", "updatedAt", "legacyId", "accountName", "featurePreset", "featureBalanceRangeMin", "featureBalanceRangeMax", "featureNegativeBalanceAllowed", "featureNegativeBalanceLimit"}).
 						AddRow(1, "accountNumber", "ownerId", "category", "subCategory", "entity", "currency", "status", true, "420.69", "0", common.Now(), common.Now(), nil, "John", "customer", 10000, 100000, false, 1000)
 					suite.mock.
-						ExpectQuery(regexp.QuoteMeta(queryGetOneByAccountNumberOrLegacyId)).
+						ExpectQuery(regexp.QuoteMeta(newQueryGetOneByAccountNumber)).
 						WithArgs(accountNumberTest).
 						WillReturnRows(rows)
 				},

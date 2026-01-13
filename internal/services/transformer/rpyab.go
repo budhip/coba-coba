@@ -38,10 +38,13 @@ func (t rpyabTransformer) Transform(ctx context.Context, amount models.Amount, p
 	// Check feature flag for RPYAB + RPYAC adjustment
 	isNeedJogressRpyabRpyac := t.config.FeatureFlag.EnableRpyabRpyacAdjustment
 	if isNeedJogressRpyabRpyac {
-		// If feature flag is ON, add RPYAC amount to RPYAB
+		// If feature flag is ON, add RPYAC amount to RPYAB only if RPYAC > 0
 		for _, amt := range parentWalletTransaction.Amounts {
 			if amt.Type == "RPYAC" && amt.Amount != nil {
-				finalAmount = finalAmount.Add(amt.Amount.ValueDecimal.Decimal)
+				rpyacAmount := amt.Amount.ValueDecimal.Decimal
+				if rpyacAmount.GreaterThan(decimal.Zero) {
+					finalAmount = finalAmount.Add(rpyacAmount)
+				}
 				break
 			}
 		}

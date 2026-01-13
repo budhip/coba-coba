@@ -18,6 +18,10 @@ func (req GetMoneyFlowSummaryRequest) ToFilterOpts() (*MoneyFlowSummaryFilterOpt
 		Status:      req.Status,
 	}
 
+	if req.SummaryID != "" {
+		opts.SummaryID = req.SummaryID
+	}
+
 	// Parse start date
 	if req.TransactionSourceCreationDateStart != "" {
 		date, err := common.ParseStringToDatetime(constants.DateFormatYYYYMMDD, req.TransactionSourceCreationDateStart)

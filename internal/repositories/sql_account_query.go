@@ -143,55 +143,56 @@ var (
 	WHERE "subCategoryCode" = ?;
 	`
 
-	queryGetOneByAccountNumberOrLegacyId = `
-	WITH accounts AS (
-		SELECT  
-			a."id",
-			a."accountNumber",
-			COALESCE(a."ownerId", '') as "ownerId",
-			'' as "categoryName",
-			'' as "subCategoryName",
-			a."entityCode" as "entityName",
-			COALESCE(a."currency", '') as "currency",
-			COALESCE(a."status", '') as "status",
-			a."isHvt",
-			a."actualBalance",
-			a."pendingBalance",
-			a."createdAt",
-			a."updatedAt",
-			COALESCE(a."legacyId", '{}') "legacyId",
-			COALESCE(a."name", '') as "accountName"
-		FROM "account" a
-		WHERE a."legacyId"->>'t24AccountNumber' = $1
-		UNION ALL
-		SELECT  
-			a."id",
-			a."accountNumber",
-			COALESCE(a."ownerId", '') as "ownerId",
-			'' as "categoryName",
-			'' as "subCategoryName",
-			a."entityCode" as "entityName",
-			COALESCE(a."currency", '') as "currency",
-			COALESCE(a."status", '') as "status",
-			a."isHvt",
-			a."actualBalance",
-			a."pendingBalance",
-			a."createdAt",
-			a."updatedAt",
-			COALESCE(a."legacyId", '{}') "legacyId",
-			COALESCE(a."name", '') as "accountName"
-		FROM "account" a
-		WHERE a."accountNumber" = $1
-	)
-	SELECT
-		accounts.*,
-		LOWER(f."preset") as "featurePreset",
-		f."balance_range_min" as "featureBalanceRangeMin",
-		f."balance_range_max" as "featureBalanceRangeMax",
-		f."negative_balance_allowed" as "featureNegativeBalanceAllowed",
-		f."negative_balance_limit" as "featureNegativeBalanceLimit"
-	FROM accounts
-	LEFT JOIN feature f ON f."account_number" = accounts."accountNumber"
+	newQueryGetOneByAccountNumber = `
+	SELECT a."id",
+       a."accountNumber",
+       COALESCE(a."ownerId", '')  as "ownerId",
+       ''                         as "categoryName",
+       ''                         as "subCategoryName",
+       a."entityCode"             as "entityName",
+       COALESCE(a."currency", '') as "currency",
+       COALESCE(a."status", '')   as "status",
+       a."isHvt",
+       a."actualBalance",
+       a."pendingBalance",
+       a."createdAt",
+       a."updatedAt",
+       COALESCE(a."legacyId", '{}')  "legacyId",
+       COALESCE(a."name", '')     as "accountName",
+       LOWER(f."preset")            as "featurePreset",
+       f."balance_range_min"        as "featureBalanceRangeMin",
+       f."balance_range_max"        as "featureBalanceRangeMax",
+       f."negative_balance_allowed" as "featureNegativeBalanceAllowed",
+       f."negative_balance_limit"   as "featureNegativeBalanceLimit"
+	FROM "account" a
+        LEFT JOIN feature f ON f."account_number" = a."accountNumber"
+	WHERE a."accountNumber" = $1
+	LIMIT 1;`
+
+	newQueryGetOneByAccountNumberLegacy = `
+	SELECT a."id",
+       a."accountNumber",
+       COALESCE(a."ownerId", '')  as "ownerId",
+       ''                         as "categoryName",
+       ''                         as "subCategoryName",
+       a."entityCode"             as "entityName",
+       COALESCE(a."currency", '') as "currency",
+       COALESCE(a."status", '')   as "status",
+       a."isHvt",
+       a."actualBalance",
+       a."pendingBalance",
+       a."createdAt",
+       a."updatedAt",
+       COALESCE(a."legacyId", '{}')  "legacyId",
+       COALESCE(a."name", '')     as "accountName",
+       LOWER(f."preset")            as "featurePreset",
+       f."balance_range_min"        as "featureBalanceRangeMin",
+       f."balance_range_max"        as "featureBalanceRangeMax",
+       f."negative_balance_allowed" as "featureNegativeBalanceAllowed",
+       f."negative_balance_limit"   as "featureNegativeBalanceLimit"
+	FROM "account" a
+         LEFT JOIN feature f ON f."account_number" = a."accountNumber"
+	WHERE a."legacyId" ->> 't24AccountNumber' = $1
 	LIMIT 1;`
 )
 

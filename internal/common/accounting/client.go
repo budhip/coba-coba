@@ -80,257 +80,232 @@ func (c client) GetInvestedAccountNumber(ctx context.Context, cihAccountNumber s
 	monitor := monitoring.New(ctx)
 	defer monitor.Finish(monitoring.WithFinishCheckError(err))
 
-	return c.cache.GetOrSet(ctx, cache.GetOrSetOpts[string]{
-		Key: fmt.Sprintf("go-fp:pas:invested-account:%s", cihAccountNumber),
-		TTL: c.ttlCache,
-		Callback: func() (string, error) {
-			startTime := time.Now()
-			url := fmt.Sprintf("%s/api/v1/lender-accounts/%s", c.baseURL, cihAccountNumber)
+	startTime := time.Now()
+	url := fmt.Sprintf("%s/api/v1/lender-accounts/%s", c.baseURL, cihAccountNumber)
 
-			logFields := []xlog.Field{
-				xlog.String("url", url),
-				xlog.String("cihAccountNumber", cihAccountNumber),
-			}
+	logFields := []xlog.Field{
+		xlog.String("url", url),
+		xlog.String("cihAccountNumber", cihAccountNumber),
+	}
 
-			xlog.Info(ctx, logMessage, append(logFields, xlog.String("message", "send request to go_accounting"))...)
+	xlog.Info(ctx, logMessage, append(logFields, xlog.String("message", "send request to go_accounting"))...)
 
-			httpRes, err := c.httpClient.
-				R().
-				SetContext(ctx).
-				SetHeader("Accept", "application/json;  charset=utf-8").
-				SetHeader("Cache-Control", "no-cache").
-				SetHeader("X-Correlation-Id", ctxdata.GetCorrelationId(ctx)).
-				SetHeader("X-Secret-Key", c.secretKey).
-				Get(url)
-			if err != nil {
-				return "", fmt.Errorf("failed send request: %w", err)
-			}
+	httpRes, err := c.httpClient.
+		R().
+		SetContext(ctx).
+		SetHeader("Accept", "application/json;  charset=utf-8").
+		SetHeader("Cache-Control", "no-cache").
+		SetHeader("X-Correlation-Id", ctxdata.GetCorrelationId(ctx)).
+		SetHeader("X-Secret-Key", c.secretKey).
+		Get(url)
+	if err != nil {
+		return "", fmt.Errorf("failed send request: %w", err)
+	}
 
-			defer func() {
-				if err != nil {
-					xlog.Warn(ctx, logMessage, append(logFields, xlog.Err(err))...)
-				}
-				if c.metrics != nil {
-					groupUrl := fmt.Sprintf("%s/api/v1/lender-accounts/:account-number", c.baseURL)
-					c.metrics.GetHTTPClientPrometheus().Record(time.Since(startTime), SERVICE_NAME, httpRes.Request.Method, groupUrl, httpRes.StatusCode())
-				}
-			}()
+	defer func() {
+		if err != nil {
+			xlog.Warn(ctx, logMessage, append(logFields, xlog.Err(err))...)
+		}
+		if c.metrics != nil {
+			groupUrl := fmt.Sprintf("%s/api/v1/lender-accounts/:account-number", c.baseURL)
+			c.metrics.GetHTTPClientPrometheus().Record(time.Since(startTime), SERVICE_NAME, httpRes.Request.Method, groupUrl, httpRes.StatusCode())
+		}
+	}()
 
-			logFields = append(logFields,
-				xlog.String("httpStatusCode", httpRes.Status()),
-				xlog.Any("httpResponse", httpRes.Body()))
+	logFields = append(logFields,
+		xlog.String("httpStatusCode", httpRes.Status()),
+		xlog.Any("httpResponse", httpRes.Body()))
 
-			if httpRes.StatusCode() != http.StatusOK {
-				if httpRes.StatusCode() == http.StatusNotFound {
-					return "", common.ErrAccountNumberNotFoundInAccounting
-				}
+	if httpRes.StatusCode() != http.StatusOK {
+		if httpRes.StatusCode() == http.StatusNotFound {
+			return "", common.ErrAccountNumberNotFoundInAccounting
+		}
 
-				return "", fmt.Errorf("invalid response http code: got %d", httpRes.StatusCode())
-			}
+		return "", fmt.Errorf("invalid response http code: got %d", httpRes.StatusCode())
+	}
 
-			var res ResponseGetLenderAccount
-			err = json.Unmarshal(httpRes.Body(), &res)
-			if err != nil {
-				return "", fmt.Errorf("error unmarshal response: %w", err)
-			}
+	var resLenderAcc ResponseGetLenderAccount
+	err = json.Unmarshal(httpRes.Body(), &resLenderAcc)
+	if err != nil {
+		return "", fmt.Errorf("error unmarshal response: %w", err)
+	}
 
-			if res.InvestedAccountNumber == "" {
-				return "", common.ErrInvestedAccountNumberNotFound
-			}
+	if resLenderAcc.InvestedAccountNumber == "" {
+		return "", common.ErrInvestedAccountNumberNotFound
+	}
 
-			return res.InvestedAccountNumber, nil
-		},
-	})
+	return resLenderAcc.InvestedAccountNumber, nil
 }
 
 func (c client) GetReceivableAccountNumber(ctx context.Context, cihAccountNumber string) (res string, err error) {
 	monitor := monitoring.New(ctx)
 	defer monitor.Finish(monitoring.WithFinishCheckError(err))
 
-	return c.cache.GetOrSet(ctx, cache.GetOrSetOpts[string]{
-		Key: fmt.Sprintf("go-fp:pas:receivable-account:%s", cihAccountNumber),
-		TTL: c.ttlCache,
-		Callback: func() (string, error) {
-			startTime := time.Now()
-			url := fmt.Sprintf("%s/api/v1/lender-accounts/%s", c.baseURL, cihAccountNumber)
+	startTime := time.Now()
+	url := fmt.Sprintf("%s/api/v1/lender-accounts/%s", c.baseURL, cihAccountNumber)
 
-			logFields := []xlog.Field{
-				xlog.String("url", url),
-				xlog.String("cihAccountNumber", cihAccountNumber),
-			}
+	logFields := []xlog.Field{
+		xlog.String("url", url),
+		xlog.String("cihAccountNumber", cihAccountNumber),
+	}
 
-			xlog.Info(ctx, logMessage, append(logFields, xlog.String("message", "send request to go_accounting"))...)
+	xlog.Info(ctx, logMessage, append(logFields, xlog.String("message", "send request to go_accounting"))...)
 
-			httpRes, err := c.httpClient.
-				R().
-				SetContext(ctx).
-				SetHeader("Accept", "application/json;  charset=utf-8").
-				SetHeader("Cache-Control", "no-cache").
-				SetHeader("X-Correlation-Id", ctxdata.GetCorrelationId(ctx)).
-				SetHeader("X-Secret-Key", c.secretKey).
-				Get(url)
-			if err != nil {
-				return "", fmt.Errorf("failed send request: %w", err)
-			}
+	httpRes, err := c.httpClient.
+		R().
+		SetContext(ctx).
+		SetHeader("Accept", "application/json;  charset=utf-8").
+		SetHeader("Cache-Control", "no-cache").
+		SetHeader("X-Correlation-Id", ctxdata.GetCorrelationId(ctx)).
+		SetHeader("X-Secret-Key", c.secretKey).
+		Get(url)
+	if err != nil {
+		return "", fmt.Errorf("failed send request: %w", err)
+	}
 
-			defer func() {
-				if err != nil {
-					xlog.Warn(ctx, logMessage, append(logFields, xlog.Err(err))...)
-				}
-				if c.metrics != nil {
-					groupUrl := fmt.Sprintf("%s/api/v1/lender-accounts/:account-number", c.baseURL)
-					c.metrics.GetHTTPClientPrometheus().Record(time.Since(startTime), SERVICE_NAME, httpRes.Request.Method, groupUrl, httpRes.StatusCode())
-				}
-			}()
+	defer func() {
+		if err != nil {
+			xlog.Warn(ctx, logMessage, append(logFields, xlog.Err(err))...)
+		}
+		if c.metrics != nil {
+			groupUrl := fmt.Sprintf("%s/api/v1/lender-accounts/:account-number", c.baseURL)
+			c.metrics.GetHTTPClientPrometheus().Record(time.Since(startTime), SERVICE_NAME, httpRes.Request.Method, groupUrl, httpRes.StatusCode())
+		}
+	}()
 
-			logFields = append(logFields,
-				xlog.String("httpStatusCode", httpRes.Status()),
-				xlog.Any("httpResponse", httpRes.Body()))
+	logFields = append(logFields,
+		xlog.String("httpStatusCode", httpRes.Status()),
+		xlog.Any("httpResponse", httpRes.Body()))
 
-			if httpRes.StatusCode() != http.StatusOK {
-				if httpRes.StatusCode() == http.StatusNotFound {
-					return "", common.ErrAccountNumberNotFoundInAccounting
-				}
+	if httpRes.StatusCode() != http.StatusOK {
+		if httpRes.StatusCode() == http.StatusNotFound {
+			return "", common.ErrAccountNumberNotFoundInAccounting
+		}
 
-				return "", fmt.Errorf("invalid response http code: got %d", httpRes.StatusCode())
-			}
+		return "", fmt.Errorf("invalid response http code: got %d", httpRes.StatusCode())
+	}
 
-			var res ResponseGetLenderAccount
-			err = json.Unmarshal(httpRes.Body(), &res)
-			if err != nil {
-				return "", fmt.Errorf("error unmarshal response: %w", err)
-			}
+	var resLenderAcc ResponseGetLenderAccount
+	err = json.Unmarshal(httpRes.Body(), &resLenderAcc)
+	if err != nil {
+		return "", fmt.Errorf("error unmarshal response: %w", err)
+	}
 
-			if res.ReceivableAccountNumber == "" {
-				return "", common.ErrReceivableAccountNumberNotFound
-			}
+	if resLenderAcc.ReceivableAccountNumber == "" {
+		return "", common.ErrReceivableAccountNumberNotFound
+	}
 
-			return res.ReceivableAccountNumber, nil
-		},
-	})
+	return resLenderAcc.ReceivableAccountNumber, nil
 }
 
 func (c client) GetLoanAdvancePayment(ctx context.Context, loanAccountNumber string) (res string, err error) {
 	monitor := monitoring.New(ctx)
 	defer monitor.Finish(monitoring.WithFinishCheckError(err))
 
-	return c.cache.GetOrSet(ctx, cache.GetOrSetOpts[string]{
-		Key: fmt.Sprintf("go-fp:pas:loan-adv-payment:%s", loanAccountNumber),
-		TTL: c.ttlCache,
-		Callback: func() (string, error) {
-			startTime := time.Now()
-			url := fmt.Sprintf("%s/api/v1/loan-accounts/advance-account/%s", c.baseURL, loanAccountNumber)
+	startTime := time.Now()
+	url := fmt.Sprintf("%s/api/v1/loan-accounts/advance-account/%s", c.baseURL, loanAccountNumber)
 
-			logFields := []xlog.Field{
-				xlog.String("url", url),
-				xlog.String("loanAccountNumber", loanAccountNumber),
-			}
+	logFields := []xlog.Field{
+		xlog.String("url", url),
+		xlog.String("loanAccountNumber", loanAccountNumber),
+	}
 
-			httpRes, err := c.httpClient.
-				R().
-				SetContext(ctx).
-				SetHeader("Accept", "application/json;  charset=utf-8").
-				SetHeader("Cache-Control", "no-cache").
-				SetHeader("X-Correlation-Id", ctxdata.GetCorrelationId(ctx)).
-				SetHeader("X-Secret-Key", c.secretKey).
-				Get(url)
-			if err != nil {
-				return "", fmt.Errorf("failed send request: %w", err)
-			}
+	httpRes, err := c.httpClient.
+		R().
+		SetContext(ctx).
+		SetHeader("Accept", "application/json;  charset=utf-8").
+		SetHeader("Cache-Control", "no-cache").
+		SetHeader("X-Correlation-Id", ctxdata.GetCorrelationId(ctx)).
+		SetHeader("X-Secret-Key", c.secretKey).
+		Get(url)
+	if err != nil {
+		return "", fmt.Errorf("failed send request: %w", err)
+	}
 
-			defer func() {
-				if err != nil {
-					xlog.Warn(ctx, logMessage, append(logFields, xlog.Err(err))...)
-				}
-				if c.metrics != nil {
-					groupUrl := fmt.Sprintf("%s/api/v1/loan-accounts/advance-account/:account-number", c.baseURL)
-					c.metrics.GetHTTPClientPrometheus().Record(time.Since(startTime), SERVICE_NAME, httpRes.Request.Method, groupUrl, httpRes.StatusCode())
-				}
-			}()
+	defer func() {
+		if err != nil {
+			xlog.Warn(ctx, logMessage, append(logFields, xlog.Err(err))...)
+		}
+		if c.metrics != nil {
+			groupUrl := fmt.Sprintf("%s/api/v1/loan-accounts/advance-account/:account-number", c.baseURL)
+			c.metrics.GetHTTPClientPrometheus().Record(time.Since(startTime), SERVICE_NAME, httpRes.Request.Method, groupUrl, httpRes.StatusCode())
+		}
+	}()
 
-			if httpRes.StatusCode() != http.StatusOK {
-				if httpRes.StatusCode() == http.StatusNotFound {
-					return "", common.ErrAccountNumberNotFoundInAccounting
-				}
-				return "", fmt.Errorf("invalid response http code: got %d", httpRes.StatusCode())
-			}
+	if httpRes.StatusCode() != http.StatusOK {
+		if httpRes.StatusCode() == http.StatusNotFound {
+			return "", common.ErrAccountNumberNotFoundInAccounting
+		}
+		return "", fmt.Errorf("invalid response http code: got %d", httpRes.StatusCode())
+	}
 
-			var res ResponseGetLoanAccount
-			err = json.Unmarshal(httpRes.Body(), &res)
-			if err != nil {
-				return "", fmt.Errorf("error unmarshal response: %w", err)
-			}
+	var resLoanAcc ResponseGetLoanAccount
+	err = json.Unmarshal(httpRes.Body(), &resLoanAcc)
+	if err != nil {
+		return "", fmt.Errorf("error unmarshal response: %w", err)
+	}
 
-			if res.LoanAdvancePaymentAccountNumber == "" {
-				return "", common.ErrLoanAdvanceAccountNumberNotFound
-			}
+	if resLoanAcc.LoanAdvancePaymentAccountNumber == "" {
+		return "", common.ErrLoanAdvanceAccountNumberNotFound
+	}
 
-			return res.LoanAdvancePaymentAccountNumber, nil
-		},
-	})
+	return resLoanAcc.LoanAdvancePaymentAccountNumber, nil
 }
 
 func (c client) GetLoanPartnerAccounts(ctx context.Context, loanAccountNumber string, loanKind string) (res ResponseGetListAccountNumber, err error) {
 	monitor := monitoring.New(ctx)
 	defer monitor.Finish(monitoring.WithFinishCheckError(err))
 
-	return c.cacheList.GetOrSet(ctx, cache.GetOrSetOpts[ResponseGetListAccountNumber]{
-		Key: fmt.Sprintf("go-fp:pas:loan-partner-accounts:%s", loanAccountNumber),
-		TTL: c.ttlCache,
-		Callback: func() (ResponseGetListAccountNumber, error) {
-			startTime := time.Now()
-			url := fmt.Sprintf("%s/api/v1/loan-partner-accounts", c.baseURL)
+	startTime := time.Now()
+	url := fmt.Sprintf("%s/api/v1/loan-partner-accounts", c.baseURL)
 
-			logFields := []xlog.Field{
-				xlog.String("url", url),
-				xlog.String("loanAccountNumber", loanAccountNumber),
-			}
+	logFields := []xlog.Field{
+		xlog.String("url", url),
+		xlog.String("loanAccountNumber", loanAccountNumber),
+	}
 
-			restClient := c.httpClient.
-				R().
-				SetContext(ctx).
-				SetHeader("Accept", "application/json;  charset=utf-8").
-				SetHeader("Cache-Control", "no-cache").
-				SetHeader("X-Correlation-Id", ctxdata.GetCorrelationId(ctx)).
-				SetHeader("X-Secret-Key", c.secretKey)
+	restClient := c.httpClient.
+		R().
+		SetContext(ctx).
+		SetHeader("Accept", "application/json;  charset=utf-8").
+		SetHeader("Cache-Control", "no-cache").
+		SetHeader("X-Correlation-Id", ctxdata.GetCorrelationId(ctx)).
+		SetHeader("X-Secret-Key", c.secretKey)
 
-			if loanKind != "" {
-				restClient = restClient.SetQueryParam("loanKind", loanKind)
-			}
+	if loanKind != "" {
+		restClient = restClient.SetQueryParam("loanKind", loanKind)
+	}
 
-			if loanAccountNumber != "" {
-				restClient = restClient.SetQueryParam("loanAccountNumber", loanAccountNumber)
-			}
+	if loanAccountNumber != "" {
+		restClient = restClient.SetQueryParam("loanAccountNumber", loanAccountNumber)
+	}
 
-			httpRes, err := restClient.Get(url)
-			if err != nil {
-				return ResponseGetListAccountNumber{}, fmt.Errorf("failed send request: %w", err)
-			}
+	httpRes, err := restClient.Get(url)
+	if err != nil {
+		return ResponseGetListAccountNumber{}, fmt.Errorf("failed send request: %w", err)
+	}
 
-			defer func() {
-				if err != nil {
-					xlog.Warn(ctx, logMessage, append(logFields, xlog.Err(err))...)
-				}
-				if c.metrics != nil {
-					groupUrl := fmt.Sprintf("%s/api/v1/loan-partner-accounts", c.baseURL)
-					c.metrics.GetHTTPClientPrometheus().Record(time.Since(startTime), SERVICE_NAME, httpRes.Request.Method, groupUrl, httpRes.StatusCode())
-				}
-			}()
+	defer func() {
+		if err != nil {
+			xlog.Warn(ctx, logMessage, append(logFields, xlog.Err(err))...)
+		}
+		if c.metrics != nil {
+			groupUrl := fmt.Sprintf("%s/api/v1/loan-partner-accounts", c.baseURL)
+			c.metrics.GetHTTPClientPrometheus().Record(time.Since(startTime), SERVICE_NAME, httpRes.Request.Method, groupUrl, httpRes.StatusCode())
+		}
+	}()
 
-			if httpRes.StatusCode() != http.StatusOK {
-				if httpRes.StatusCode() == http.StatusNotFound {
-					return ResponseGetListAccountNumber{}, common.ErrAccountNumberNotFoundInAccounting
-				}
-				return ResponseGetListAccountNumber{}, fmt.Errorf("invalid response http code: got %d", httpRes.StatusCode())
-			}
+	if httpRes.StatusCode() != http.StatusOK {
+		if httpRes.StatusCode() == http.StatusNotFound {
+			return ResponseGetListAccountNumber{}, common.ErrAccountNumberNotFoundInAccounting
+		}
+		return ResponseGetListAccountNumber{}, fmt.Errorf("invalid response http code: got %d", httpRes.StatusCode())
+	}
 
-			var res ResponseGetListAccountNumber
-			err = json.Unmarshal(httpRes.Body(), &res)
-			if err != nil {
-				return ResponseGetListAccountNumber{}, fmt.Errorf("error unmarshal response: %w", err)
-			}
+	err = json.Unmarshal(httpRes.Body(), &res)
+	if err != nil {
+		return ResponseGetListAccountNumber{}, fmt.Errorf("error unmarshal response: %w", err)
+	}
 
-			return res, nil
-		},
-	})
+	return res, nil
 }

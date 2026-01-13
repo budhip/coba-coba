@@ -50,6 +50,10 @@ func (qb *MoneyFlowQueryBuilder) applyCommonFilters(query sq.SelectBuilder, opts
 		query = query.Where(sq.Eq{`mfs."money_flow_status"`: opts.Status})
 	}
 
+	if opts.SummaryID != "" {
+		query = query.Where(sq.Eq{`mfs."id"`: opts.SummaryID})
+	}
+
 	return query
 }
 

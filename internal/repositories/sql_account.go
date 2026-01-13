@@ -660,30 +660,38 @@ func (ar *accountRepository) GetOneByAccountNumberOrLegacyId(ctx context.Context
 
 	result.Features = &models.WalletFeature{}
 
-	err = db.QueryRowContext(ctx, queryGetOneByAccountNumberOrLegacyId, accountNumber).Scan(
-		&result.ID,
-		&result.AccountNumber,
-		&result.OwnerID,
-		&result.Category,
-		&result.SubCategory,
-		&result.Entity,
-		&result.Currency,
-		&result.Status,
-		&result.IsHVT,
-		&actualBalance,
-		&pendingBalance,
-		&result.CreatedAt,
-		&result.UpdatedAt,
-		&result.LegacyId,
-		&result.AccountName,
-		&featurePreset,
-		&balanceRangeMin,
-		&balanceRangeMax,
-		&negativeBalanceAllowed,
-		&negativeBalanceLimit,
-	)
-	if err != nil {
-		return
+	scan := func(q string) error {
+		return db.QueryRowContext(ctx, q, accountNumber).Scan(
+			&result.ID,
+			&result.AccountNumber,
+			&result.OwnerID,
+			&result.Category,
+			&result.SubCategory,
+			&result.Entity,
+			&result.Currency,
+			&result.Status,
+			&result.IsHVT,
+			&actualBalance,
+			&pendingBalance,
+			&result.CreatedAt,
+			&result.UpdatedAt,
+			&result.LegacyId,
+			&result.AccountName,
+			&featurePreset,
+			&balanceRangeMin,
+			&balanceRangeMax,
+			&negativeBalanceAllowed,
+			&negativeBalanceLimit,
+		)
+	}
+
+	if err = scan(newQueryGetOneByAccountNumber); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			err = scan(newQueryGetOneByAccountNumberLegacy)
+		}
+		if err != nil {
+			return
+		}
 	}
 
 	preset := models.DefaultPresetWalletFeature
